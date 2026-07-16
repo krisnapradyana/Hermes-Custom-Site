@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Make the `dark:` variant class-based (html.dark) instead of media-based. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-parchment: #faf9f5;
   --color-parchment-dark: #f0eee6;
@@ -14,6 +17,26 @@
   --color-card: #ffffff;
 
   --font-serif-display: "Georgia", "Times New Roman", serif;
+}
+
+:root {
+  color-scheme: light;
+}
+
+/* Dark theme — overrides the @theme tokens; utilities reference these vars. */
+html.dark {
+  color-scheme: dark;
+  --color-parchment: #262624;
+  --color-parchment-dark: #1c1c1a;
+  --color-sidebar: #1f1e1c;
+  --color-ink: #e8e6dc;
+  --color-ink-soft: #b3af9f;
+  --color-ink-faint: #817d6c;
+  --color-accent: #d97757;
+  --color-accent-hover: #e08a6d;
+  --color-accent-soft: #3b2b23;
+  --color-line: #3a3833;
+  --color-card: #2d2c29;
 }
 
 html,

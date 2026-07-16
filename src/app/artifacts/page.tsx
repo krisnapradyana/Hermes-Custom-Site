@@ -3,10 +3,11 @@
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Package, FileText, Code2, Globe, GitBranch, Copy, Check, MessageSquare, X } from "lucide-react";
+import { Package, FileText, Code2, Globe, GitBranch, Copy, Check, MessageSquare, X, Download } from "lucide-react";
 import { useHermesStore } from "@/lib/store";
 import { timeAgo } from "@/lib/format";
 import { Artifact, ArtifactKind } from "@/lib/types";
+import { ArtifactPreview, downloadArtifact } from "@/components/ArtifactPreview";
 
 const kindIcon: Record<ArtifactKind, React.ReactNode> = {
   document: <FileText size={15} />,
@@ -107,6 +108,13 @@ function ArtifactsContent() {
               </div>
             </div>
             <div className="flex items-center gap-1">
+              <button
+                onClick={() => downloadArtifact(open)}
+                className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
+                title="Download"
+              >
+                <Download size={15} />
+              </button>
               {open.chatId && (
                 <Link
                   href={`/chat/${open.chatId}`}
@@ -132,19 +140,8 @@ function ArtifactsContent() {
               </button>
             </div>
           </div>
-          <div className="flex-1 overflow-auto">
-            {open.kind === "html" ? (
-              <iframe
-                srcDoc={open.content}
-                sandbox=""
-                className="w-full h-full bg-white"
-                title={open.title}
-              />
-            ) : (
-              <pre className="p-5 text-[13px] leading-relaxed whitespace-pre-wrap font-mono text-ink">
-                {open.content}
-              </pre>
-            )}
+          <div className="flex-1 overflow-hidden">
+            <ArtifactPreview artifact={open} />
           </div>
         </div>
       )}

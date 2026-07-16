@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import { Chat, Message, Project, Artifact, CronJob } from "./types";
+import { Chat, Message, Project, Artifact, CronJob, Attachment } from "./types";
 import { hermesRespond } from "./hermes-api";
 import { extractArtifacts } from "./extract";
 
@@ -17,8 +17,8 @@ interface HermesState {
   isStreaming: boolean;
   _hasHydrated: boolean;
 
-  createChat: (firstMessage: string, projectId?: string) => string;
-  sendMessage: (chatId: string, content: string) => void;
+  createChat: (firstMessage: string, projectId?: string, attachments?: Attachment[]) => string;
+  sendMessage: (chatId: string, content: string, attachments?: Attachment[]) => void;
   togglePin: (chatId: string) => void;
   deleteChat: (chatId: string) => void;
   renameChat: (chatId: string, title: string) => void;
@@ -40,7 +40,7 @@ export const useHermesStore = create<HermesState>()(
       isStreaming: false,
       _hasHydrated: false,
 
-      createChat: (firstMessage, projectId) => {
+      createChat: (firstMessage, projectId, attachments) => {
         const now = new Date().toISOString();
         const id = uid("chat");
         const chat: Chat = {
@@ -53,13 +53,19 @@ export const useHermesStore = create<HermesState>()(
           messages: [],
         };
         set((s) => ({ chats: [chat, ...s.chats] }));
-        get().sendMessage(id, firstMessage);
+        get().sendMessage(id, firstMessage, attachments);
         return id;
       },
 
-      sendMessage: (chatId, content) => {
+      sendMessage: (chatId, content, attachments) => {
         const now = new Date().toISOString();
-        const userMsg: Message = { id: uid("m"), role: "user", content, createdAt: now };
+        const userMsg: Message = {
+          id: uid("m"),
+          role: "user",
+          content,
+          createdAt: now,
+          attachments: attachments?.length ? attachments : undefined,
+        };
         const chat = get().chats.find((c) => c.id === chatId);
         const priorHistory = chat?.messages ?? [];
         set((s) => ({
@@ -71,7 +77,7 @@ export const useHermesStore = create<HermesState>()(
           ),
         }));
 
-        hermesRespond(content, priorHistory).then((reply) => {
+        hermesRespond(content, priorHistory, attachments, chatId).then((reply) => {
           // Promote substantial code blocks in the reply to artifacts.
           const newArtifacts = extractArtifacts(
             reply,

@@ -12,12 +12,13 @@ import {
   MessageSquare,
   ChevronLeft,
   ChevronRight,
-  Zap,
 } from "lucide-react";
 import { useHermesStore } from "@/lib/store";
 import { checkGateway, GatewayHealth } from "@/lib/hermes-api";
 import { timeAgo } from "@/lib/format";
 import { UserBadge } from "@/components/UserBadge";
+import { BrandMark } from "@/components/BrandMark";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -97,17 +98,19 @@ export function Sidebar() {
     <aside className="w-72 shrink-0 border-r border-line bg-sidebar flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-4 pt-4 pb-2">
-        <Link href="/" className="flex items-center gap-2">
-          <Zap size={18} className="text-accent" fill="currentColor" />
-          <span className="font-serif-display text-lg tracking-tight">Hermes</span>
+        <Link href="/" className="min-w-0">
+          <BrandMark size={22} />
         </Link>
-        <button
-          onClick={() => setCollapsed(true)}
-          className="p-1.5 rounded-lg hover:bg-parchment-dark text-ink-faint"
-          title="Collapse sidebar"
-        >
-          <ChevronLeft size={15} />
-        </button>
+        <div className="flex items-center shrink-0">
+          <ThemeToggle />
+          <button
+            onClick={() => setCollapsed(true)}
+            className="p-1.5 rounded-lg hover:bg-parchment-dark text-ink-faint"
+            title="Collapse sidebar"
+          >
+            <ChevronLeft size={15} />
+          </button>
+        </div>
       </div>
 
       {/* New chat + nav */}

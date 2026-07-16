@@ -50,8 +50,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       <div className="mb-10">
         <Composer
           placeholder={`New conversation in ${project.name}…`}
-          onSend={(t) => {
-            const chatId = createChat(t, project.id);
+          onSend={(t, a) => {
+            const chatId = createChat(t, project.id, a);
             router.push(`/chat/${chatId}`);
           }}
         />

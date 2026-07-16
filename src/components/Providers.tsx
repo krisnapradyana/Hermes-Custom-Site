@@ -1,7 +1,7 @@
 "use client";
 
 import { SessionProvider, useSession, signIn } from "next-auth/react";
-import { Zap } from "lucide-react";
+import { BrandMark } from "@/components/BrandMark";
 
 const AUTH_ENABLED = process.env.NEXT_PUBLIC_AUTH_ENABLED === "true";
 
@@ -29,9 +29,8 @@ function Gate({ children }: { children: React.ReactNode }) {
   if (status === "unauthenticated") {
     return (
       <div className="flex h-screen flex-col items-center justify-center px-6">
-        <div className="flex items-center gap-2.5 mb-3">
-          <Zap size={26} className="text-accent" fill="currentColor" />
-          <span className="font-serif-display text-3xl tracking-tight">Hermes</span>
+        <div className="mb-3">
+          <BrandMark size={34} />
         </div>
         <p className="text-ink-soft mb-8 text-center max-w-sm">
           Sign in with your Slack account — your conversations and the agent&apos;s

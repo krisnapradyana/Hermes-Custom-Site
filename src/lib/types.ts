@@ -1,11 +1,21 @@
 export type Role = "user" | "assistant";
 
+export interface Attachment {
+  name: string;
+  type: string; // MIME type
+  size: number; // bytes
+  dataUrl: string; // data:<mime>;base64,...
+}
+
 export interface Message {
   id: string;
   role: Role;
   content: string;
   createdAt: string; // ISO
   artifactId?: string;
+  attachments?: Attachment[];
+  /** Reasoning + tool activity streamed before the answer (collapsible in UI). */
+  thinking?: string;
 }
 
 export interface Chat {

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useHermesStore } from "@/lib/store";
 import { Composer } from "@/components/Composer";
+import { Attachment } from "@/lib/types";
 
 const suggestions = [
   "Summarize today's Slack activity",
@@ -15,8 +16,8 @@ export default function Home() {
   const router = useRouter();
   const createChat = useHermesStore((s) => s.createChat);
 
-  const start = (text: string) => {
-    const id = createChat(text);
+  const start = (text: string, attachments: Attachment[] = []) => {
+    const id = createChat(text, undefined, attachments);
     router.push(`/chat/${id}`);
   };
 
