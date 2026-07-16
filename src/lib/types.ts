@@ -36,7 +36,7 @@ export interface Project {
   createdAt: string;
 }
 
-export type ArtifactKind = "document" | "code" | "html" | "diagram";
+export type ArtifactKind = "document" | "code" | "html" | "diagram" | "image" | "file";
 
 export interface Artifact {
   id: string;

@@ -4,7 +4,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage, StateStorage } from "zustand/middleware";
 import { Chat, Message, Project, Artifact, Attachment } from "./types";
 import { hermesStream } from "./hermes-api";
-import { extractArtifacts } from "./extract";
+import { extractArtifacts, artifactsFromAttachments } from "./extract";
 
 let counter = 0;
 const uid = (p: string) => `${p}-${Date.now()}-${counter++}`;
@@ -111,8 +111,13 @@ export const useHermesStore = create<HermesState>()(
           thinking: "",
           createdAt: now,
         };
+        // Uploaded files become artifacts too, so they show in the history.
+        const uploadedArtifacts = artifactsFromAttachments(attachments ?? [], chatId, () =>
+          uid("art")
+        );
         set((s) => ({
           isStreaming: true,
+          artifacts: [...s.artifacts, ...uploadedArtifacts],
           chats: s.chats.map((c) =>
             c.id === chatId
               ? { ...c, messages: [...c.messages, userMsg, asstMsg], updatedAt: now }

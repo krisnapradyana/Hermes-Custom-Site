@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Trash2, Clock, Play, Pause, RefreshCw, Zap } from "lucide-react";
-import { describeCron, timeAgo } from "@/lib/format";
+import { Plus, Trash2, Clock, Play, Pause, RefreshCw, Zap, Settings2 } from "lucide-react";
+import { describeCron, buildCron, timeAgo, Frequency } from "@/lib/format";
 
 /**
  * Phase 4a: this page reflects the agent's REAL scheduled jobs via
@@ -50,9 +50,18 @@ export default function CronPage() {
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
-  const [schedule, setSchedule] = useState("0 7 * * 1-5");
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState("");
+
+  // Friendly schedule inputs — the cron expression is generated automatically.
+  const [freq, setFreq] = useState<Frequency>("daily");
+  const [time, setTime] = useState("09:00");
+  const [weekday, setWeekday] = useState(1);
+  const [dayOfMonth, setDayOfMonth] = useState(1);
+  const [advanced, setAdvanced] = useState(false);
+  const [rawSchedule, setRawSchedule] = useState("");
+
+  const schedule = advanced && rawSchedule.trim() ? rawSchedule.trim() : buildCron(freq, time, weekday, dayOfMonth);
 
   const refresh = useCallback(async () => {
     setError("");
@@ -132,34 +141,130 @@ export default function CronPage() {
       </div>
 
       {showForm && (
-        <div className="mb-8 rounded-xl border border-line bg-card p-5 space-y-3">
-          <input
-            autoFocus
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Job name (optional)"
-            className="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:border-ink-faint"
-          />
+        <div className="mb-8 rounded-xl border border-line bg-card p-5 space-y-4">
+          {/* 1. What */}
           <div>
+            <p className="text-sm font-medium mb-1.5">What should the assistant do?</p>
+            <textarea
+              autoFocus
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder='e.g. "Send me a summary of yesterday&apos;s Slack messages"'
+              rows={2}
+              className="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:border-ink-faint resize-none"
+            />
+          </div>
+
+          {/* 2. When */}
+          <div>
+            <p className="text-sm font-medium mb-1.5">How often?</p>
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {(
+                [
+                  ["daily", "Every day"],
+                  ["weekdays", "Weekdays"],
+                  ["weekly", "Once a week"],
+                  ["monthly", "Once a month"],
+                  ["hourly", "Every hour"],
+                ] as [Frequency, string][]
+              ).map(([f, label]) => (
+                <button
+                  key={f}
+                  onClick={() => setFreq(f)}
+                  className={`rounded-full px-3.5 py-1.5 text-[13px] transition-colors ${
+                    freq === f
+                      ? "bg-accent text-white"
+                      : "border border-line bg-transparent text-ink-soft hover:border-ink-faint"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              {freq === "weekly" && (
+                <div className="flex gap-1">
+                  {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d, i) => (
+                    <button
+                      key={d}
+                      onClick={() => setWeekday(i)}
+                      className={`w-9 h-9 rounded-full text-[12px] transition-colors ${
+                        weekday === i
+                          ? "bg-accent text-white"
+                          : "border border-line text-ink-soft hover:border-ink-faint"
+                      }`}
+                    >
+                      {d}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {freq === "monthly" && (
+                <label className="flex items-center gap-2 text-sm text-ink-soft">
+                  On day
+                  <input
+                    type="number"
+                    min={1}
+                    max={28}
+                    value={dayOfMonth}
+                    onChange={(e) =>
+                      setDayOfMonth(Math.min(28, Math.max(1, parseInt(e.target.value) || 1)))
+                    }
+                    className="w-16 rounded-lg border border-line bg-transparent px-2 py-1.5 text-sm outline-none focus:border-ink-faint"
+                  />
+                </label>
+              )}
+              {freq !== "hourly" && (
+                <label className="flex items-center gap-2 text-sm text-ink-soft">
+                  At
+                  <input
+                    type="time"
+                    value={time}
+                    onChange={(e) => setTime(e.target.value)}
+                    className="rounded-lg border border-line bg-transparent px-2 py-1.5 text-sm outline-none focus:border-ink-faint"
+                  />
+                </label>
+              )}
+            </div>
+
+            <p className="mt-3 text-[13px] text-accent font-medium">
+              ✓ Runs {describeCron(schedule).toLowerCase()}
+            </p>
+          </div>
+
+          {/* 3. Optional details */}
+          <div className="flex flex-wrap items-center gap-3">
             <input
-              value={schedule}
-              onChange={(e) => setSchedule(e.target.value)}
-              placeholder="Cron expression"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Name (optional)"
+              className="flex-1 min-w-40 rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:border-ink-faint"
+            />
+            <button
+              onClick={() => setAdvanced(!advanced)}
+              className={`flex items-center gap-1.5 text-[12px] transition-colors ${
+                advanced ? "text-accent" : "text-ink-faint hover:text-ink-soft"
+              }`}
+              title="Enter a raw cron expression"
+            >
+              <Settings2 size={13} />
+              Advanced
+            </button>
+          </div>
+          {advanced && (
+            <input
+              value={rawSchedule}
+              onChange={(e) => setRawSchedule(e.target.value)}
+              placeholder={`Raw cron expression (currently: ${schedule})`}
               className="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm font-mono outline-none focus:border-ink-faint"
             />
-            <p className="mt-1 text-[11px] text-ink-faint">{describeCron(schedule)}</p>
-          </div>
-          <textarea
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            placeholder="What should the agent do on each run?"
-            rows={2}
-            className="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:border-ink-faint resize-none"
-          />
+          )}
+
           <div className="flex gap-2">
             <button
               onClick={create}
-              disabled={busy === "new"}
+              disabled={busy === "new" || !prompt.trim()}
               className="rounded-lg bg-accent px-3.5 py-1.5 text-sm text-white hover:bg-accent-hover disabled:opacity-50"
             >
               Create job
@@ -195,9 +300,9 @@ export default function CronPage() {
                 {j.prompt && <p className="text-sm text-ink-soft mb-2">{j.prompt}</p>}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-ink-faint">
                   {j.schedule && (
-                    <span className="inline-flex items-center gap-1">
+                    <span className="inline-flex items-center gap-1" title={j.schedule}>
                       <Clock size={11} />
-                      <code className="font-mono">{j.schedule}</code> · {describeCron(j.schedule)}
+                      {describeCron(j.schedule)}
                     </span>
                   )}
                   {j.lastRunAt && <span>last run {timeAgo(j.lastRunAt)}</span>}

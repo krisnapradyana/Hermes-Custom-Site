@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useHermesStore } from "@/lib/store";
 import { Composer } from "@/components/Composer";
@@ -12,9 +13,34 @@ const suggestions = [
   "Review my latest deployment logs",
 ];
 
+const GREETINGS = [
+  "Hey Pixels, what are we making today?",
+  "What can I do for you, Pixels?",
+  "Ready when you are, Pixels.",
+  "Welcome back, Pixels.",
+  "Pixels! What's on deck today?",
+  "Let's make something great, Pixels.",
+  "At your service, Pixels.",
+];
+
+function pickGreeting(): string {
+  const hour = new Date().getHours();
+  const timed =
+    hour < 11
+      ? "Good morning, Pixels ☀️"
+      : hour < 17
+      ? "Good afternoon, Pixels!"
+      : "Good evening, Pixels 🌙";
+  const pool = [...GREETINGS, timed, timed]; // time-aware one gets a double chance
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
 export default function Home() {
   const router = useRouter();
   const createChat = useHermesStore((s) => s.createChat);
+  // Picked after mount so the server-rendered HTML stays deterministic.
+  const [greeting, setGreeting] = useState("");
+  useEffect(() => setGreeting(pickGreeting()), []);
 
   const start = (text: string, attachments: Attachment[] = []) => {
     const id = createChat(text, undefined, attachments);

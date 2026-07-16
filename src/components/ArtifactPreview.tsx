@@ -2,8 +2,35 @@
 
 import { Artifact } from "@/lib/types";
 
-/** Renders artifact content: live iframe for HTML, mermaid diagrams via CDN, code otherwise. */
+/** Renders artifact content: live iframe for HTML, mermaid via CDN, images, code, downloads. */
 export function ArtifactPreview({ artifact }: { artifact: Artifact }) {
+  if (artifact.kind === "image") {
+    return (
+      <div className="flex items-center justify-center h-full p-4 overflow-auto">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={artifact.content}
+          alt={artifact.title}
+          className="max-w-full max-h-full rounded-lg"
+        />
+      </div>
+    );
+  }
+
+  if (artifact.kind === "file") {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-3 text-ink-faint">
+        <p className="text-sm">Binary file — no inline preview.</p>
+        <button
+          onClick={() => downloadArtifact(artifact)}
+          className="rounded-lg bg-accent px-4 py-2 text-sm text-white hover:bg-accent-hover"
+        >
+          Download {artifact.title}
+        </button>
+      </div>
+    );
+  }
+
   if (artifact.kind === "html") {
     return (
       <iframe
@@ -40,6 +67,15 @@ mermaid.initialize({ startOnLoad: true });
 }
 
 export function downloadArtifact(artifact: Artifact) {
+  // Data-URL artifacts (uploaded images/binaries) download directly.
+  if (artifact.content.startsWith("data:")) {
+    const a = document.createElement("a");
+    a.href = artifact.content;
+    a.download = artifact.title.replace(/[^\w.\- ]+/g, "_");
+    a.click();
+    return;
+  }
+
   const ext =
     artifact.kind === "html"
       ? "html"

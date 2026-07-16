@@ -3,7 +3,7 @@
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Package, FileText, Code2, Globe, GitBranch, Copy, Check, MessageSquare, X, Download } from "lucide-react";
+import { Package, FileText, Code2, Globe, GitBranch, Copy, Check, MessageSquare, X, Download, Image as ImageIcon, File } from "lucide-react";
 import { useHermesStore } from "@/lib/store";
 import { timeAgo } from "@/lib/format";
 import { Artifact, ArtifactKind } from "@/lib/types";
@@ -14,6 +14,8 @@ const kindIcon: Record<ArtifactKind, React.ReactNode> = {
   code: <Code2 size={15} />,
   html: <Globe size={15} />,
   diagram: <GitBranch size={15} />,
+  image: <ImageIcon size={15} />,
+  file: <File size={15} />,
 };
 
 function ArtifactsContent() {
@@ -46,7 +48,7 @@ function ArtifactsContent() {
           </p>
 
           <div className="flex flex-wrap gap-1.5 mb-6">
-            {(["all", "document", "code", "html", "diagram"] as const).map((k) => (
+            {(["all", "document", "code", "html", "diagram", "image", "file"] as const).map((k) => (
               <button
                 key={k}
                 onClick={() => setFilter(k)}
