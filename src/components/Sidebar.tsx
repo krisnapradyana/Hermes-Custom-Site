@@ -17,6 +17,7 @@ import {
 import { useHermesStore } from "@/lib/store";
 import { checkGateway, GatewayHealth } from "@/lib/hermes-api";
 import { timeAgo } from "@/lib/format";
+import { UserBadge } from "@/components/UserBadge";
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -151,8 +152,9 @@ export function Sidebar() {
         </ChatSection>
       </div>
 
-      {/* Footer: gateway status */}
+      {/* Footer: user + gateway status */}
       <div className="border-t border-line px-4 py-3">
+        <UserBadge />
         <div className="flex items-center gap-2.5">
           <span
             className={`w-2 h-2 rounded-full shrink-0 ${
