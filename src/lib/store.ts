@@ -1,19 +1,59 @@
 "use client";
 
 import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
-import { Chat, Message, Project, Artifact, CronJob, Attachment } from "./types";
+import { persist, createJSONStorage, StateStorage } from "zustand/middleware";
+import { Chat, Message, Project, Artifact, Attachment } from "./types";
 import { hermesStream } from "./hermes-api";
 import { extractArtifacts } from "./extract";
 
 let counter = 0;
 const uid = (p: string) => `${p}-${Date.now()}-${counter++}`;
 
+/**
+ * Phase 3: state lives on the server (per Slack user) via /api/state.
+ * Writes are debounced; a legacy localStorage blob seeds the first load.
+ */
+let putTimer: ReturnType<typeof setTimeout> | undefined;
+let pendingBlob = "";
+
+const serverStorage: StateStorage = {
+  getItem: async (name) => {
+    try {
+      const res = await fetch("/api/state", { cache: "no-store" });
+      if (res.ok) {
+        const data = (await res.json()) as { blob?: string | null };
+        if (data.blob) return data.blob;
+      }
+    } catch {}
+    // First run: migrate any legacy localStorage state to the server.
+    try {
+      const legacy = localStorage.getItem(name);
+      if (legacy) serverStorage.setItem(name, legacy);
+      return legacy;
+    } catch {
+      return null;
+    }
+  },
+  setItem: (_name, value) => {
+    pendingBlob = value;
+    clearTimeout(putTimer);
+    putTimer = setTimeout(() => {
+      fetch("/api/state", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ blob: pendingBlob }),
+      }).catch(() => {});
+    }, 800);
+  },
+  removeItem: async () => {
+    await fetch("/api/state", { method: "DELETE" }).catch(() => {});
+  },
+};
+
 interface HermesState {
   chats: Chat[];
   projects: Project[];
   artifacts: Artifact[];
-  cronJobs: CronJob[];
   isStreaming: boolean;
   _hasHydrated: boolean;
 
@@ -24,10 +64,6 @@ interface HermesState {
   renameChat: (chatId: string, title: string) => void;
 
   createProject: (name: string, description: string) => string;
-
-  toggleCron: (id: string) => void;
-  createCron: (job: Omit<CronJob, "id">) => void;
-  deleteCron: (id: string) => void;
 }
 
 export const useHermesStore = create<HermesState>()(
@@ -36,7 +72,6 @@ export const useHermesStore = create<HermesState>()(
       chats: [],
       projects: [],
       artifacts: [],
-      cronJobs: [],
       isStreaming: false,
       _hasHydrated: false,
 
@@ -151,30 +186,16 @@ export const useHermesStore = create<HermesState>()(
         }));
         return id;
       },
-
-      toggleCron: (id) =>
-        set((s) => ({
-          cronJobs: s.cronJobs.map((j) =>
-            j.id === id ? { ...j, enabled: !j.enabled } : j
-          ),
-        })),
-
-      createCron: (job) =>
-        set((s) => ({ cronJobs: [...s.cronJobs, { ...job, id: uid("cron") }] })),
-
-      deleteCron: (id) =>
-        set((s) => ({ cronJobs: s.cronJobs.filter((j) => j.id !== id) })),
     }),
     {
       name: "hermes-ui-state",
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => serverStorage),
       // Rehydrate manually after mount to avoid SSR hydration mismatches.
       skipHydration: true,
       partialize: (s) => ({
         chats: s.chats,
         projects: s.projects,
         artifacts: s.artifacts,
-        cronJobs: s.cronJobs,
       }),
       onRehydrateStorage: () => () => {
         useHermesStore.setState({ _hasHydrated: true });

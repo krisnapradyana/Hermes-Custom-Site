@@ -11,6 +11,7 @@ import {
   FolderKanban,
   Package,
   Clock,
+  History,
   MessageSquare,
   ChevronLeft,
   ChevronRight,
@@ -79,6 +80,9 @@ export function Sidebar() {
         <Link href="/cron" className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft" title="Cron jobs">
           <Clock size={16} />
         </Link>
+        <Link href="/history" className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft" title="Agent history">
+          <History size={16} />
+        </Link>
       </aside>
     );
   }
@@ -129,6 +133,7 @@ export function Sidebar() {
         {navItem("/projects", <FolderKanban size={15} />, "Projects")}
         {navItem("/artifacts", <Package size={15} />, "Artifacts")}
         {navItem("/cron", <Clock size={15} />, "Cron jobs")}
+        {navItem("/history", <History size={15} />, "Agent history")}
       </div>
 
       {/* Chat lists */}

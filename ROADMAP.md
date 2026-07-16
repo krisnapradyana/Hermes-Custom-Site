@@ -3,13 +3,13 @@
 Goal: users of the deployed web UI sign in with their Slack account, and the
 agent uses (and stores) the same per-person context it already has from Slack.
 
-## Phase 1 — Slack login  ← in progress
+## Phase 1 — Slack login  ✅ done
 
 - "Sign in with Slack" (OpenID Connect) via Auth.js.
 - Gives us `slack_user_id`, name, avatar; session cookie keeps users signed in.
 - Gated behind `NEXT_PUBLIC_AUTH_ENABLED` so local dev works without a Slack app.
 
-## Phase 2 — Context binding
+## Phase 2 — Context binding  ✅ done (verify session-key prefix against the Slack bridge)
 
 - Proxy adds `X-Hermes-Session-Key: slack:dm:<slack_user_id>` on every agent call,
   matching the scope Hermes' Slack bridge uses (verify exact key format against
@@ -17,15 +17,18 @@ agent uses (and stores) the same per-person context it already has from Slack.
 - Per-conversation `X-Hermes-Session-Id`; drop client-side history resending in
   favor of Hermes' server-side conversation state (`/v1/responses` or session chat).
 
-## Phase 3 — Server-side storage
+## Phase 3 — Server-side storage  ✅ done
 
-- Replace localStorage with SQLite + Prisma keyed by Slack ID.
-- Chats, projects, artifacts, and pins follow the user across devices.
+- Implemented as per-user JSON blobs in `data/` behind `/api/state`, keyed by
+  Slack ID (zero new dependencies; legacy localStorage state auto-migrates).
+- Upgrade path: swap `src/lib/server-store.ts` for Prisma/Postgres when scale demands.
 
-## Phase 4 — Unified history
+## Phase 4 — Unified history  ✅ done
 
-- Recents pulls Hermes `/api/sessions` so Slack-side conversations appear in the UI.
-- Cron page backed by Hermes `/api/jobs` (create/pause/resume/trigger/delete).
+- Cron page backed by Hermes `/api/jobs` (create/pause/resume/run/delete) —
+  shows the agent's real scheduled jobs shared with Slack/CLI.
+- New "Agent history" page lists Hermes `/api/sessions` with a read-only
+  message viewer (includes Slack-side conversations).
 
 ## Phase 5 — Multi-user hardening
 

@@ -1,0 +1,193 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { History, RefreshCw, ChevronDown, ChevronRight, MessageSquare } from "lucide-react";
+import { timeAgo } from "@/lib/format";
+
+/**
+ * Phase 4b: read-only view of the agent's real session history from Hermes
+ * (/api/sessions) — includes conversations that happened in Slack, the CLI,
+ * or this web UI.
+ */
+
+interface SessionView {
+  id: string;
+  title: string;
+  source?: string;
+  updatedAt?: string;
+  raw: Record<string, unknown>;
+}
+
+interface MessageView {
+  role: string;
+  content: string;
+}
+
+const str = (v: unknown) => (typeof v === "string" ? v : undefined);
+
+function mapSession(s: Record<string, unknown>): SessionView {
+  return {
+    id: str(s.id) ?? str(s.session_id) ?? JSON.stringify(s).slice(0, 24),
+    title: str(s.title) ?? str(s.name) ?? str(s.id) ?? "session",
+    source: str(s.source) ?? str(s.platform) ?? str(s.origin),
+    updatedAt: str(s.updated_at) ?? str(s.updatedAt) ?? str(s.last_active) ?? str(s.created_at),
+    raw: s,
+  };
+}
+
+function extractList(data: unknown, key: string): Record<string, unknown>[] {
+  if (Array.isArray(data)) return data as Record<string, unknown>[];
+  const obj = data as Record<string, unknown>;
+  return (
+    (obj?.[key] as Record<string, unknown>[]) ??
+    (obj?.data as Record<string, unknown>[]) ??
+    (obj?.items as Record<string, unknown>[]) ??
+    []
+  );
+}
+
+function mapMessage(m: Record<string, unknown>): MessageView {
+  let content = str(m.content) ?? str(m.text) ?? str(m.message) ?? "";
+  if (!content && Array.isArray(m.content)) {
+    content = (m.content as Record<string, unknown>[])
+      .map((p) => str(p.text) ?? "")
+      .join("");
+  }
+  return { role: str(m.role) ?? str(m.sender) ?? "unknown", content };
+}
+
+export default function HistoryPage() {
+  const [sessions, setSessions] = useState<SessionView[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Record<string, MessageView[]>>({});
+  const [loadingMsgs, setLoadingMsgs] = useState("");
+
+  const refresh = useCallback(async () => {
+    setError("");
+    try {
+      const res = await fetch("/api/agent-sessions", { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? `Failed to load sessions (${res.status})`);
+      } else {
+        setSessions(extractList(data, "sessions").map(mapSession));
+      }
+    } catch {
+      setError("Could not reach the gateway.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  const toggle = async (id: string) => {
+    if (openId === id) {
+      setOpenId(null);
+      return;
+    }
+    setOpenId(id);
+    if (!messages[id]) {
+      setLoadingMsgs(id);
+      try {
+        const res = await fetch(`/api/agent-sessions/${encodeURIComponent(id)}`, {
+          cache: "no-store",
+        });
+        const data = await res.json();
+        setMessages((prev) => ({
+          ...prev,
+          [id]: extractList(data, "messages").map(mapMessage),
+        }));
+      } catch {
+        setMessages((prev) => ({ ...prev, [id]: [] }));
+      } finally {
+        setLoadingMsgs("");
+      }
+    }
+  };
+
+  return (
+    <div className="mx-auto max-w-4xl px-8 py-10">
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="font-serif-display text-3xl mb-1">Agent history</h1>
+          <p className="text-sm text-ink-soft">
+            Every session the agent has had — Slack, CLI, and this app.
+          </p>
+        </div>
+        <button
+          onClick={refresh}
+          className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
+          title="Refresh"
+        >
+          <RefreshCw size={15} />
+        </button>
+      </div>
+
+      {loading && <p className="text-sm text-ink-faint">Loading sessions…</p>}
+      {error && (
+        <p className="text-sm text-red-500 mb-4">{error} — is the Hermes gateway running?</p>
+      )}
+
+      <div className="space-y-2">
+        {sessions.map((s) => (
+          <div key={s.id} className="rounded-xl border border-line bg-card">
+            <button
+              onClick={() => toggle(s.id)}
+              className="w-full flex items-center gap-3 px-4 py-3 text-left"
+            >
+              {openId === s.id ? (
+                <ChevronDown size={14} className="text-ink-faint shrink-0" />
+              ) : (
+                <ChevronRight size={14} className="text-ink-faint shrink-0" />
+              )}
+              <History size={14} className="text-accent shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium truncate">{s.title}</p>
+                <p className="text-[11px] text-ink-faint">
+                  {[s.source, s.updatedAt ? timeAgo(s.updatedAt) : null]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+              </div>
+            </button>
+
+            {openId === s.id && (
+              <div className="border-t border-line px-4 py-3 space-y-3 max-h-96 overflow-y-auto">
+                {loadingMsgs === s.id && (
+                  <p className="text-xs text-ink-faint">Loading messages…</p>
+                )}
+                {messages[s.id]?.map((m, i) => (
+                  <div key={i} className="flex gap-2.5">
+                    <MessageSquare
+                      size={13}
+                      className={`mt-1 shrink-0 ${
+                        m.role === "user" ? "text-ink-faint" : "text-accent"
+                      }`}
+                    />
+                    <div className="min-w-0">
+                      <p className="text-[11px] uppercase tracking-wide text-ink-faint">{m.role}</p>
+                      <p className="text-[13px] whitespace-pre-wrap break-words">
+                        {m.content.slice(0, 2000) || "(no text)"}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+                {messages[s.id]?.length === 0 && loadingMsgs !== s.id && (
+                  <p className="text-xs text-ink-faint">No messages in this session.</p>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+        {!loading && !error && sessions.length === 0 && (
+          <p className="text-sm text-ink-faint">No sessions yet.</p>
+        )}
+      </div>
+    </div>
+  );
+}
