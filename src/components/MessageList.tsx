@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Package, Zap, FileText } from "lucide-react";
+import { useState } from "react";
+import { Package, Zap, FileText, ChevronDown, ChevronRight, BrainCircuit } from "lucide-react";
 import { Message } from "@/lib/types";
 import { useHermesStore } from "@/lib/store";
 
@@ -18,8 +19,12 @@ export function MessageList({
 
   return (
     <div className="space-y-6">
-      {messages.map((m) => {
+      {messages.map((m, idx) => {
         const artifact = m.artifactId ? artifacts.find((a) => a.id === m.artifactId) : undefined;
+        const isLast = idx === messages.length - 1;
+        const isPendingAssistant =
+          m.role === "assistant" && !m.content && !m.thinking && streaming && isLast;
+
         return m.role === "user" ? (
           <div key={m.id} className="flex justify-end">
             <div className="max-w-[75%] space-y-2">
@@ -57,7 +62,25 @@ export function MessageList({
               <Zap size={13} className="text-accent" fill="currentColor" />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="text-[15px] leading-relaxed whitespace-pre-wrap">{m.content}</div>
+              {m.thinking && (
+                <ThinkingBlock
+                  text={m.thinking}
+                  live={streaming && isLast && !m.content}
+                />
+              )}
+
+              {isPendingAssistant ? (
+                <div className="flex items-center gap-1.5 pt-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-ink-faint animate-bounce [animation-delay:0ms]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-ink-faint animate-bounce [animation-delay:150ms]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-ink-faint animate-bounce [animation-delay:300ms]" />
+                </div>
+              ) : (
+                m.content && (
+                  <div className="text-[15px] leading-relaxed whitespace-pre-wrap">{m.content}</div>
+                )
+              )}
+
               {artifact &&
                 (onOpenArtifact ? (
                   <button
@@ -78,18 +101,28 @@ export function MessageList({
           </div>
         );
       })}
+    </div>
+  );
+}
 
-      {streaming && (
-        <div className="flex gap-3">
-          <div className="w-7 h-7 shrink-0 rounded-full bg-accent-soft flex items-center justify-center mt-0.5">
-            <Zap size={13} className="text-accent" fill="currentColor" />
-          </div>
-          <div className="flex items-center gap-1.5 pt-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-ink-faint animate-bounce [animation-delay:0ms]" />
-            <span className="w-1.5 h-1.5 rounded-full bg-ink-faint animate-bounce [animation-delay:150ms]" />
-            <span className="w-1.5 h-1.5 rounded-full bg-ink-faint animate-bounce [animation-delay:300ms]" />
-          </div>
-        </div>
+function ThinkingBlock({ text, live }: { text: string; live: boolean }) {
+  const [open, setOpen] = useState(false);
+  const show = open || live;
+
+  return (
+    <div className="mb-2">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1.5 text-[12px] text-ink-faint hover:text-ink-soft transition-colors"
+      >
+        <BrainCircuit size={12} className={live ? "animate-pulse text-accent" : ""} />
+        {live ? "Thinking…" : "Thinking"}
+        {show ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+      </button>
+      {show && (
+        <pre className="mt-1.5 rounded-lg border border-line bg-parchment-dark/50 px-3 py-2 text-[12px] leading-relaxed text-ink-soft whitespace-pre-wrap font-mono max-h-64 overflow-y-auto">
+          {text}
+        </pre>
       )}
     </div>
   );

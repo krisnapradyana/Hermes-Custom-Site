@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { Chat, Message, Project, Artifact, CronJob, Attachment } from "./types";
-import { hermesRespond } from "./hermes-api";
+import { hermesStream } from "./hermes-api";
 import { extractArtifacts } from "./extract";
 
 let counter = 0;
@@ -68,40 +68,55 @@ export const useHermesStore = create<HermesState>()(
         };
         const chat = get().chats.find((c) => c.id === chatId);
         const priorHistory = chat?.messages ?? [];
+        const asstId = uid("m");
+        const asstMsg: Message = {
+          id: asstId,
+          role: "assistant",
+          content: "",
+          thinking: "",
+          createdAt: now,
+        };
         set((s) => ({
           isStreaming: true,
           chats: s.chats.map((c) =>
             c.id === chatId
-              ? { ...c, messages: [...c.messages, userMsg], updatedAt: now }
+              ? { ...c, messages: [...c.messages, userMsg, asstMsg], updatedAt: now }
               : c
           ),
         }));
 
-        hermesRespond(content, priorHistory, attachments, chatId).then((reply) => {
+        const patchAsst = (patch: Partial<Message>) =>
+          set((s) => ({
+            chats: s.chats.map((c) =>
+              c.id === chatId
+                ? {
+                    ...c,
+                    messages: c.messages.map((m) => (m.id === asstId ? { ...m, ...patch } : m)),
+                  }
+                : c
+            ),
+          }));
+
+        hermesStream(content, priorHistory, attachments ?? [], chatId, (state) =>
+          patchAsst({ content: state.content, thinking: state.thinking })
+        ).then((final) => {
           // Promote substantial code blocks in the reply to artifacts.
           const newArtifacts = extractArtifacts(
-            reply,
+            final.content,
             chatId,
             chat?.title ?? "Conversation",
             () => uid("art")
           );
-
-          const replyMsg: Message = {
-            id: uid("m"),
-            role: "assistant",
-            content: reply,
-            createdAt: new Date().toISOString(),
+          const doneAt = new Date().toISOString();
+          patchAsst({
+            content: final.content,
+            thinking: final.thinking,
             artifactId: newArtifacts[0]?.id,
-          };
-
+          });
           set((s) => ({
             isStreaming: false,
             artifacts: [...s.artifacts, ...newArtifacts],
-            chats: s.chats.map((c) =>
-              c.id === chatId
-                ? { ...c, messages: [...c.messages, replyMsg], updatedAt: replyMsg.createdAt }
-                : c
-            ),
+            chats: s.chats.map((c) => (c.id === chatId ? { ...c, updatedAt: doneAt } : c)),
           }));
         });
       },

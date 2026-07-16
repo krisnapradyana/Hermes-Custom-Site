@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 import {
   PenSquare,
   Pin,
+  PinOff,
+  Trash2,
   FolderKanban,
   Package,
   Clock,
@@ -24,6 +26,8 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const chats = useHermesStore((s) => s.chats);
+  const togglePin = useHermesStore((s) => s.togglePin);
+  const deleteChat = useHermesStore((s) => s.deleteChat);
   const hydrated = useHermesStore((s) => s._hasHydrated);
   const [collapsed, setCollapsed] = useState(false);
   const [health, setHealth] = useState<GatewayHealth | null>(null);
@@ -132,7 +136,18 @@ export function Sidebar() {
         {pinned.length > 0 && (
           <ChatSection title="Pinned" icon={<Pin size={11} />}>
             {pinned.map((c) => (
-              <ChatLink key={c.id} id={c.id} title={c.title} active={pathname === `/chat/${c.id}`} />
+              <ChatLink
+                key={c.id}
+                id={c.id}
+                title={c.title}
+                active={pathname === `/chat/${c.id}`}
+                pinned
+                onPin={() => togglePin(c.id)}
+                onDelete={() => {
+                  deleteChat(c.id);
+                  if (pathname === `/chat/${c.id}`) router.push("/");
+                }}
+              />
             ))}
           </ChatSection>
         )}
@@ -145,6 +160,12 @@ export function Sidebar() {
               title={c.title}
               subtitle={timeAgo(c.updatedAt)}
               active={pathname === `/chat/${c.id}`}
+              pinned={false}
+              onPin={() => togglePin(c.id)}
+              onDelete={() => {
+                deleteChat(c.id);
+                if (pathname === `/chat/${c.id}`) router.push("/");
+              }}
             />
           ))}
           {hydrated && recents.length === 0 && pinned.length === 0 && (
@@ -215,21 +236,55 @@ function ChatLink({
   title,
   subtitle,
   active,
+  pinned,
+  onPin,
+  onDelete,
 }: {
   id: string;
   title: string;
   subtitle?: string;
   active: boolean;
+  pinned?: boolean;
+  onPin?: () => void;
+  onDelete?: () => void;
 }) {
   return (
-    <Link
-      href={`/chat/${id}`}
-      className={`block px-2.5 py-1.5 rounded-lg transition-colors ${
-        active ? "bg-parchment-dark" : "hover:bg-parchment-dark"
-      }`}
-    >
-      <p className="text-sm truncate text-ink">{title}</p>
-      {subtitle && <p className="text-[11px] text-ink-faint">{subtitle}</p>}
-    </Link>
+    <div className="relative group">
+      <Link
+        href={`/chat/${id}`}
+        className={`block px-2.5 py-1.5 rounded-lg transition-colors ${
+          active ? "bg-parchment-dark" : "hover:bg-parchment-dark"
+        }`}
+      >
+        <p className="text-sm truncate text-ink pr-12">{title}</p>
+        {subtitle && <p className="text-[11px] text-ink-faint">{subtitle}</p>}
+      </Link>
+      <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        {onPin && (
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              onPin();
+            }}
+            className="p-1 rounded-md hover:bg-parchment text-ink-faint hover:text-ink"
+            title={pinned ? "Unpin" : "Pin"}
+          >
+            {pinned ? <PinOff size={13} /> : <Pin size={13} />}
+          </button>
+        )}
+        {onDelete && (
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              onDelete();
+            }}
+            className="p-1 rounded-md hover:bg-parchment text-ink-faint hover:text-red-500"
+            title="Delete chat"
+          >
+            <Trash2 size={13} />
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
