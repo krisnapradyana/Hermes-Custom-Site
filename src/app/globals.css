@@ -51,6 +51,11 @@ body {
   scrollbar-color: var(--color-line) transparent;
 }
 
+/* While dragging a resize handle, iframes must not capture the pointer. */
+body.resizing iframe {
+  pointer-events: none;
+}
+
 /* Workspace panel markdown rendering */
 .md-body .md-h {
   font-weight: 600;

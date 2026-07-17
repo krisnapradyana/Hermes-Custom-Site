@@ -9,6 +9,7 @@ import { MessageList } from "@/components/MessageList";
 import { Composer } from "@/components/Composer";
 import { ArtifactPreview, downloadArtifact } from "@/components/ArtifactPreview";
 import { WorkspacePanel } from "@/components/WorkspacePanel";
+import { useResizableWidth, ResizeHandle } from "@/components/ResizeHandle";
 
 export default function ChatPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -24,6 +25,8 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
   const [openArtifactId, setOpenArtifactId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [showWorkspace, setShowWorkspace] = useState(true);
+  const ws = useResizableWidth("hermes-workspace-w", 320, 240, 640, true);
+  const art = useResizableWidth("hermes-artifact-w", 560, 320, 960, true);
   const openArtifact = openArtifactId ? artifacts.find((a) => a.id === openArtifactId) : undefined;
 
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -109,8 +112,9 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
       </div>
 
       {/* Artifact panel */}
+      {openArtifact && <ResizeHandle onPointerDown={art.startResize} />}
       {openArtifact && (
-        <div className="w-[44%] min-w-80 border-l border-line bg-card flex flex-col">
+        <div className="shrink-0 border-l border-line bg-card flex flex-col" style={{ width: art.width }}>
           <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
             <div className="min-w-0">
               <p className="text-sm font-medium truncate">{openArtifact.title}</p>
@@ -155,9 +159,15 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
 
       {/* Workspace panel (project chats; artifact view takes priority) */}
       {!openArtifact && project && showWorkspace && (
-        <div className="w-80 shrink-0 border-l border-line bg-card flex flex-col">
-          <WorkspacePanel project={project} />
-        </div>
+        <>
+          <ResizeHandle onPointerDown={ws.startResize} />
+          <div
+            className="shrink-0 border-l border-line bg-card flex flex-col"
+            style={{ width: ws.width }}
+          >
+            <WorkspacePanel project={project} />
+          </div>
+        </>
       )}
     </div>
   );

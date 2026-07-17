@@ -12,6 +12,8 @@ import {
   HardDrive,
   ListChecks,
   RefreshCw,
+  ExternalLink,
+  Download,
 } from "lucide-react";
 import { Project } from "@/lib/types";
 import { renderMarkdown, parseChecklist, ChecklistProgress } from "@/lib/markdown";
@@ -24,11 +26,25 @@ interface Entry {
 }
 
 interface FileData {
-  kind: "image" | "markdown" | "code" | "text" | "binary";
+  kind:
+    | "image"
+    | "markdown"
+    | "code"
+    | "text"
+    | "binary"
+    | "htmlraw"
+    | "pdf"
+    | "video"
+    | "audio";
   content?: string;
   dataUrl?: string;
   size?: number;
 }
+
+const HTML_RE = /\.html?$/i;
+const PDF_RE = /\.pdf$/i;
+const VIDEO_RE = /\.(mp4|webm|mov|m4v)$/i;
+const AUDIO_RE = /\.(mp3|wav|m4a|flac|ogg)$/i;
 
 const PROGRESS_FILES = ["PROGRESS.md", "TODO.md", "README.md"];
 
@@ -144,6 +160,14 @@ export function WorkspacePanel({ project }: { project: Project }) {
     return () => es.close();
   }, [root, list, loadProgress]);
 
+  const rawUrl = useCallback(
+    (sub: string, download = false) =>
+      `/api/fs/raw?root=${encodeURIComponent(root)}&sub=${encodeURIComponent(sub)}${
+        download ? "&download=1" : ""
+      }`,
+    [root]
+  );
+
   const openFile = useCallback(
     async (sub: string, name: string) => {
       // Show the loader only when opening a different file; live re-loads
@@ -151,6 +175,13 @@ export function WorkspacePanel({ project }: { project: Project }) {
       if (selectedRef.current?.sub !== sub) setFileData(null);
       setSelected({ sub, name });
       selectedRef.current = { sub, name };
+
+      // Browser-renderable types stream from the raw endpoint — no fetch needed.
+      if (HTML_RE.test(name)) return setFileData({ kind: "htmlraw" });
+      if (PDF_RE.test(name)) return setFileData({ kind: "pdf" });
+      if (VIDEO_RE.test(name)) return setFileData({ kind: "video" });
+      if (AUDIO_RE.test(name)) return setFileData({ kind: "audio" });
+
       try {
         const res = await fetch("/api/fs/read", {
           method: "POST",
@@ -172,6 +203,36 @@ export function WorkspacePanel({ project }: { project: Project }) {
     selectedRef.current = null;
     setFileData(null);
   };
+
+  // "Open in app" — when the server and user are the same machine
+  // (ALLOW_LOCAL_OPEN=true), this launches the file's default program like
+  // double-clicking in Explorer. On remote setups the server refuses and we
+  // fall back to opening the file in a browser tab, which streams it over
+  // HTTP — Chromium's download bar then hands it to the user's local apps.
+  const [openMsg, setOpenMsg] = useState("");
+  const openExternal = async (sub: string) => {
+    setOpenMsg("Opening…");
+    try {
+      const res = await fetch("/api/fs/open", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ root, sub }),
+      });
+      if (res.ok) {
+        setOpenMsg("Opened in default app");
+      } else {
+        window.open(rawUrl(sub), "_blank");
+        setOpenMsg("Opened in browser");
+      }
+    } catch {
+      window.open(rawUrl(sub), "_blank");
+      setOpenMsg("Opened in browser");
+    }
+    setTimeout(() => setOpenMsg(""), 2500);
+  };
+
+  const downloadUrl = (sub: string) =>
+    `/api/fs/download?root=${encodeURIComponent(root)}&sub=${encodeURIComponent(sub)}`;
 
   if (!project.workingFolder) {
     return (
@@ -262,7 +323,23 @@ export function WorkspacePanel({ project }: { project: Project }) {
               <ArrowLeft size={13} />
             </button>
             <p className="text-[12px] font-medium truncate">{selected.name}</p>
-            <span className="ml-auto text-[10px] text-ink-faint">{fmtSize(fileData?.size)}</span>
+            <span className="ml-auto text-[10px] text-ink-faint shrink-0">
+              {openMsg || fmtSize(fileData?.size)}
+            </span>
+            <button
+              onClick={() => openExternal(selected.sub)}
+              className="p-1 rounded-md hover:bg-parchment-dark text-ink-faint hover:text-ink shrink-0"
+              title="Open in default app"
+            >
+              <ExternalLink size={13} />
+            </button>
+            <a
+              href={downloadUrl(selected.sub)}
+              className="p-1 rounded-md hover:bg-parchment-dark text-ink-faint hover:text-ink shrink-0"
+              title="Download"
+            >
+              <Download size={13} />
+            </a>
           </div>
           <div className="flex-1 overflow-auto">
             {!fileData && <p className="p-3 text-[12px] text-ink-faint">Loading…</p>}
@@ -281,10 +358,45 @@ export function WorkspacePanel({ project }: { project: Project }) {
                 {fileData.content}
               </pre>
             )}
+            {fileData?.kind === "htmlraw" && (
+              <iframe
+                src={rawUrl(selected.sub)}
+                sandbox="allow-scripts"
+                className="w-full h-full bg-white"
+                title={selected.name}
+              />
+            )}
+            {fileData?.kind === "pdf" && (
+              <iframe src={rawUrl(selected.sub)} className="w-full h-full" title={selected.name} />
+            )}
+            {fileData?.kind === "video" && (
+              // eslint-disable-next-line jsx-a11y/media-has-caption
+              <video controls src={rawUrl(selected.sub)} className="max-w-full p-3" />
+            )}
+            {fileData?.kind === "audio" && (
+              // eslint-disable-next-line jsx-a11y/media-has-caption
+              <audio controls src={rawUrl(selected.sub)} className="w-full p-3" />
+            )}
             {fileData?.kind === "binary" && (
-              <p className="p-3 text-[12px] text-ink-faint">
-                Binary file — no preview available.
-              </p>
+              <div className="flex flex-col items-center justify-center gap-3 py-10 px-4 text-center">
+                <p className="text-[12px] text-ink-faint">
+                  This file can&apos;t be previewed here.
+                </p>
+                <button
+                  onClick={() => openExternal(selected.sub)}
+                  className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm text-white hover:bg-accent-hover"
+                >
+                  <ExternalLink size={14} />
+                  Open in default app
+                </button>
+                <a
+                  href={downloadUrl(selected.sub)}
+                  className="flex items-center gap-2 rounded-lg border border-line px-4 py-2 text-sm text-ink-soft hover:border-ink-faint"
+                >
+                  <Download size={14} />
+                  Download
+                </a>
+              </div>
             )}
           </div>
         </div>

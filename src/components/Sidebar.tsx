@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useHermesStore } from "@/lib/store";
 import { timeAgo } from "@/lib/format";
+import { useResizableWidth, ResizeHandle } from "@/components/ResizeHandle";
 import { UserBadge } from "@/components/UserBadge";
 import { BrandMark } from "@/components/BrandMark";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -30,6 +31,7 @@ export function Sidebar() {
   const deleteChat = useHermesStore((s) => s.deleteChat);
   const hydrated = useHermesStore((s) => s._hasHydrated);
   const [collapsed, setCollapsed] = useState(false);
+  const { width, startResize } = useResizableWidth("hermes-sidebar-w", 288, 208, 480);
 
   // Rehydrate persisted state once on the client (skipHydration is on).
   useEffect(() => {
@@ -89,7 +91,11 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="w-72 shrink-0 border-r border-line bg-sidebar flex flex-col">
+    <>
+    <aside
+      className="shrink-0 border-r border-line bg-sidebar flex flex-col"
+      style={{ width }}
+    >
       {/* Header */}
       <div className="flex items-center justify-between px-4 pt-4 pb-2">
         <Link href="/" className="min-w-0">
@@ -172,6 +178,8 @@ export function Sidebar() {
         <ThemeToggle />
       </div>
     </aside>
+    <ResizeHandle onPointerDown={startResize} />
+    </>
   );
 }
 
