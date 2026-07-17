@@ -2,12 +2,13 @@
 
 import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Pin, PinOff, Trash2, FolderKanban, X, Copy, Check, Download } from "lucide-react";
+import { Pin, PinOff, Trash2, FolderKanban, X, Copy, Check, Download, PanelRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useHermesStore } from "@/lib/store";
 import { MessageList } from "@/components/MessageList";
 import { Composer } from "@/components/Composer";
 import { ArtifactPreview, downloadArtifact } from "@/components/ArtifactPreview";
+import { WorkspacePanel } from "@/components/WorkspacePanel";
 
 export default function ChatPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -22,6 +23,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
 
   const [openArtifactId, setOpenArtifactId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [showWorkspace, setShowWorkspace] = useState(true);
   const openArtifact = openArtifactId ? artifacts.find((a) => a.id === openArtifactId) : undefined;
 
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -57,6 +59,17 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
             )}
           </div>
           <div className="flex items-center gap-1">
+            {project && (
+              <button
+                onClick={() => setShowWorkspace(!showWorkspace)}
+                className={`p-2 rounded-lg hover:bg-parchment-dark ${
+                  showWorkspace ? "text-accent" : "text-ink-soft"
+                }`}
+                title={showWorkspace ? "Hide workspace panel" : "Show workspace panel"}
+              >
+                <PanelRight size={15} />
+              </button>
+            )}
             <button
               onClick={() => togglePin(chat.id)}
               className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
@@ -137,6 +150,13 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
           <div className="flex-1 overflow-hidden">
             <ArtifactPreview artifact={openArtifact} />
           </div>
+        </div>
+      )}
+
+      {/* Workspace panel (project chats; artifact view takes priority) */}
+      {!openArtifact && project && showWorkspace && (
+        <div className="w-80 shrink-0 border-l border-line bg-card flex flex-col">
+          <WorkspacePanel project={project} />
         </div>
       )}
     </div>

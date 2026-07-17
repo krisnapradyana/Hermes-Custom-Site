@@ -77,7 +77,7 @@ export function Sidebar() {
         <Link href="/artifacts" className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft" title="Artifacts">
           <Package size={16} />
         </Link>
-        <Link href="/cron" className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft" title="Cron jobs">
+        <Link href="/cron" className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft" title="Scheduler">
           <Clock size={16} />
         </Link>
         <Link href="/history" className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft" title="Agent history">
@@ -132,7 +132,7 @@ export function Sidebar() {
         </button>
         {navItem("/projects", <FolderKanban size={15} />, "Projects")}
         {navItem("/artifacts", <Package size={15} />, "Artifacts")}
-        {navItem("/cron", <Clock size={15} />, "Cron jobs")}
+        {navItem("/cron", <Clock size={15} />, "Scheduler")}
         {navItem("/history", <History size={15} />, "Agent history")}
       </div>
 

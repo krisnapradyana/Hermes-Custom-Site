@@ -50,14 +50,14 @@ export default function Home() {
   return (
     <div className="flex h-full flex-col items-center justify-center px-6">
       <div className="w-full max-w-2xl -mt-24">
-        <h1 className="font-serif-display text-4xl text-center mb-2">
-          What can Hermes do for you?
+        <h1 className="font-serif-display text-4xl text-center mb-2 min-h-[1.2em] transition-opacity duration-300">
+          {greeting || " "}
         </h1>
         <p className="text-center text-ink-soft mb-8">
-          Same agent that answers in Slack — now with a proper desk.
+          Ask anything — ideas, files, schedules.
         </p>
 
-        <Composer onSend={start} autoFocus placeholder="Ask Hermes anything…" />
+        <Composer onSend={start} autoFocus placeholder="Ask anything…" />
 
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           {suggestions.map((s) => (

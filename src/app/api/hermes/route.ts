@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { extractDocumentText } from "@/lib/extract-server";
 
 /**
  * Server-side proxy to the Hermes Agent API server.
@@ -53,7 +54,16 @@ type ContentPart =
   | { type: "text"; text: string }
   | { type: "image_url"; image_url: { url: string } };
 
-function buildUserContent(message: string, attachments: AttachmentIn[]): string | ContentPart[] {
+function dataUrlToBuffer(dataUrl: string): Buffer {
+  return Buffer.from(dataUrl.slice(dataUrl.indexOf(",") + 1), "base64");
+}
+
+const DOC_CAP = 80_000; // chars of extracted text inlined per document
+
+async function buildUserContent(
+  message: string,
+  attachments: AttachmentIn[]
+): Promise<string | ContentPart[]> {
   const images = attachments.filter((a) => a.type.startsWith("image/"));
   const others = attachments.filter((a) => !a.type.startsWith("image/"));
 
@@ -62,8 +72,17 @@ function buildUserContent(message: string, attachments: AttachmentIn[]): string 
     if (isTextFile(f)) {
       const body = decodeDataUrl(f.dataUrl).slice(0, 100_000); // cap inlined size
       text += `\n\n[Attached file: ${f.name}]\n\`\`\`\n${body}\n\`\`\``;
+      continue;
+    }
+
+    // Binary documents (PDF / Word / Excel): extract text server-side.
+    const extracted = await extractDocumentText(f.name, f.type, dataUrlToBuffer(f.dataUrl));
+    if (extracted) {
+      const clipped = extracted.slice(0, DOC_CAP);
+      const note = extracted.length > DOC_CAP ? "\n[…document truncated…]" : "";
+      text += `\n\n[Attached document: ${f.name} — extracted text]\n\`\`\`\n${clipped}${note}\n\`\`\``;
     } else {
-      text += `\n\n[Attachment "${f.name}" (${f.type}) could not be sent — the Hermes API only accepts images and text files.]`;
+      text += `\n\n[Attachment "${f.name}" (${f.type}) has no extractable text — it may be a scanned/image-only document or an unsupported format. Supported: images, text files, PDF, .docx, .xlsx.]`;
     }
   }
 
@@ -87,6 +106,7 @@ export async function POST(req: NextRequest) {
     history?: HistoryItem[];
     attachments?: AttachmentIn[];
     chatId?: string;
+    context?: string;
   };
   try {
     body = await req.json();
@@ -116,12 +136,19 @@ export async function POST(req: NextRequest) {
   const isOpenAI = MODE === "openai";
   const url = isOpenAI ? `${API_URL}/v1/chat/completions` : `${API_URL}${CHAT_PATH}`;
 
+  // Project context (working folder, etc.) rides as a system message —
+  // Hermes layers it on top of its own system prompt.
+  const contextMessages = body.context
+    ? [{ role: "system" as const, content: body.context.slice(0, 2000) }]
+    : [];
+
   const payload = isOpenAI
     ? {
         model: MODEL,
         messages: [
+          ...contextMessages,
           ...(body.history ?? []).map((h) => ({ role: h.role, content: h.content })),
-          { role: "user", content: buildUserContent(message, attachments) },
+          { role: "user", content: await buildUserContent(message, attachments) },
         ],
         stream: true,
       }

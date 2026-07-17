@@ -117,9 +117,9 @@ export default function CronPage() {
     <div className="mx-auto max-w-4xl px-8 py-10">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="font-serif-display text-3xl mb-1">Cron jobs</h1>
+          <h1 className="font-serif-display text-3xl mb-1">Scheduler</h1>
           <p className="text-sm text-ink-soft">
-            The agent&apos;s real scheduled jobs — shared with Slack and the CLI.
+            Things the assistant does automatically, on your schedule.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -135,7 +135,7 @@ export default function CronPage() {
             className="flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-sm font-medium text-white hover:bg-accent-hover transition-colors"
           >
             <Plus size={15} />
-            New job
+            New task
           </button>
         </div>
       </div>
@@ -267,7 +267,7 @@ export default function CronPage() {
               disabled={busy === "new" || !prompt.trim()}
               className="rounded-lg bg-accent px-3.5 py-1.5 text-sm text-white hover:bg-accent-hover disabled:opacity-50"
             >
-              Create job
+              Create task
             </button>
             <button
               onClick={() => setShowForm(false)}
@@ -279,7 +279,7 @@ export default function CronPage() {
         </div>
       )}
 
-      {loading && <p className="text-sm text-ink-faint">Loading jobs…</p>}
+      {loading && <p className="text-sm text-ink-faint">Loading tasks…</p>}
       {error && (
         <p className="text-sm text-red-500 mb-4">
           {error} — is the Hermes gateway running?
@@ -350,7 +350,7 @@ export default function CronPage() {
           </div>
         ))}
         {!loading && !error && jobs.length === 0 && (
-          <p className="text-sm text-ink-faint">No scheduled jobs. Create one to get started.</p>
+          <p className="text-sm text-ink-faint">Nothing scheduled yet. Create a task to get started.</p>
         )}
       </div>
     </div>

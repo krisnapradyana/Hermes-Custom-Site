@@ -50,3 +50,40 @@ body {
   scrollbar-width: thin;
   scrollbar-color: var(--color-line) transparent;
 }
+
+/* Workspace panel markdown rendering */
+.md-body .md-h {
+  font-weight: 600;
+  margin: 0.75em 0 0.25em;
+}
+.md-body h3.md-h {
+  font-size: 1.05em;
+}
+.md-body .md-p {
+  margin: 0.35em 0;
+}
+.md-body .md-ul {
+  margin: 0.35em 0;
+  padding-left: 1.1em;
+  list-style: disc;
+}
+.md-body .md-code {
+  background: var(--color-parchment-dark);
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 0.5em 0;
+  font-size: 0.9em;
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+.md-body .md-inline-code {
+  background: var(--color-parchment-dark);
+  border-radius: 4px;
+  padding: 0 4px;
+  font-size: 0.9em;
+}
+.md-body .md-a {
+  color: var(--color-accent);
+  text-decoration: underline;
+}

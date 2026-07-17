@@ -56,6 +56,33 @@ function mapMessage(m: Record<string, unknown>): MessageView {
   return { role: str(m.role) ?? str(m.sender) ?? "unknown", content };
 }
 
+/** Machine-generated titles like "chat-1784226101672-0" aren't human-readable. */
+function isUglyTitle(title: string, id: string): boolean {
+  return (
+    !title ||
+    title === id ||
+    /^(chat|session|run)[-_]?\d{6,}/i.test(title) ||
+    /^[0-9a-f-]{16,}$/i.test(title)
+  );
+}
+
+function titleFromMessages(msgs: MessageView[]): string | null {
+  const firstUser = msgs.find((m) => m.role === "user" && m.content.trim());
+  if (!firstUser) return null;
+  const clean = firstUser.content.replace(/\s+/g, " ").trim();
+  return clean.length > 60 ? clean.slice(0, 57) + "…" : clean;
+}
+
+const SOURCE_LABELS: Record<string, string> = {
+  api_server: "Web",
+  slack: "Slack",
+  cron: "Scheduled",
+  cli: "CLI",
+  tui: "CLI",
+};
+
+const sourceLabel = (s?: string) => (s ? SOURCE_LABELS[s.toLowerCase()] ?? s : undefined);
+
 export default function HistoryPage() {
   const [sessions, setSessions] = useState<SessionView[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,7 +99,9 @@ export default function HistoryPage() {
       if (!res.ok) {
         setError(data.error ?? `Failed to load sessions (${res.status})`);
       } else {
-        setSessions(extractList(data, "sessions").map(mapSession));
+        const list = extractList(data, "sessions").map(mapSession);
+        setSessions(list);
+        autoTitle(list);
       }
     } catch {
       setError("Could not reach the gateway.");
@@ -80,6 +109,38 @@ export default function HistoryPage() {
       setLoading(false);
     }
   }, []);
+
+  /**
+   * Replace machine titles ("chat-1784...") with the session's first user
+   * message, and persist the readable title back to Hermes via PATCH so
+   * it's fixed permanently for every client.
+   */
+  const autoTitle = async (list: SessionView[]) => {
+    const targets = list.filter((s) => isUglyTitle(s.title, s.id)).slice(0, 15);
+    await Promise.all(
+      targets.map(async (s) => {
+        try {
+          const res = await fetch(`/api/agent-sessions/${encodeURIComponent(s.id)}`, {
+            cache: "no-store",
+          });
+          const data = await res.json();
+          const msgs = extractList(data, "messages").map(mapMessage);
+          setMessages((prev) => ({ ...prev, [s.id]: msgs }));
+          const title = titleFromMessages(msgs);
+          if (!title) return;
+          setSessions((prev) =>
+            prev.map((x) => (x.id === s.id ? { ...x, title } : x))
+          );
+          // Best-effort: persist upstream so the title sticks.
+          fetch(`/api/agent-sessions/${encodeURIComponent(s.id)}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title }),
+          }).catch(() => {});
+        } catch {}
+      })
+    );
+  };
 
   useEffect(() => {
     refresh();
@@ -149,7 +210,7 @@ export default function HistoryPage() {
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium truncate">{s.title}</p>
                 <p className="text-[11px] text-ink-faint">
-                  {[s.source, s.updatedAt ? timeAgo(s.updatedAt) : null]
+                  {[sourceLabel(s.source), s.updatedAt ? timeAgo(s.updatedAt) : null]
                     .filter(Boolean)
                     .join(" · ")}
                 </p>

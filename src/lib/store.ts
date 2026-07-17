@@ -63,7 +63,12 @@ interface HermesState {
   deleteChat: (chatId: string) => void;
   renameChat: (chatId: string, title: string) => void;
 
-  createProject: (name: string, description: string) => string;
+  createProject: (
+    name: string,
+    description: string,
+    folders?: { workingFolder?: string; driveFolder?: string; slackChannel?: string }
+  ) => string;
+  updateProject: (id: string, patch: Partial<Project>) => void;
 }
 
 export const useHermesStore = create<HermesState>()(
@@ -137,8 +142,23 @@ export const useHermesStore = create<HermesState>()(
             ),
           }));
 
-        hermesStream(content, priorHistory, attachments ?? [], chatId, (state) =>
-          patchAsst({ content: state.content, thinking: state.thinking })
+        // Project working-folder context travels with every message.
+        const project = chat?.projectId
+          ? get().projects.find((p) => p.id === chat.projectId)
+          : undefined;
+        const context = project?.workingFolder
+          ? `The user is working in project "${project.name}". Designated working folder on this machine: ${project.workingFolder}.` +
+            (project.driveFolder ? ` Google Drive folder: ${project.driveFolder}.` : "") +
+            ` Perform file operations in the working folder unless told otherwise.`
+          : undefined;
+
+        hermesStream(
+          content,
+          priorHistory,
+          attachments ?? [],
+          chatId,
+          (state) => patchAsst({ content: state.content, thinking: state.thinking }),
+          context
         ).then((final) => {
           // Promote substantial code blocks in the reply to artifacts.
           const newArtifacts = extractArtifacts(
@@ -174,7 +194,7 @@ export const useHermesStore = create<HermesState>()(
           chats: s.chats.map((c) => (c.id === chatId ? { ...c, title } : c)),
         })),
 
-      createProject: (name, description) => {
+      createProject: (name, description, folders) => {
         const id = uid("proj");
         const colors = ["#d97757", "#6a9b7e", "#7d8bc4", "#c4a35a", "#a3719b"];
         set((s) => ({
@@ -186,11 +206,17 @@ export const useHermesStore = create<HermesState>()(
               description,
               color: colors[s.projects.length % colors.length],
               createdAt: new Date().toISOString(),
+              ...folders,
             },
           ],
         }));
         return id;
       },
+
+      updateProject: (id, patch) =>
+        set((s) => ({
+          projects: s.projects.map((p) => (p.id === id ? { ...p, ...patch } : p)),
+        })),
     }),
     {
       name: "hermes-ui-state",

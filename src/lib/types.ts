@@ -34,6 +34,12 @@ export interface Project {
   description: string;
   color: string; // tailwind-safe hex
   createdAt: string;
+  /** Absolute path on this machine — required before working in the project. */
+  workingFolder?: string;
+  /** Optional Google Drive folder (mounted as a drive, e.g. "G:\\My Drive\\..."). */
+  driveFolder?: string;
+  /** Slack channel for project sharing (step 3). */
+  slackChannel?: string;
 }
 
 export type ArtifactKind = "document" | "code" | "html" | "diagram" | "image" | "file";
