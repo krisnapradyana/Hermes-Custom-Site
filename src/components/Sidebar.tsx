@@ -81,10 +81,12 @@ export function Sidebar() {
       <Link
         href={href}
         className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-sm transition-colors ${
-          active ? "bg-accent-soft text-accent-hover font-medium" : "text-ink-soft hover:bg-parchment-dark"
+          active
+            ? "bg-accent-soft text-accent font-medium"
+            : "text-ink hover:bg-black/5 dark:hover:bg-white/10"
         }`}
       >
-        {icon}
+        <span className="text-accent">{icon}</span>
         {label}
       </Link>
     );
@@ -111,7 +113,7 @@ export function Sidebar() {
       </div>
 
       {/* New chat + nav */}
-      <div className="px-3 pb-2 space-y-0.5">
+      <div className="mx-3 mb-2 rounded-xl bg-black/[0.04] dark:bg-white/[0.04] p-1.5 space-y-0.5">
         <button
           onClick={() => router.push("/")}
           className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium text-accent hover:bg-accent-soft transition-colors"
