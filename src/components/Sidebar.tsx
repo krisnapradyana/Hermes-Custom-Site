@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   PenSquare,
   Pin,
@@ -15,6 +15,8 @@ import {
   MessageSquare,
   ChevronLeft,
   ChevronRight,
+  Search,
+  X,
 } from "lucide-react";
 import { useHermesStore } from "@/lib/store";
 import { timeAgo } from "@/lib/format";
@@ -32,6 +34,43 @@ export function Sidebar() {
   const hydrated = useHermesStore((s) => s._hasHydrated);
   const [collapsed, setCollapsed] = useState(false);
   const { width, startResize } = useResizableWidth("hermes-sidebar-w", 288, 208, 480);
+
+  // Chat search: matches titles and message content.
+  const [query, setQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
+  const q = query.trim().toLowerCase();
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const results = useMemo(() => {
+    if (!q) return [];
+    return chats
+      .map((c) => {
+        const titleHit = c.title.toLowerCase().includes(q);
+        const msg = c.messages.find((m) => m.content.toLowerCase().includes(q));
+        if (!titleHit && !msg) return null;
+        let snippet = "";
+        if (msg) {
+          const idx = msg.content.toLowerCase().indexOf(q);
+          snippet =
+            (idx > 20 ? "…" : "") +
+            msg.content.slice(Math.max(0, idx - 20), idx + q.length + 40).replace(/\s+/g, " ");
+        }
+        return { chat: c, snippet };
+      })
+      .filter((r): r is { chat: (typeof chats)[number]; snippet: string } => r !== null)
+      .sort((a, b) => b.chat.updatedAt.localeCompare(a.chat.updatedAt))
+      .slice(0, 30);
+  }, [chats, q]);
 
   // Rehydrate persisted state once on the client (skipHydration is on).
   useEffect(() => {
@@ -127,8 +166,61 @@ export function Sidebar() {
         {navItem("/history", <History size={15} />, "Agent history")}
       </div>
 
+      {/* Search */}
+      <div className="mx-3 mb-1 relative">
+        <Search
+          size={13}
+          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-faint pointer-events-none"
+        />
+        <input
+          ref={searchRef}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              setQuery("");
+              e.currentTarget.blur();
+            }
+          }}
+          placeholder="Search chats…  (Ctrl+K)"
+          className="w-full rounded-lg border border-line bg-transparent pl-8 pr-7 py-1.5 text-[13px] outline-none focus:border-ink-faint placeholder:text-ink-faint"
+        />
+        {query && (
+          <button
+            onClick={() => setQuery("")}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-faint hover:text-ink"
+            title="Clear"
+          >
+            <X size={13} />
+          </button>
+        )}
+      </div>
+
       {/* Chat lists */}
       <div className="flex-1 overflow-y-auto px-3 pb-4">
+        {q ? (
+          <ChatSection title={`Results (${results.length})`} icon={<Search size={11} />}>
+            {results.map(({ chat: c, snippet }) => (
+              <ChatLink
+                key={c.id}
+                id={c.id}
+                title={c.title}
+                subtitle={snippet || timeAgo(c.updatedAt)}
+                active={pathname === `/chat/${c.id}`}
+                pinned={c.pinned}
+                onPin={() => togglePin(c.id)}
+                onDelete={() => {
+                  deleteChat(c.id);
+                  if (pathname === `/chat/${c.id}`) router.push("/");
+                }}
+              />
+            ))}
+            {results.length === 0 && (
+              <p className="px-2.5 py-1 text-xs text-ink-faint">No chats match “{query}”.</p>
+            )}
+          </ChatSection>
+        ) : (
+        <>
         {pinned.length > 0 && (
           <ChatSection title="Pinned" icon={<Pin size={11} />}>
             {pinned.map((c) => (
@@ -170,6 +262,8 @@ export function Sidebar() {
             </p>
           )}
         </ChatSection>
+        </>
+        )}
       </div>
 
       {/* Footer: signed-in user + theme toggle */}
