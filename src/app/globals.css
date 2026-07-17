@@ -52,6 +52,26 @@ body {
   scrollbar-color: var(--color-line) transparent;
 }
 
+/* PixelMark "breathe" thinking animation: diagonal pairs swell alternately. */
+@keyframes px-breathe-a {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(0.78); opacity: 0.5; }
+}
+@keyframes px-breathe-b {
+  0%, 100% { transform: scale(0.78); opacity: 0.5; }
+  50% { transform: scale(1); opacity: 1; }
+}
+.pixelmark-thinking .px {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.pixelmark-thinking .pa {
+  animation: px-breathe-a 1.6s ease-in-out infinite;
+}
+.pixelmark-thinking .pb {
+  animation: px-breathe-b 1.6s ease-in-out infinite;
+}
+
 /* While dragging a resize handle, iframes must not capture the pointer. */
 body.resizing iframe {
   pointer-events: none;

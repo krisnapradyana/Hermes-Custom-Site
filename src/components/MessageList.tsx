@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Package, Zap, FileText, ChevronDown, ChevronRight, BrainCircuit } from "lucide-react";
+import { Package, FileText, ChevronDown, ChevronRight, BrainCircuit } from "lucide-react";
 import { Message } from "@/lib/types";
 import { useHermesStore } from "@/lib/store";
+import { PixelMark } from "@/components/PixelMark";
 
 export function MessageList({
   messages,
@@ -57,9 +58,9 @@ export function MessageList({
             </div>
           </div>
         ) : (
-          <div key={m.id} className="flex gap-3">
-            <div className="w-7 h-7 shrink-0 rounded-full bg-accent-soft flex items-center justify-center mt-0.5">
-              <Zap size={13} className="text-accent" fill="currentColor" />
+          <div key={m.id} className="flex gap-2.5">
+            <div className="shrink-0 mt-[1px]">
+              <PixelMark size={24} thinking={streaming && isLast} />
             </div>
             <div className="min-w-0 flex-1">
               {m.thinking && (
@@ -70,7 +71,7 @@ export function MessageList({
               )}
 
               {isPendingAssistant ? (
-                <div className="flex items-center gap-1.5 pt-2">
+                <div className="flex items-center gap-1.5 h-[26px]">
                   <span className="w-1.5 h-1.5 rounded-full bg-ink-faint animate-bounce [animation-delay:0ms]" />
                   <span className="w-1.5 h-1.5 rounded-full bg-ink-faint animate-bounce [animation-delay:150ms]" />
                   <span className="w-1.5 h-1.5 rounded-full bg-ink-faint animate-bounce [animation-delay:300ms]" />
