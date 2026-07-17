@@ -4,17 +4,18 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --color-parchment: #faf9f5;
-  --color-parchment-dark: #f0eee6;
-  --color-sidebar: #f5f4ee;
+  /* Milky light theme: creamy center, noticeably deeper sides/panels. */
+  --color-parchment: #f7f4eb;
+  --color-parchment-dark: #eae5d6;
+  --color-sidebar: #ece7d8;
   --color-ink: #3d3929;
   --color-ink-soft: #6e6a5b;
-  --color-ink-faint: #9a9684;
+  --color-ink-faint: #98937e;
   --color-accent: #2a73e1;
   --color-accent-hover: #1e5fc0;
-  --color-accent-soft: #e8f0fc;
-  --color-line: #e8e6dc;
-  --color-card: #ffffff;
+  --color-accent-soft: #e2ecfa;
+  --color-line: #dcd5c1;
+  --color-card: #f0ecdf;
 
   --font-serif-display: "Georgia", "Times New Roman", serif;
 }
