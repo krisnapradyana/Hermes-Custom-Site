@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Folder,
   FileText,
@@ -66,72 +66,111 @@ export function WorkspacePanel({ project }: { project: Project }) {
   const [selected, setSelected] = useState<{ sub: string; name: string } | null>(null);
   const [fileData, setFileData] = useState<FileData | null>(null);
 
-  const list = useCallback(async () => {
-    if (!root) return;
-    setError("");
-    setEntries(null);
-    try {
-      const res = await fetch("/api/fs/list", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ root, sub: cwd }),
-      });
-      const data = await res.json();
-      if (!res.ok) setError(data.error ?? "Could not read folder");
-      else setEntries(data.entries);
-    } catch {
-      setError("Could not reach the server");
-    }
-  }, [root, cwd]);
+  const list = useCallback(
+    async (silent = false) => {
+      if (!root) return;
+      setError("");
+      if (!silent) setEntries(null);
+      try {
+        const res = await fetch("/api/fs/list", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ root, sub: cwd }),
+        });
+        const data = await res.json();
+        if (!res.ok) setError(data.error ?? "Could not read folder");
+        else setEntries(data.entries);
+      } catch {
+        setError("Could not reach the server");
+      }
+    },
+    [root, cwd]
+  );
 
   useEffect(() => {
     list();
   }, [list]);
 
   // Progress: first markdown file at the root that contains checkboxes.
-  useEffect(() => {
+  const loadProgress = useCallback(async () => {
     if (!root) return;
-    let alive = true;
-    (async () => {
-      for (const f of PROGRESS_FILES) {
-        try {
-          const res = await fetch("/api/fs/read", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ root, sub: f }),
-          });
-          if (!res.ok) continue;
-          const data = (await res.json()) as FileData;
-          if (data.kind !== "markdown" || !data.content) continue;
-          const p = parseChecklist(data.content);
-          if (p && alive) {
-            setProgress({ ...p, file: f });
-            setProgressMd(data.content);
-            return;
-          }
-        } catch {}
-      }
-      if (alive) setProgress(null);
-    })();
-    return () => {
-      alive = false;
-    };
+    for (const f of PROGRESS_FILES) {
+      try {
+        const res = await fetch("/api/fs/read", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ root, sub: f }),
+        });
+        if (!res.ok) continue;
+        const data = (await res.json()) as FileData;
+        if (data.kind !== "markdown" || !data.content) continue;
+        const p = parseChecklist(data.content);
+        if (p) {
+          setProgress({ ...p, file: f });
+          setProgressMd(data.content);
+          return;
+        }
+      } catch {}
+    }
+    setProgress(null);
   }, [root]);
 
-  const openFile = async (sub: string, name: string) => {
-    setSelected({ sub, name });
+  useEffect(() => {
+    loadProgress();
+  }, [loadProgress]);
+
+  // Live updates: subscribe to the folder's filesystem event stream (SSE).
+  // Fires for agent-generated files AND external changes (Explorer, Drive sync…).
+  const selectedRef = useRef<{ sub: string; name: string } | null>(null);
+  const openFileRef = useRef<(sub: string, name: string) => void>(() => {});
+
+  useEffect(() => {
+    if (!root) return;
+    const es = new EventSource(`/api/fs/watch?root=${encodeURIComponent(root)}`);
+    es.onmessage = (ev) => {
+      try {
+        const msg = JSON.parse(ev.data) as { type: string; paths?: string[] };
+        if (msg.type !== "change") return;
+        // Refresh listing (silently — no loading flicker) and progress.
+        list(true);
+        loadProgress();
+        // If the open file changed on disk, re-load it in place.
+        const sel = selectedRef.current;
+        if (sel && msg.paths?.some((p) => p === sel.sub)) {
+          openFileRef.current(sel.sub, sel.name);
+        }
+      } catch {}
+    };
+    return () => es.close();
+  }, [root, list, loadProgress]);
+
+  const openFile = useCallback(
+    async (sub: string, name: string) => {
+      // Show the loader only when opening a different file; live re-loads
+      // of the same file keep the current view (no flicker).
+      if (selectedRef.current?.sub !== sub) setFileData(null);
+      setSelected({ sub, name });
+      selectedRef.current = { sub, name };
+      try {
+        const res = await fetch("/api/fs/read", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ root, sub }),
+        });
+        const data = await res.json();
+        setFileData(res.ok ? data : { kind: "binary" });
+      } catch {
+        setFileData({ kind: "binary" });
+      }
+    },
+    [root]
+  );
+  openFileRef.current = openFile;
+
+  const closeFile = () => {
+    setSelected(null);
+    selectedRef.current = null;
     setFileData(null);
-    try {
-      const res = await fetch("/api/fs/read", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ root, sub }),
-      });
-      const data = await res.json();
-      setFileData(res.ok ? data : { kind: "binary" });
-    } catch {
-      setFileData({ kind: "binary" });
-    }
   };
 
   if (!project.workingFolder) {
@@ -155,7 +194,7 @@ export function WorkspacePanel({ project }: { project: Project }) {
               onClick={() => {
                 setRootKey(k);
                 setCwd("");
-                setSelected(null);
+                closeFile();
               }}
               className={`rounded-full px-2.5 py-1 text-[11px] transition-colors ${
                 rootKey === k
@@ -167,7 +206,7 @@ export function WorkspacePanel({ project }: { project: Project }) {
             </button>
           ))}
           <button
-            onClick={list}
+            onClick={() => list()}
             className="ml-auto p-1 rounded-md hover:bg-parchment-dark text-ink-faint"
             title="Refresh"
           >
@@ -216,7 +255,7 @@ export function WorkspacePanel({ project }: { project: Project }) {
         <div className="flex-1 min-h-0 flex flex-col">
           <div className="flex items-center gap-2 px-3 py-2 border-b border-line">
             <button
-              onClick={() => setSelected(null)}
+              onClick={closeFile}
               className="p-1 rounded-md hover:bg-parchment-dark text-ink-soft"
               title="Back to files"
             >

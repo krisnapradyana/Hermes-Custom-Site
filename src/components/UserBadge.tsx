@@ -9,7 +9,7 @@ export function UserBadge() {
   if (!data?.user) return null;
 
   return (
-    <div className="flex items-center gap-2.5 mb-2.5">
+    <div className="flex items-center gap-2.5">
       {data.user.image ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img

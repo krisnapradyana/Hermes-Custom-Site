@@ -1,48 +1,49 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Sun, Moon, Monitor } from "lucide-react";
+import { Sun, Moon } from "lucide-react";
 
-type Theme = "light" | "dark" | "system";
 const KEY = "hermes-theme";
 
-function apply(theme: Theme) {
-  const dark =
-    theme === "dark" ||
-    (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-  document.documentElement.classList.toggle("dark", dark);
-}
-
+/** Sun/moon pair toggle (sidebar footer). */
 export function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>("system");
+  const [theme, setTheme] = useState<"light" | "dark" | null>(null);
 
   useEffect(() => {
-    setTheme((localStorage.getItem(KEY) as Theme) ?? "system");
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const onChange = () => {
-      if (((localStorage.getItem(KEY) as Theme) ?? "system") === "system") apply("system");
-    };
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
+    const saved = localStorage.getItem(KEY);
+    if (saved === "light" || saved === "dark") setTheme(saved);
+    else
+      setTheme(
+        window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
+      );
   }, []);
 
-  const cycle = () => {
-    const next: Theme = theme === "light" ? "dark" : theme === "dark" ? "system" : "light";
-    setTheme(next);
-    localStorage.setItem(KEY, next);
-    apply(next);
+  const choose = (t: "light" | "dark") => {
+    setTheme(t);
+    localStorage.setItem(KEY, t);
+    document.documentElement.classList.toggle("dark", t === "dark");
   };
 
-  const icon =
-    theme === "light" ? <Sun size={15} /> : theme === "dark" ? <Moon size={15} /> : <Monitor size={15} />;
-
   return (
-    <button
-      onClick={cycle}
-      className="p-1.5 rounded-lg hover:bg-parchment-dark text-ink-faint hover:text-ink transition-colors"
-      title={`Theme: ${theme} (click to change)`}
-    >
-      {icon}
-    </button>
+    <div className="flex items-center rounded-full border border-line p-0.5">
+      <button
+        onClick={() => choose("light")}
+        className={`p-1.5 rounded-full transition-colors ${
+          theme === "light" ? "bg-accent-soft text-accent" : "text-ink-faint hover:text-ink"
+        }`}
+        title="Light mode"
+      >
+        <Sun size={13} />
+      </button>
+      <button
+        onClick={() => choose("dark")}
+        className={`p-1.5 rounded-full transition-colors ${
+          theme === "dark" ? "bg-accent-soft text-accent" : "text-ink-faint hover:text-ink"
+        }`}
+        title="Dark mode"
+      >
+        <Moon size={13} />
+      </button>
+    </div>
   );
 }

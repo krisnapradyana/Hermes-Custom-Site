@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Sidebar } from "@/components/Sidebar";
 import { Providers, AuthGate } from "@/components/Providers";
+import { StatusBar } from "@/components/StatusBar";
 
 export const metadata: Metadata = {
-  title: "Hermes",
-  description: "Hermes agent interface — chat, projects, artifacts and scheduled jobs.",
+  title: "SuperPixel Assistant",
+  description: "SuperPixel Assistant — chat, projects, artifacts and scheduled jobs.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -22,9 +23,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="antialiased">
         <Providers>
           <AuthGate>
-            <div className="flex h-screen overflow-hidden">
-              <Sidebar />
-              <main className="flex-1 min-w-0 overflow-y-auto">{children}</main>
+            <div className="flex flex-col h-screen overflow-hidden">
+              <div className="flex flex-1 min-h-0">
+                <Sidebar />
+                <main className="flex-1 min-w-0 overflow-y-auto">{children}</main>
+              </div>
+              <StatusBar />
             </div>
           </AuthGate>
         </Providers>

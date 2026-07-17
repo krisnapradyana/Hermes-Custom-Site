@@ -17,7 +17,6 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useHermesStore } from "@/lib/store";
-import { checkGateway, GatewayHealth } from "@/lib/hermes-api";
 import { timeAgo } from "@/lib/format";
 import { UserBadge } from "@/components/UserBadge";
 import { BrandMark } from "@/components/BrandMark";
@@ -31,23 +30,10 @@ export function Sidebar() {
   const deleteChat = useHermesStore((s) => s.deleteChat);
   const hydrated = useHermesStore((s) => s._hasHydrated);
   const [collapsed, setCollapsed] = useState(false);
-  const [health, setHealth] = useState<GatewayHealth | null>(null);
 
   // Rehydrate persisted state once on the client (skipHydration is on).
   useEffect(() => {
     useHermesStore.persist.rehydrate();
-  }, []);
-
-  // Poll gateway health.
-  useEffect(() => {
-    let alive = true;
-    const ping = () => checkGateway().then((h) => alive && setHealth(h));
-    ping();
-    const t = setInterval(ping, 30_000);
-    return () => {
-      alive = false;
-      clearInterval(t);
-    };
   }, []);
 
   const pinned = hydrated ? chats.filter((c) => c.pinned) : [];
@@ -109,16 +95,13 @@ export function Sidebar() {
         <Link href="/" className="min-w-0">
           <BrandMark size={22} />
         </Link>
-        <div className="flex items-center shrink-0">
-          <ThemeToggle />
-          <button
-            onClick={() => setCollapsed(true)}
-            className="p-1.5 rounded-lg hover:bg-parchment-dark text-ink-faint"
-            title="Collapse sidebar"
-          >
-            <ChevronLeft size={15} />
-          </button>
-        </div>
+        <button
+          onClick={() => setCollapsed(true)}
+          className="p-1.5 rounded-lg hover:bg-parchment-dark text-ink-faint shrink-0"
+          title="Collapse sidebar"
+        >
+          <ChevronLeft size={15} />
+        </button>
       </div>
 
       {/* New chat + nav */}
@@ -181,36 +164,12 @@ export function Sidebar() {
         </ChatSection>
       </div>
 
-      {/* Footer: user + gateway status */}
-      <div className="border-t border-line px-4 py-3">
-        <UserBadge />
-        <div className="flex items-center gap-2.5">
-          <span
-            className={`w-2 h-2 rounded-full shrink-0 ${
-              !health
-                ? "bg-line"
-                : health.reachable
-                ? "bg-green-500"
-                : health.configured
-                ? "bg-red-500"
-                : "bg-amber-400"
-            }`}
-          />
-          <div className="min-w-0">
-            <p className="text-sm truncate">
-              {!health
-                ? "Checking gateway…"
-                : health.reachable
-                ? "Hermes online"
-                : health.configured
-                ? "Gateway unreachable"
-                : "Gateway not configured"}
-            </p>
-            <p className="text-[11px] text-ink-faint truncate" title={health?.detail}>
-              {health?.url ?? "set HERMES_API_URL in .env.local"}
-            </p>
-          </div>
+      {/* Footer: signed-in user + theme toggle */}
+      <div className="border-t border-line px-4 py-3 flex items-center justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <UserBadge />
         </div>
+        <ThemeToggle />
       </div>
     </aside>
   );
