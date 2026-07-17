@@ -211,6 +211,18 @@ export function WorkspacePanel({ project }: { project: Project }) {
   // HTTP — Chromium's download bar then hands it to the user's local apps.
   const [openMsg, setOpenMsg] = useState("");
   const openExternal = async (sub: string) => {
+    // Automatic per-user behavior: a browser on the server machine itself
+    // (accessed via localhost) can shell-open with the default app; every
+    // other device streams the file to its OWN browser, where the download
+    // bar hands it to the user's own apps.
+    const onServerMachine = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+    if (!onServerMachine) {
+      window.open(rawUrl(sub), "_blank");
+      setOpenMsg("Opened in your browser");
+      setTimeout(() => setOpenMsg(""), 2500);
+      return;
+    }
+
     setOpenMsg("Opening…");
     try {
       const res = await fetch("/api/fs/open", {

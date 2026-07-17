@@ -16,15 +16,15 @@ export async function POST(req: NextRequest) {
   const key = await getUserKey();
   if (!key) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
-  // Guard: shell-open only makes sense when the server IS the user's machine.
-  // On remote deployments this must stay off — the client falls back to
-  // streaming the file to the browser instead.
-  if (process.env.ALLOW_LOCAL_OPEN !== "true") {
+  // Guard: shell-open only makes sense when the requesting browser runs on
+  // this same machine — i.e. the request came in via localhost. Remote users
+  // (LAN IP, ngrok, domain) are refused and the client streams the file to
+  // their own browser instead. No configuration needed.
+  const host = (req.headers.get("host") ?? "").toLowerCase();
+  const isLoopback = host.startsWith("localhost") || host.startsWith("127.0.0.1");
+  if (!isLoopback) {
     return NextResponse.json(
-      {
-        error:
-          "Local open is disabled (set ALLOW_LOCAL_OPEN=true only on single-machine setups).",
-      },
+      { error: "Local open is only available on the server machine itself." },
       { status: 501 }
     );
   }
