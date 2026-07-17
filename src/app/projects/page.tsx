@@ -2,15 +2,19 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Plus, FolderKanban, MessageSquare, HardDrive } from "lucide-react";
+import { Plus, FolderKanban, MessageSquare, HardDrive, Trash2 } from "lucide-react";
 import { useHermesStore } from "@/lib/store";
 import { timeAgo } from "@/lib/format";
 import { FolderInput } from "@/components/FolderInput";
+import { ConfirmDeleteModal } from "@/components/ConfirmDeleteModal";
+import { Project } from "@/lib/types";
 
 export default function ProjectsPage() {
   const projects = useHermesStore((s) => s.projects);
   const chats = useHermesStore((s) => s.chats);
   const createProject = useHermesStore((s) => s.createProject);
+  const deleteProject = useHermesStore((s) => s.deleteProject);
+  const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
@@ -102,10 +106,17 @@ export default function ProjectsPage() {
         {projects.map((p) => {
           const count = chats.filter((c) => c.projectId === p.id).length;
           return (
+            <div key={p.id} className="relative group">
+              <button
+                onClick={() => setDeleteTarget(p)}
+                className="absolute top-3 right-3 z-10 p-2 rounded-lg text-ink-faint hover:text-red-500 hover:bg-parchment-dark opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Delete project"
+              >
+                <Trash2 size={15} />
+              </button>
             <Link
-              key={p.id}
               href={`/projects/${p.id}`}
-              className="rounded-xl border border-line bg-card p-5 hover:border-ink-faint transition-colors"
+              className="block rounded-xl border border-line bg-card p-5 hover:border-ink-faint transition-colors"
             >
               <div className="flex items-center gap-2.5 mb-2">
                 <div
@@ -128,9 +139,24 @@ export default function ProjectsPage() {
                 {count} conversation{count === 1 ? "" : "s"} · created {timeAgo(p.createdAt)}
               </div>
             </Link>
+            </div>
           );
         })}
       </div>
+
+      {deleteTarget && (
+        <ConfirmDeleteModal
+          title={`Delete "${deleteTarget.name}"?`}
+          description={`This permanently removes the project, its ${
+            chats.filter((c) => c.projectId === deleteTarget.id).length
+          } conversation(s), and their artifacts. Files in the working folder on disk are NOT touched.`}
+          onConfirm={() => {
+            deleteProject(deleteTarget.id);
+            setDeleteTarget(null);
+          }}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
     </div>
   );
 }

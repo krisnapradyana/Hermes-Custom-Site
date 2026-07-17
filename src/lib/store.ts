@@ -69,6 +69,8 @@ interface HermesState {
     folders?: { workingFolder?: string; driveFolder?: string; slackChannel?: string }
   ) => string;
   updateProject: (id: string, patch: Partial<Project>) => void;
+  /** Removes the project plus its chats and their artifacts (disk files untouched). */
+  deleteProject: (id: string) => void;
 }
 
 export const useHermesStore = create<HermesState>()(
@@ -217,6 +219,18 @@ export const useHermesStore = create<HermesState>()(
         set((s) => ({
           projects: s.projects.map((p) => (p.id === id ? { ...p, ...patch } : p)),
         })),
+
+      deleteProject: (id) =>
+        set((s) => {
+          const chatIds = new Set(
+            s.chats.filter((c) => c.projectId === id).map((c) => c.id)
+          );
+          return {
+            projects: s.projects.filter((p) => p.id !== id),
+            chats: s.chats.filter((c) => c.projectId !== id),
+            artifacts: s.artifacts.filter((a) => !(a.chatId && chatIds.has(a.chatId))),
+          };
+        }),
     }),
     {
       name: "hermes-ui-state",
