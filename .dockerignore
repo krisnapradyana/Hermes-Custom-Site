@@ -1,0 +1,10 @@
+node_modules
+.next
+data
+certificates
+.env*
+!.env.example
+.git
+docs
+README.md
+ROADMAP.md
