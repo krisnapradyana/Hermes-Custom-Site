@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Project } from "@/lib/types";
 import { renderMarkdown, parseChecklist, ChecklistProgress } from "@/lib/markdown";
+import { buildManifest, manifestSignature } from "@/lib/manifest";
 import {
   FSDir,
   LocalEntry,
@@ -136,6 +137,31 @@ export function WorkspacePanel({ project }: { project: Project }) {
     const t = setInterval(refresh, 4000);
     return () => clearInterval(t);
   }, [cwd, refresh]);
+
+  // Keep the server-side folder manifest (the agent's "identity card") fresh:
+  // rebuild from the root handle on connect and periodically, upload on change.
+  const lastSig = useRef<string>("");
+  const syncManifest = useCallback(async () => {
+    if (!root) return;
+    try {
+      const manifest = await buildManifest(root);
+      const sig = manifestSignature(manifest);
+      if (sig === lastSig.current) return; // unchanged — skip upload
+      lastSig.current = sig;
+      await fetch(`/api/projects/${encodeURIComponent(project.id)}/manifest`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(manifest),
+      });
+    } catch {}
+  }, [root, project.id]);
+
+  useEffect(() => {
+    if (!root) return;
+    syncManifest();
+    const t = setInterval(syncManifest, 20000);
+    return () => clearInterval(t);
+  }, [root, syncManifest]);
 
   // Progress widget from the root folder.
   const loadProgress = useCallback(async () => {

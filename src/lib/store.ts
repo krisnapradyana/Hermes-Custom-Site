@@ -70,7 +70,7 @@ interface HermesState {
     name: string,
     description: string,
     folders?: { workingFolder?: string; driveFolder?: string; slackChannel?: string }
-  ) => Promise<void>;
+  ) => Promise<Project | undefined>;
   updateProject: (id: string, patch: Partial<Project>) => Promise<void>;
   /** Removes the shared project; also drops the local user's chats/artifacts in it. */
   deleteProject: (id: string) => Promise<void>;
@@ -165,7 +165,8 @@ export const useHermesStore = create<HermesState>()(
           attachments ?? [],
           chatId,
           (state) => patchAsst({ content: state.content, thinking: state.thinking }),
-          context
+          context,
+          project?.id
         ).then((final) => {
           // Promote substantial code blocks in the reply to artifacts.
           const newArtifacts = extractArtifacts(
@@ -217,10 +218,13 @@ export const useHermesStore = create<HermesState>()(
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ name, description, ...folders }),
           });
-          if (!res.ok) return;
+          if (!res.ok) return undefined;
           const { project } = (await res.json()) as { project: Project };
           set((s) => ({ projects: [...s.projects, project] }));
-        } catch {}
+          return project;
+        } catch {
+          return undefined;
+        }
       },
 
       updateProject: async (id, patch) => {

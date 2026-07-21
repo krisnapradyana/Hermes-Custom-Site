@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { checkGateway, GatewayHealth } from "@/lib/hermes-api";
-import { version } from "../../package.json";
+import pkg from "../../package.json";
+
+const version = pkg.version;
 
 /** Slim app-wide bottom bar: subtle gateway status + app version. */
 export function StatusBar() {

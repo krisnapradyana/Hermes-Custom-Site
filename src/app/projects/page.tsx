@@ -8,6 +8,7 @@ import { timeAgo } from "@/lib/format";
 import { FolderInput } from "@/components/FolderInput";
 import { ConfirmDeleteModal } from "@/components/ConfirmDeleteModal";
 import { Project } from "@/lib/types";
+import { ensurePermission, saveDirHandle, FSDir } from "@/lib/local-fs";
 
 export default function ProjectsPage() {
   const projects = useHermesStore((s) => s.projects);
@@ -25,8 +26,39 @@ export default function ProjectsPage() {
   const [desc, setDesc] = useState("");
   const [workingFolder, setWorkingFolder] = useState("");
   const [wfOk, setWfOk] = useState(false);
+  const [pickedHandle, setPickedHandle] = useState<FSDir | null>(null);
+  const [creating, setCreating] = useState(false);
 
   const canCreate = name.trim() && wfOk;
+
+  const handleCreate = async () => {
+    if (!canCreate || creating) return;
+    setCreating(true);
+    try {
+      // If a folder was picked, confirm access now — cancel if denied.
+      if (pickedHandle) {
+        const granted = await ensurePermission(pickedHandle).catch(() => false);
+        if (!granted) {
+          alert("Folder access was denied. Grant permission to create this project.");
+          return;
+        }
+      }
+      const project = await createProject(name.trim(), desc.trim(), {
+        workingFolder: workingFolder.trim(),
+      });
+      // Persist the handle under the new project id so the panel opens it
+      // with no extra "Connect folder" step.
+      if (project && pickedHandle) await saveDirHandle(project.id, pickedHandle);
+
+      setName("");
+      setDesc("");
+      setWorkingFolder("");
+      setPickedHandle(null);
+      setShowForm(false);
+    } finally {
+      setCreating(false);
+    }
+  };
 
   return (
     <div className="mx-auto max-w-4xl px-8 py-10">
@@ -66,24 +98,16 @@ export default function ProjectsPage() {
             value={workingFolder}
             onChange={setWorkingFolder}
             onStatus={setWfOk}
+            onHandle={(h) => setPickedHandle(h as FSDir)}
             placeholder="G:\My Drive\Projects\my-project"
           />
           <div className="flex gap-2 pt-1">
             <button
-              onClick={async () => {
-                if (!canCreate) return;
-                await createProject(name.trim(), desc.trim(), {
-                  workingFolder: workingFolder.trim(),
-                });
-                setName("");
-                setDesc("");
-                setWorkingFolder("");
-                setShowForm(false);
-              }}
-              disabled={!canCreate}
+              onClick={handleCreate}
+              disabled={!canCreate || creating}
               className="rounded-lg bg-accent px-3.5 py-1.5 text-sm text-white hover:bg-accent-hover disabled:opacity-40"
             >
-              Create
+              {creating ? "Creating…" : "Create"}
             </button>
             <button
               onClick={() => setShowForm(false)}

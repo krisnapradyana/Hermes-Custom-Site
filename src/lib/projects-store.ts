@@ -27,3 +27,23 @@ export async function writeProjects(list: Project[]): Promise<void> {
   await fs.writeFile(tmp, JSON.stringify(list, null, 2), "utf-8");
   await fs.rename(tmp, FILE);
 }
+
+// --- Per-project folder manifest (structure the agent reads) ---
+
+const safeId = (id: string) => id.replace(/[^\w.-]+/g, "_");
+const manifestFile = (id: string) => path.join(DATA_DIR, `manifest-${safeId(id)}.json`);
+
+export async function readManifest(id: string): Promise<string | null> {
+  try {
+    return await fs.readFile(manifestFile(id), "utf-8");
+  } catch {
+    return null;
+  }
+}
+
+export async function writeManifest(id: string, json: string): Promise<void> {
+  await fs.mkdir(DATA_DIR, { recursive: true });
+  const tmp = manifestFile(id) + ".tmp";
+  await fs.writeFile(tmp, json, "utf-8");
+  await fs.rename(tmp, manifestFile(id));
+}

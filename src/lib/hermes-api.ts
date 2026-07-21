@@ -42,7 +42,8 @@ export async function hermesStream(
   attachments: Attachment[] = [],
   chatId: string | undefined,
   onUpdate: (state: StreamState) => void,
-  context?: string
+  context?: string,
+  projectId?: string
 ): Promise<StreamState> {
   const finish = (content: string, thinking: string): StreamState => {
     const state = { content, thinking };
@@ -62,6 +63,7 @@ export async function hermesStream(
         attachments: attachments.map((a) => ({ name: a.name, type: a.type, dataUrl: a.dataUrl })),
         chatId,
         context,
+        projectId,
       }),
     });
 

@@ -1,6 +1,47 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { extractDocumentText } from "@/lib/extract-server";
+import { readManifest } from "@/lib/projects-store";
+
+interface ManifestEntry {
+  p: string;
+  d: boolean;
+  s?: number;
+}
+
+function fmtBytes(n?: number): string {
+  if (n == null) return "";
+  if (n < 1024) return `${n}B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)}KB`;
+  return `${(n / 1024 / 1024).toFixed(1)}MB`;
+}
+
+async function folderContext(projectId: string): Promise<string | null> {
+  const raw = await readManifest(projectId);
+  if (!raw) return null;
+  try {
+    const m = JSON.parse(raw) as {
+      root: string;
+      entries: ManifestEntry[];
+      fileCount: number;
+      truncated: boolean;
+      generatedAt: string;
+    };
+    const lines = m.entries
+      .map((e) => (e.d ? `${e.p}/` : `${e.p}${e.s != null ? ` (${fmtBytes(e.s)})` : ""}`))
+      .join("\n");
+    let body = lines;
+    if (body.length > 8000) body = body.slice(0, 8000) + "\n…(more)";
+    return (
+      `Folder structure for project folder "${m.root}" (${m.fileCount} files). ` +
+      `You cannot open these files directly, but infer the project's purpose and organization ` +
+      `from the names, sizes, and layout:\n${body}` +
+      (m.truncated ? "\n…(list truncated)" : "")
+    );
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Server-side proxy to the Hermes Agent API server.
@@ -107,6 +148,7 @@ export async function POST(req: NextRequest) {
     attachments?: AttachmentIn[];
     chatId?: string;
     context?: string;
+    projectId?: string;
   };
   try {
     body = await req.json();
@@ -136,10 +178,16 @@ export async function POST(req: NextRequest) {
   const isOpenAI = MODE === "openai";
   const url = isOpenAI ? `${API_URL}/v1/chat/completions` : `${API_URL}${CHAT_PATH}`;
 
-  // Project context (working folder, etc.) rides as a system message —
-  // Hermes layers it on top of its own system prompt.
-  const contextMessages = body.context
-    ? [{ role: "system" as const, content: body.context.slice(0, 2000) }]
+  // Project context (working folder + folder structure manifest) rides as a
+  // system message — Hermes layers it on top of its own system prompt.
+  const contextParts: string[] = [];
+  if (body.context) contextParts.push(body.context.slice(0, 2000));
+  if (body.projectId) {
+    const fc = await folderContext(body.projectId);
+    if (fc) contextParts.push(fc);
+  }
+  const contextMessages = contextParts.length
+    ? [{ role: "system" as const, content: contextParts.join("\n\n") }]
     : [];
 
   const payload = isOpenAI

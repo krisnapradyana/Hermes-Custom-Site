@@ -32,6 +32,7 @@ export function FolderInput({
   value,
   onChange,
   onStatus,
+  onHandle,
   placeholder,
   label,
   optional,
@@ -39,6 +40,8 @@ export function FolderInput({
   value: string;
   onChange: (v: string) => void;
   onStatus?: (ok: boolean) => void;
+  /** Fires with the picked directory handle (for persisting access). */
+  onHandle?: (handle: unknown) => void;
   placeholder?: string;
   label?: string;
   optional?: boolean;
@@ -62,6 +65,7 @@ export function FolderInput({
       try {
         const handle = await w.showDirectoryPicker();
         applyName(handle.name);
+        onHandle?.(handle);
       } catch {
         /* user cancelled */
       }
