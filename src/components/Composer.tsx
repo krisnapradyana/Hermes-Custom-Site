@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { ArrowUp, Paperclip, X, FileText } from "lucide-react";
 import { Attachment } from "@/lib/types";
 
-const MAX_FILE_MB = 20;
+const MAX_FILE_MB = 5;
 
 export function Composer({
   onSend,
