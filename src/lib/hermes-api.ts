@@ -90,7 +90,15 @@ export async function hermesStream(
     let reasoning = "";
     const toolLines: string[] = [];
 
-    const emit = () => {
+    // Throttle UI updates to ~20fps. Emitting on every token forces a store
+    // write + full-history re-serialize + list re-render per token, which is
+    // what makes long replies feel laggy. A trailing flush (below) guarantees
+    // the final, complete text is always shown.
+    let lastEmit = 0;
+    const emit = (force = false) => {
+      const now = Date.now();
+      if (!force && now - lastEmit < 50) return;
+      lastEmit = now;
       const { content, think } = splitThink(rawText);
       const thinking = [toolLines.join("\n"), reasoning, think].filter(Boolean).join("\n");
       onUpdate({ content, thinking });
