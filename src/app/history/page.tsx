@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { History, RefreshCw, ChevronDown, ChevronRight, MessageSquare } from "lucide-react";
 import { timeAgo } from "@/lib/format";
+import { useHermesStore } from "@/lib/store";
 
 /**
  * Phase 4b: read-only view of the agent's real session history from Hermes
@@ -91,6 +92,11 @@ export default function HistoryPage() {
   const [messages, setMessages] = useState<Record<string, MessageView[]>>({});
   const [loadingMsgs, setLoadingMsgs] = useState("");
 
+  // Only show sessions that belong to THIS user. Hermes doesn't record a
+  // per-user owner (user_id is null), but our web sessions share their id
+  // with the user's own chats — so we match on that.
+  const chats = useHermesStore((s) => s.chats);
+
   const refresh = useCallback(async () => {
     setError("");
     try {
@@ -99,7 +105,10 @@ export default function HistoryPage() {
       if (!res.ok) {
         setError(data.error ?? `Failed to load sessions (${res.status})`);
       } else {
-        const list = extractList(data, "sessions").map(mapSession);
+        const myIds = new Set(useHermesStore.getState().chats.map((c) => c.id));
+        const list = extractList(data, "sessions")
+          .map(mapSession)
+          .filter((s) => myIds.has(s.id));
         setSessions(list);
         autoTitle(list);
       }
@@ -142,9 +151,10 @@ export default function HistoryPage() {
     );
   };
 
+  // Re-run when chats hydrate/change so the owned-session filter is accurate.
   useEffect(() => {
     refresh();
-  }, [refresh]);
+  }, [refresh, chats.length]);
 
   const toggle = async (id: string) => {
     if (openId === id) {
@@ -177,7 +187,7 @@ export default function HistoryPage() {
         <div>
           <h1 className="font-serif-display text-3xl mb-1">Agent history</h1>
           <p className="text-sm text-ink-soft">
-            Every session the agent has had — Slack, CLI, and this app.
+            Your past conversations with the agent.
           </p>
         </div>
         <button
@@ -246,7 +256,7 @@ export default function HistoryPage() {
           </div>
         ))}
         {!loading && !error && sessions.length === 0 && (
-          <p className="text-sm text-ink-faint">No sessions yet.</p>
+          <p className="text-sm text-ink-faint">No conversations yet.</p>
         )}
       </div>
     </div>
