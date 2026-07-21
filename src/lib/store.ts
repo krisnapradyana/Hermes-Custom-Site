@@ -5,6 +5,7 @@ import { persist, createJSONStorage, StateStorage } from "zustand/middleware";
 import { Chat, Message, Project, Artifact, Attachment } from "./types";
 import { hermesStream } from "./hermes-api";
 import { extractArtifacts, artifactsFromAttachments } from "./extract";
+import { toAgentPath } from "./format";
 
 let counter = 0;
 const uid = (p: string) => `${p}-${Date.now()}-${counter++}`;
@@ -150,10 +151,12 @@ export const useHermesStore = create<HermesState>()(
         const project = chat?.projectId
           ? get().projects.find((p) => p.id === chat.projectId)
           : undefined;
-        const context = project?.workingFolder
-          ? `The user is working in project "${project.name}". Designated working folder on this machine: ${project.workingFolder}.` +
-            (project.driveFolder ? ` Google Drive folder: ${project.driveFolder}.` : "") +
-            ` Perform file operations in the working folder unless told otherwise.`
+        const agentFolder = project?.workingFolder
+          ? toAgentPath(project.workingFolder)
+          : undefined;
+        const context = agentFolder
+          ? `The user is working in project "${project!.name}". Working folder: ${agentFolder}. ` +
+            `Perform file operations there unless told otherwise.`
           : undefined;
 
         hermesStream(

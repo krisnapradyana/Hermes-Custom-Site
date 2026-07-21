@@ -1,3 +1,24 @@
+/**
+ * Translate a user-facing working folder (e.g. "G:\My Drive\RND - PixelLab")
+ * into the path the server-side agent actually uses when Google Drive is
+ * rclone-mounted (e.g. "/gdrive/RND - PixelLab"). Configured via build args:
+ *   NEXT_PUBLIC_DRIVE_BASE       display prefix on users' machines
+ *   NEXT_PUBLIC_DRIVE_MOUNT_BASE server mount prefix
+ * If either is unset, the path is returned unchanged.
+ */
+export function toAgentPath(displayPath: string): string {
+  const base = process.env.NEXT_PUBLIC_DRIVE_BASE;
+  const mount = process.env.NEXT_PUBLIC_DRIVE_MOUNT_BASE;
+  if (!base || !mount) return displayPath;
+  const normBase = base.replace(/[\\/]*$/, "");
+  const p = displayPath.trim();
+  if (p.toLowerCase().startsWith(normBase.toLowerCase())) {
+    const rest = p.slice(normBase.length).replace(/^[\\/]+/, "");
+    return (mount.replace(/[\\/]*$/, "/") + rest).replace(/\\/g, "/");
+  }
+  return displayPath;
+}
+
 export function timeAgo(iso: string): string {
   const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
   if (s < 60) return "just now";
