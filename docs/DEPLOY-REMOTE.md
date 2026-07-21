@@ -103,11 +103,10 @@ volumes:
 Caddy fetches and renews the TLS certificate automatically. Don't publish
 port 3000 anymore in that case (remove the `"3000:3000"` mapping).
 
-**B. ngrok on the server (quick, for the team test).**
-
-```bash
-ngrok http --url=<your-static-domain>.ngrok-free.app 3000
-```
+**B. No domain? Use DuckDNS (free).** Claim `<name>.duckdns.org` at
+https://www.duckdns.org, point it at the server's IP, then use option A's
+Caddy block with that hostname. Open ports 80 + 443 in the firewall —
+Let's Encrypt needs 80 for issuance.
 
 Either way, set `ASSISTANT_PUBLIC_URL` to that HTTPS URL and add
 `<url>/api/auth/callback/slack` to the Slack app's Redirect URLs.

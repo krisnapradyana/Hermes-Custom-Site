@@ -63,14 +63,16 @@ interface HermesState {
   deleteChat: (chatId: string) => void;
   renameChat: (chatId: string, title: string) => void;
 
+  /** Projects are SHARED across all members via /api/projects. */
+  loadProjects: () => Promise<void>;
   createProject: (
     name: string,
     description: string,
     folders?: { workingFolder?: string; driveFolder?: string; slackChannel?: string }
-  ) => string;
-  updateProject: (id: string, patch: Partial<Project>) => void;
-  /** Removes the project plus its chats and their artifacts (disk files untouched). */
-  deleteProject: (id: string) => void;
+  ) => Promise<void>;
+  updateProject: (id: string, patch: Partial<Project>) => Promise<void>;
+  /** Removes the shared project; also drops the local user's chats/artifacts in it. */
+  deleteProject: (id: string) => Promise<void>;
 }
 
 export const useHermesStore = create<HermesState>()(
@@ -196,50 +198,62 @@ export const useHermesStore = create<HermesState>()(
           chats: s.chats.map((c) => (c.id === chatId ? { ...c, title } : c)),
         })),
 
-      createProject: (name, description, folders) => {
-        const id = uid("proj");
-        const colors = ["#d97757", "#6a9b7e", "#7d8bc4", "#c4a35a", "#a3719b"];
-        set((s) => ({
-          projects: [
-            ...s.projects,
-            {
-              id,
-              name,
-              description,
-              color: colors[s.projects.length % colors.length],
-              createdAt: new Date().toISOString(),
-              ...folders,
-            },
-          ],
-        }));
-        return id;
+      loadProjects: async () => {
+        try {
+          const res = await fetch("/api/projects", { cache: "no-store" });
+          if (!res.ok) return;
+          const data = (await res.json()) as { projects?: Project[] };
+          set({ projects: data.projects ?? [] });
+        } catch {}
       },
 
-      updateProject: (id, patch) =>
-        set((s) => ({
-          projects: s.projects.map((p) => (p.id === id ? { ...p, ...patch } : p)),
-        })),
+      createProject: async (name, description, folders) => {
+        try {
+          const res = await fetch("/api/projects", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name, description, ...folders }),
+          });
+          if (!res.ok) return;
+          const { project } = (await res.json()) as { project: Project };
+          set((s) => ({ projects: [...s.projects, project] }));
+        } catch {}
+      },
 
-      deleteProject: (id) =>
+      updateProject: async (id, patch) => {
+        // optimistic
+        set((s) => ({ projects: s.projects.map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
+        try {
+          await fetch(`/api/projects/${encodeURIComponent(id)}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(patch),
+          });
+        } catch {}
+      },
+
+      deleteProject: async (id) => {
         set((s) => {
-          const chatIds = new Set(
-            s.chats.filter((c) => c.projectId === id).map((c) => c.id)
-          );
+          const chatIds = new Set(s.chats.filter((c) => c.projectId === id).map((c) => c.id));
           return {
             projects: s.projects.filter((p) => p.id !== id),
             chats: s.chats.filter((c) => c.projectId !== id),
             artifacts: s.artifacts.filter((a) => !(a.chatId && chatIds.has(a.chatId))),
           };
-        }),
+        });
+        try {
+          await fetch(`/api/projects/${encodeURIComponent(id)}`, { method: "DELETE" });
+        } catch {}
+      },
     }),
     {
       name: "hermes-ui-state",
       storage: createJSONStorage(() => serverStorage),
       // Rehydrate manually after mount to avoid SSR hydration mismatches.
       skipHydration: true,
+      // Projects are NOT persisted here — they live in the shared store.
       partialize: (s) => ({
         chats: s.chats,
-        projects: s.projects,
         artifacts: s.artifacts,
       }),
       onRehydrateStorage: () => () => {

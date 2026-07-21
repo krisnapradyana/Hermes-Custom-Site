@@ -1,0 +1,29 @@
+import { promises as fs } from "fs";
+import path from "path";
+import { Project } from "./types";
+
+/**
+ * SHARED projects store — one file for the whole company, not per-user.
+ * This is what makes projects visible across all members. (Chats and
+ * artifacts stay per-user in server-store.ts.)
+ */
+
+const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), "data");
+const FILE = path.join(DATA_DIR, "projects.json");
+
+export async function readProjects(): Promise<Project[]> {
+  try {
+    const raw = await fs.readFile(FILE, "utf-8");
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function writeProjects(list: Project[]): Promise<void> {
+  await fs.mkdir(DATA_DIR, { recursive: true });
+  const tmp = FILE + ".tmp";
+  await fs.writeFile(tmp, JSON.stringify(list, null, 2), "utf-8");
+  await fs.rename(tmp, FILE);
+}

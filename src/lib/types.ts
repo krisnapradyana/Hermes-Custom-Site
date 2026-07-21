@@ -40,6 +40,8 @@ export interface Project {
   driveFolder?: string;
   /** Slack channel for project sharing (step 3). */
   slackChannel?: string;
+  /** Who created the project (shown in the shared list). */
+  createdBy?: { name: string; slackId?: string };
 }
 
 export type ArtifactKind = "document" | "code" | "html" | "diagram" | "image" | "file";

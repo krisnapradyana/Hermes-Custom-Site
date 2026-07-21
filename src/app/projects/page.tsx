@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, FolderKanban, MessageSquare, HardDrive, Trash2 } from "lucide-react";
+import { Plus, FolderKanban, MessageSquare, HardDrive, Trash2, User } from "lucide-react";
 import { useHermesStore } from "@/lib/store";
 import { timeAgo } from "@/lib/format";
 import { FolderInput } from "@/components/FolderInput";
@@ -14,16 +14,19 @@ export default function ProjectsPage() {
   const chats = useHermesStore((s) => s.chats);
   const createProject = useHermesStore((s) => s.createProject);
   const deleteProject = useHermesStore((s) => s.deleteProject);
+  const loadProjects = useHermesStore((s) => s.loadProjects);
+
+  useEffect(() => {
+    loadProjects();
+  }, [loadProjects]);
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
   const [workingFolder, setWorkingFolder] = useState("");
-  const [driveFolder, setDriveFolder] = useState("");
   const [wfOk, setWfOk] = useState(false);
-  const [dfOk, setDfOk] = useState(true); // optional — empty counts as ok
 
-  const canCreate = name.trim() && wfOk && dfOk;
+  const canCreate = name.trim() && wfOk;
 
   return (
     <div className="mx-auto max-w-4xl px-8 py-10">
@@ -63,28 +66,18 @@ export default function ProjectsPage() {
             value={workingFolder}
             onChange={setWorkingFolder}
             onStatus={setWfOk}
-            placeholder="E:\Projects\my-project"
-          />
-          <FolderInput
-            label="Google Drive folder"
-            optional
-            value={driveFolder}
-            onChange={setDriveFolder}
-            onStatus={setDfOk}
-            placeholder="G:\My Drive\ProjectAssets"
+            placeholder="G:\My Drive\Projects\my-project"
           />
           <div className="flex gap-2 pt-1">
             <button
-              onClick={() => {
+              onClick={async () => {
                 if (!canCreate) return;
-                createProject(name.trim(), desc.trim(), {
+                await createProject(name.trim(), desc.trim(), {
                   workingFolder: workingFolder.trim(),
-                  driveFolder: driveFolder.trim() || undefined,
                 });
                 setName("");
                 setDesc("");
                 setWorkingFolder("");
-                setDriveFolder("");
                 setShowForm(false);
               }}
               disabled={!canCreate}
@@ -138,6 +131,12 @@ export default function ProjectsPage() {
                 <MessageSquare size={11} />
                 {count} conversation{count === 1 ? "" : "s"} · created {timeAgo(p.createdAt)}
               </div>
+              {p.createdBy?.name && (
+                <div className="flex items-center gap-1.5 text-[11px] text-ink-faint mt-1">
+                  <User size={11} />
+                  by {p.createdBy.name}
+                </div>
+              )}
             </Link>
             </div>
           );

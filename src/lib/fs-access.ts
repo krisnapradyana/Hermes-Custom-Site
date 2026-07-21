@@ -1,5 +1,5 @@
 import path from "path";
-import { loadBlob } from "./server-store";
+import { readProjects } from "./projects-store";
 
 /**
  * Filesystem access control for the workspace panel.
@@ -9,26 +9,18 @@ import { loadBlob } from "./server-store";
 
 const norm = (p: string) => path.resolve(p).toLowerCase();
 
-export async function getAllowedRoots(userKey: string): Promise<string[]> {
-  const blob = await loadBlob(userKey);
-  if (!blob) return [];
-  try {
-    const parsed = JSON.parse(blob) as {
-      state?: { projects?: { workingFolder?: string; driveFolder?: string }[] };
-    };
-    const roots: string[] = [];
-    for (const p of parsed.state?.projects ?? []) {
-      if (p.workingFolder) roots.push(p.workingFolder);
-      if (p.driveFolder) roots.push(p.driveFolder);
-    }
-    return roots;
-  } catch {
-    return [];
+export async function getAllowedRoots(): Promise<string[]> {
+  const projects = await readProjects();
+  const roots: string[] = [];
+  for (const p of projects) {
+    if (p.workingFolder) roots.push(p.workingFolder);
+    if (p.driveFolder) roots.push(p.driveFolder);
   }
+  return roots;
 }
 
-export async function isAllowedRoot(userKey: string, root: string): Promise<boolean> {
-  const roots = await getAllowedRoots(userKey);
+export async function isAllowedRoot(_userKey: string, root: string): Promise<boolean> {
+  const roots = await getAllowedRoots();
   return roots.some((r) => norm(r) === norm(root));
 }
 

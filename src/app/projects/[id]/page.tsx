@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, FolderKanban, Package, HardDrive, Pencil, Check } from "lucide-react";
@@ -28,12 +28,15 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   );
   const createChat = useHermesStore((s) => s.createChat);
   const updateProject = useHermesStore((s) => s.updateProject);
+  const loadProjects = useHermesStore((s) => s.loadProjects);
+
+  useEffect(() => {
+    loadProjects();
+  }, [loadProjects]);
 
   const [editingFolders, setEditingFolders] = useState(false);
   const [wf, setWf] = useState("");
-  const [df, setDf] = useState("");
   const [wfOk, setWfOk] = useState(false);
-  const [dfOk, setDfOk] = useState(true);
 
   if (!project) {
     return (
@@ -75,18 +78,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                   <span className="text-red-500 font-sans">No working folder set</span>
                 )}
               </div>
-              {project.driveFolder && (
-                <div className="flex items-center gap-1.5 text-[13px] font-mono text-ink-soft truncate">
-                  <HardDrive size={13} className="shrink-0" />
-                  {project.driveFolder}
-                  <span className="text-[10px] text-ink-faint font-sans">(Drive)</span>
-                </div>
-              )}
             </div>
             <button
               onClick={() => {
                 setWf(project.workingFolder ?? "");
-                setDf(project.driveFolder ?? "");
                 setEditingFolders(true);
               }}
               className="p-1.5 rounded-lg hover:bg-parchment-dark text-ink-faint hover:text-ink shrink-0"
@@ -98,25 +93,14 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         ) : (
           <div className="space-y-3 py-1">
             <FolderInput label="Working folder" value={wf} onChange={setWf} onStatus={setWfOk} />
-            <FolderInput
-              label="Google Drive folder"
-              optional
-              value={df}
-              onChange={setDf}
-              onStatus={setDfOk}
-              placeholder="G:\My Drive\ProjectAssets"
-            />
             <div className="flex gap-2">
               <button
                 onClick={() => {
-                  if (!wfOk || !dfOk) return;
-                  updateProject(project.id, {
-                    workingFolder: wf.trim(),
-                    driveFolder: df.trim() || undefined,
-                  });
+                  if (!wfOk) return;
+                  updateProject(project.id, { workingFolder: wf.trim() });
                   setEditingFolders(false);
                 }}
-                disabled={!wfOk || !dfOk}
+                disabled={!wfOk}
                 className="flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-sm text-white hover:bg-accent-hover disabled:opacity-40"
               >
                 <Check size={13} />

@@ -72,9 +72,10 @@ export function Sidebar() {
       .slice(0, 30);
   }, [chats, q]);
 
-  // Rehydrate persisted state once on the client (skipHydration is on).
+  // Rehydrate persisted state + load shared projects once on the client.
   useEffect(() => {
     useHermesStore.persist.rehydrate();
+    useHermesStore.getState().loadProjects();
   }, []);
 
   const pinned = hydrated ? chats.filter((c) => c.pinned) : [];
