@@ -10,6 +10,7 @@ import {
   Trash2,
   FolderKanban,
   Package,
+  Paperclip,
   Clock,
   History,
   MessageSquare,
@@ -105,6 +106,9 @@ export function Sidebar() {
         <Link href="/artifacts" className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft" title="Artifacts">
           <Package size={16} />
         </Link>
+        <Link href="/attachments" className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft" title="Attachments">
+          <Paperclip size={16} />
+        </Link>
         <Link href="/cron" className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft" title="Scheduler">
           <Clock size={16} />
         </Link>
@@ -163,6 +167,7 @@ export function Sidebar() {
         </button>
         {navItem("/projects", <FolderKanban size={15} />, "Projects")}
         {navItem("/artifacts", <Package size={15} />, "Artifacts")}
+        {navItem("/attachments", <Paperclip size={15} />, "Attachments")}
         {navItem("/cron", <Clock size={15} />, "Scheduler")}
         {navItem("/history", <History size={15} />, "Agent history")}
       </div>

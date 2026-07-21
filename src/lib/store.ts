@@ -4,7 +4,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage, StateStorage } from "zustand/middleware";
 import { Chat, Message, Project, Artifact, Attachment } from "./types";
 import { hermesStream } from "./hermes-api";
-import { extractArtifacts, artifactsFromAttachments } from "./extract";
+import { extractArtifacts } from "./extract";
 import { toAgentPath } from "./format";
 
 let counter = 0;
@@ -121,13 +121,10 @@ export const useHermesStore = create<HermesState>()(
           thinking: "",
           createdAt: now,
         };
-        // Uploaded files become artifacts too, so they show in the history.
-        const uploadedArtifacts = artifactsFromAttachments(attachments ?? [], chatId, () =>
-          uid("art")
-        );
+        // Uploads stay as message attachments (shown on the Attachments page),
+        // NOT artifacts. Artifacts are agent-generated only.
         set((s) => ({
           isStreaming: true,
-          artifacts: [...s.artifacts, ...uploadedArtifacts],
           chats: s.chats.map((c) =>
             c.id === chatId
               ? { ...c, messages: [...c.messages, userMsg, asstMsg], updatedAt: now }

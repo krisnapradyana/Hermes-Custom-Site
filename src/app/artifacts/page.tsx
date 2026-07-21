@@ -48,7 +48,7 @@ function ArtifactsContent() {
           </p>
 
           <div className="flex flex-wrap gap-1.5 mb-6">
-            {(["all", "document", "code", "html", "diagram", "image", "file"] as const).map((k) => (
+            {(["all", "document", "code", "html", "diagram"] as const).map((k) => (
               <button
                 key={k}
                 onClick={() => setFilter(k)}
