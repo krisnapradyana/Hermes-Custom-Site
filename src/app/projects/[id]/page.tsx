@@ -3,11 +3,13 @@
 import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, FolderKanban, Package, HardDrive, Pencil, Check } from "lucide-react";
+import { ArrowLeft, FolderKanban, Package, HardDrive, Pencil, Check, PanelRight } from "lucide-react";
 import { useHermesStore } from "@/lib/store";
 import { timeAgo } from "@/lib/format";
 import { Composer } from "@/components/Composer";
 import { FolderInput } from "@/components/FolderInput";
+import { WorkspacePanel } from "@/components/WorkspacePanel";
+import { useResizableWidth, ResizeHandle } from "@/components/ResizeHandle";
 
 export default function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -37,6 +39,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [editingFolders, setEditingFolders] = useState(false);
   const [wf, setWf] = useState("");
   const [wfOk, setWfOk] = useState(false);
+  const [showPanel, setShowPanel] = useState(true);
+  const ws = useResizableWidth("hermes-workspace-w", 320, 240, 640, true);
 
   if (!project) {
     return (
@@ -46,15 +50,32 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     );
   }
 
+  const hasPanel = !!project.workingFolder;
+
   return (
-    <div className="mx-auto max-w-4xl px-8 py-10">
-      <Link
-        href="/projects"
-        className="inline-flex items-center gap-1.5 text-sm text-ink-soft hover:text-ink mb-6"
-      >
-        <ArrowLeft size={14} />
-        All projects
-      </Link>
+    <div className="flex h-full">
+      <div className="flex-1 min-w-0 overflow-y-auto">
+        <div className="mx-auto max-w-4xl px-8 py-10">
+          <div className="flex items-center justify-between mb-6">
+            <Link
+              href="/projects"
+              className="inline-flex items-center gap-1.5 text-sm text-ink-soft hover:text-ink"
+            >
+              <ArrowLeft size={14} />
+              All projects
+            </Link>
+            {hasPanel && (
+              <button
+                onClick={() => setShowPanel((v) => !v)}
+                className={`p-2 rounded-lg hover:bg-parchment-dark ${
+                  showPanel ? "text-accent" : "text-ink-soft"
+                }`}
+                title={showPanel ? "Hide workspace panel" : "Show workspace panel"}
+              >
+                <PanelRight size={15} />
+              </button>
+            )}
+          </div>
 
       <div className="flex items-center gap-3 mb-2">
         <div
@@ -180,6 +201,20 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 </div>
               </Link>
             ))}
+          </div>
+        </>
+      )}
+        </div>
+      </div>
+
+      {hasPanel && showPanel && (
+        <>
+          <ResizeHandle onPointerDown={ws.startResize} />
+          <div
+            className="shrink-0 border-l border-line bg-card flex flex-col"
+            style={{ width: ws.width }}
+          >
+            <WorkspacePanel project={project} />
           </div>
         </>
       )}
