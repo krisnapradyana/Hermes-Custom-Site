@@ -26,6 +26,14 @@ export async function GET(req: NextRequest) {
       .map((d) => d.name)
       .sort((a, b) => a.localeCompare(b))
       .slice(0, 1000);
+
+    // Prefetch: warm the rclone dir-cache for these sub-folders in the
+    // background so the user's NEXT click is instant. Fire-and-forget,
+    // capped so a huge folder doesn't flood the Drive API.
+    for (const name of folders.slice(0, 30)) {
+      fs.readdir(path.join(full, name)).catch(() => {});
+    }
+
     return NextResponse.json({ base: MOUNT_BASE, path: full, sub, folders });
   } catch {
     return NextResponse.json({ error: "Could not read folder" }, { status: 404 });
