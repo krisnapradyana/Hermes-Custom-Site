@@ -9,6 +9,16 @@ import { readProjects } from "./projects-store";
 
 const norm = (p: string) => path.resolve(p).toLowerCase();
 
+/** The rclone Drive mount root on the server (everything lives under here). */
+export const MOUNT_BASE = process.env.DRIVE_MOUNT_DIR ?? "/gdrive";
+
+/** True if an absolute path is the mount base or inside it. */
+export function isUnderMount(p: string): boolean {
+  const n = norm(p);
+  const base = norm(MOUNT_BASE);
+  return n === base || n.startsWith(base + path.sep);
+}
+
 export async function getAllowedRoots(): Promise<string[]> {
   const projects = await readProjects();
   const roots: string[] = [];
@@ -20,6 +30,9 @@ export async function getAllowedRoots(): Promise<string[]> {
 }
 
 export async function isAllowedRoot(_userKey: string, root: string): Promise<boolean> {
+  // Any folder inside the Drive mount is browsable, plus explicitly
+  // registered project folders (covers non-mount setups too).
+  if (isUnderMount(root)) return true;
   const roots = await getAllowedRoots();
   return roots.some((r) => norm(r) === norm(root));
 }

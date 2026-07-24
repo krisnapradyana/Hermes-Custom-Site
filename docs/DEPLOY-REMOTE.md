@@ -32,6 +32,7 @@ Edit `~/Hermes-Agent-Slack/docker-compose.yaml` and add this service
       - HERMES_API_MODE=openai
       - HERMES_API_KEY=${API_SERVER_KEY}
       - HERMES_MODEL=hermes-agent
+      - DRIVE_MOUNT_DIR=/gdrive
       - NEXT_PUBLIC_AUTH_ENABLED=true
       - AUTH_URL=${ASSISTANT_PUBLIC_URL}
       - AUTH_SECRET=${ASSISTANT_AUTH_SECRET}
@@ -40,10 +41,7 @@ Edit `~/Hermes-Agent-Slack/docker-compose.yaml` and add this service
       - DATA_DIR=/app/data
     volumes:
       - ./assistant-data:/app/data
-      - ./agent-workspace:/workspace
-    environment:
-      # (append to the environment list above)
-      - AGENT_WORKSPACE_DIR=/workspace
+      - /gdrive:/gdrive:rshared        # rclone Drive mount — panel reads this
 ```
 
 Notes:

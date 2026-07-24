@@ -5,10 +5,9 @@ import Link from "next/link";
 import { Plus, FolderKanban, MessageSquare, HardDrive, Trash2, User } from "lucide-react";
 import { useHermesStore } from "@/lib/store";
 import { timeAgo } from "@/lib/format";
-import { FolderInput } from "@/components/FolderInput";
 import { ConfirmDeleteModal } from "@/components/ConfirmDeleteModal";
+import { ServerFolderPicker } from "@/components/ServerFolderPicker";
 import { Project } from "@/lib/types";
-import { ensurePermission, saveDirHandle, FSDir } from "@/lib/local-fs";
 
 export default function ProjectsPage() {
   const projects = useHermesStore((s) => s.projects);
@@ -25,35 +24,19 @@ export default function ProjectsPage() {
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
   const [workingFolder, setWorkingFolder] = useState("");
-  const [wfOk, setWfOk] = useState(false);
-  const [pickedHandle, setPickedHandle] = useState<FSDir | null>(null);
+  const [picking, setPicking] = useState(false);
   const [creating, setCreating] = useState(false);
 
-  const canCreate = name.trim() && wfOk;
+  const canCreate = name.trim() && workingFolder.trim();
 
   const handleCreate = async () => {
     if (!canCreate || creating) return;
     setCreating(true);
     try {
-      // If a folder was picked, confirm access now — cancel if denied.
-      if (pickedHandle) {
-        const granted = await ensurePermission(pickedHandle).catch(() => false);
-        if (!granted) {
-          alert("Folder access was denied. Grant permission to create this project.");
-          return;
-        }
-      }
-      const project = await createProject(name.trim(), desc.trim(), {
-        workingFolder: workingFolder.trim(),
-      });
-      // Persist the handle under the new project id so the panel opens it
-      // with no extra "Connect folder" step.
-      if (project && pickedHandle) await saveDirHandle(project.id, pickedHandle);
-
+      await createProject(name.trim(), desc.trim(), { workingFolder: workingFolder.trim() });
       setName("");
       setDesc("");
       setWorkingFolder("");
-      setPickedHandle(null);
       setShowForm(false);
     } finally {
       setCreating(false);
@@ -93,14 +76,23 @@ export default function ProjectsPage() {
             placeholder="What is this project about?"
             className="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:border-ink-faint"
           />
-          <FolderInput
-            label="Working folder"
-            value={workingFolder}
-            onChange={setWorkingFolder}
-            onStatus={setWfOk}
-            onHandle={(h) => setPickedHandle(h as FSDir)}
-            placeholder="G:\My Drive\Projects\my-project"
-          />
+          <div>
+            <p className="text-sm font-medium mb-1.5">Working folder</p>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 rounded-lg border border-line bg-transparent px-3 py-2 text-sm font-mono truncate text-ink-soft">
+                {workingFolder || <span className="text-ink-faint">No folder chosen</span>}
+              </div>
+              <button
+                onClick={() => setPicking(true)}
+                className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-sm text-ink-soft hover:border-ink-faint hover:text-ink shrink-0"
+              >
+                <HardDrive size={14} /> Browse
+              </button>
+            </div>
+            <p className="mt-1 text-[11px] text-ink-faint">
+              Pick a folder from the shared Drive — the assistant reads and saves files there.
+            </p>
+          </div>
           <div className="flex gap-2 pt-1">
             <button
               onClick={handleCreate}
@@ -117,6 +109,16 @@ export default function ProjectsPage() {
             </button>
           </div>
         </div>
+      )}
+
+      {picking && (
+        <ServerFolderPicker
+          onPick={(p) => {
+            setWorkingFolder(p);
+            setPicking(false);
+          }}
+          onCancel={() => setPicking(false)}
+        />
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
