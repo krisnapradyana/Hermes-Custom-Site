@@ -103,12 +103,17 @@ export const useHermesStore = create<HermesState>()(
 
       sendMessage: (chatId, content, attachments) => {
         const now = new Date().toISOString();
+        const userId = uid("m");
+        // Store only lightweight metadata in state — never the base64 bytes.
+        const metaAttachments: Attachment[] | undefined = attachments?.length
+          ? attachments.map((a) => ({ name: a.name, type: a.type, size: a.size }))
+          : undefined;
         const userMsg: Message = {
-          id: uid("m"),
+          id: userId,
           role: "user",
           content,
           createdAt: now,
-          attachments: attachments?.length ? attachments : undefined,
+          attachments: metaAttachments,
         };
         const chat = get().chats.find((c) => c.id === chatId);
         const priorHistory = chat?.messages ?? [];
@@ -120,8 +125,6 @@ export const useHermesStore = create<HermesState>()(
           thinking: "",
           createdAt: now,
         };
-        // Uploads stay as message attachments (shown on the Attachments page),
-        // NOT artifacts. Artifacts are agent-generated only.
         set((s) => ({
           isStreaming: true,
           chats: s.chats.map((c) =>
@@ -131,17 +134,39 @@ export const useHermesStore = create<HermesState>()(
           ),
         }));
 
-        const patchAsst = (patch: Partial<Message>) =>
+        const patchMsg = (msgId: string, patch: Partial<Message>) =>
           set((s) => ({
             chats: s.chats.map((c) =>
               c.id === chatId
                 ? {
                     ...c,
-                    messages: c.messages.map((m) => (m.id === asstId ? { ...m, ...patch } : m)),
+                    messages: c.messages.map((m) => (m.id === msgId ? { ...m, ...patch } : m)),
                   }
                 : c
             ),
           }));
+        const patchAsst = (patch: Partial<Message>) => patchMsg(asstId, patch);
+
+        // Upload attachment bytes to the server (off the state blob), then
+        // patch the user message with lightweight {…,id} references.
+        if (attachments?.length) {
+          (async () => {
+            const refs: Attachment[] = [];
+            for (const a of attachments) {
+              const base: Attachment = { name: a.name, type: a.type, size: a.size };
+              try {
+                const res = await fetch("/api/attachments", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ name: a.name, type: a.type, dataUrl: a.dataUrl }),
+                });
+                if (res.ok) base.id = (await res.json()).id;
+              } catch {}
+              refs.push(base);
+            }
+            patchMsg(userId, { attachments: refs });
+          })();
+        }
 
         // Project working-folder context travels with every message.
         const project = chat?.projectId

@@ -32,11 +32,11 @@ export function MessageList({
               {m.attachments && m.attachments.length > 0 && (
                 <div className="flex flex-wrap gap-2 justify-end">
                   {m.attachments.map((a, i) =>
-                    a.type.startsWith("image/") ? (
+                    a.type.startsWith("image/") && (a.dataUrl || a.id) ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         key={i}
-                        src={a.dataUrl}
+                        src={a.dataUrl ?? `/api/attachments/${a.id}`}
                         alt={a.name}
                         className="max-h-40 rounded-xl border border-line"
                       />

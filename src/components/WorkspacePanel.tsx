@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Folder,
   FileText,
@@ -74,9 +74,11 @@ export function WorkspacePanel({ project }: { project: Project }) {
     [root]
   );
 
+  const inFlight = useRef(false);
   const list = useCallback(
     async (silent = false) => {
-      if (!root) return;
+      if (!root || inFlight.current) return; // skip overlapping polls
+      inFlight.current = true;
       if (!silent) setEntries(null);
       setError("");
       try {
@@ -90,6 +92,8 @@ export function WorkspacePanel({ project }: { project: Project }) {
         else setEntries(data.entries);
       } catch {
         setError("Could not reach the server");
+      } finally {
+        inFlight.current = false;
       }
     },
     [root, cwd]
@@ -99,11 +103,19 @@ export function WorkspacePanel({ project }: { project: Project }) {
     list();
   }, [list]);
 
-  // Poll so agent-generated files appear on their own.
+  // Poll so agent-generated files appear on their own — but only while the
+  // tab is visible, every 8s, and never overlapping (guarded above).
   useEffect(() => {
     if (!root) return;
-    const t = setInterval(() => list(true), 5000);
-    return () => clearInterval(t);
+    const tick = () => {
+      if (document.visibilityState === "visible") list(true);
+    };
+    const t = setInterval(tick, 8000);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", tick);
+    };
   }, [root, list]);
 
   const loadProgress = useCallback(async () => {
@@ -129,9 +141,17 @@ export function WorkspacePanel({ project }: { project: Project }) {
     setProgress(null);
   }, [root]);
 
+  // Check progress files only at the root, and only when the root listing
+  // actually changes — not on every poll tick (each check is up to 3 Drive
+  // reads, so per-tick was hammering the mount).
+  const progressSig = useRef("");
   useEffect(() => {
+    if (cwd !== "" || !entries) return;
+    const sig = entries.map((e) => e.name).join("|");
+    if (sig === progressSig.current) return;
+    progressSig.current = sig;
     loadProgress();
-  }, [loadProgress, entries]);
+  }, [entries, cwd, loadProgress]);
 
   const openFile = async (sub: string, name: string) => {
     setSelected({ sub, name });
@@ -171,7 +191,14 @@ export function WorkspacePanel({ project }: { project: Project }) {
         <span className="text-[11px] text-ink-faint font-mono truncate flex-1" title={root}>
           {root}
         </span>
-        <button onClick={() => list()} className="p-1 rounded-md hover:bg-parchment-dark text-ink-faint" title="Refresh">
+        <button
+          onClick={() => {
+            progressSig.current = "";
+            list();
+          }}
+          className="p-1 rounded-md hover:bg-parchment-dark text-ink-faint"
+          title="Refresh"
+        >
           <RefreshCw size={12} />
         </button>
       </div>

@@ -40,7 +40,7 @@ export default function AttachmentsPage() {
     for (const c of chats) {
       for (const m of c.messages) {
         for (const a of m.attachments ?? []) {
-          const key = `${a.name}-${a.size}-${a.dataUrl.length}`;
+          const key = a.id ?? `${a.name}-${a.size}`;
           if (seen.has(key)) continue;
           seen.add(key);
           out.push({ key, attachment: a, chatId: c.id, chatTitle: c.title, createdAt: m.createdAt });
@@ -100,7 +100,10 @@ export default function AttachmentsPage() {
                 <MessageSquare size={15} />
               </Link>
               <a
-                href={open.attachment.dataUrl}
+                href={
+                  open.attachment.dataUrl ??
+                  `/api/attachments/${open.attachment.id}?download=1`
+                }
                 download={open.attachment.name}
                 className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
                 title="Download"

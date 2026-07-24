@@ -4,7 +4,10 @@ export interface Attachment {
   name: string;
   type: string; // MIME type
   size: number; // bytes
-  dataUrl: string; // data:<mime>;base64,...
+  /** Transient — present only at upload time, never persisted. */
+  dataUrl?: string;
+  /** Server reference for persisted attachments (bytes stored off the state blob). */
+  id?: string;
 }
 
 export interface Message {

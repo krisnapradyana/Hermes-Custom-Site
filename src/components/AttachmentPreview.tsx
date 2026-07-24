@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Attachment } from "@/lib/types";
 
 const TEXT_RE = /\.(md|markdown|txt|csv|tsv|json|ts|tsx|js|jsx|py|sh|sql|css|html?|ya?ml|xml|log|env|toml|ini)$/i;
@@ -9,7 +10,13 @@ function isText(a: Attachment) {
   return a.type.startsWith("text/") || a.type === "application/json" || TEXT_RE.test(a.name);
 }
 
-function decode(dataUrl: string): string {
+/** URL for a persisted attachment; fresh uploads carry dataUrl directly. */
+function srcOf(a: Attachment, download = false): string {
+  if (a.dataUrl) return a.dataUrl;
+  return `/api/attachments/${a.id}${download ? "?download=1" : ""}`;
+}
+
+function decodeDataUrl(dataUrl: string): string {
   try {
     const b64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
     const bin = atob(b64);
@@ -23,29 +30,49 @@ function decode(dataUrl: string): string {
 
 export function AttachmentPreview({ attachment }: { attachment: Attachment }) {
   const a = attachment;
+  const [text, setText] = useState<string | null>(null);
+
+  const textual = isText(a);
+  useEffect(() => {
+    if (!textual) return;
+    if (a.dataUrl) {
+      setText(decodeDataUrl(a.dataUrl));
+      return;
+    }
+    let alive = true;
+    fetch(srcOf(a))
+      .then((r) => (r.ok ? r.text() : ""))
+      .then((t) => alive && setText(t))
+      .catch(() => alive && setText(""));
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [a.id, a.dataUrl, textual]);
+
   if (a.type.startsWith("image/")) {
     return (
       <div className="flex items-center justify-center h-full p-4 overflow-auto">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={a.dataUrl} alt={a.name} className="max-w-full max-h-full rounded-lg" />
+        <img src={srcOf(a)} alt={a.name} className="max-w-full max-h-full rounded-lg" />
       </div>
     );
   }
   if (a.type === "application/pdf" || /\.pdf$/i.test(a.name)) {
-    return <iframe src={a.dataUrl} className="w-full h-full" title={a.name} />;
+    return <iframe src={srcOf(a)} className="w-full h-full" title={a.name} />;
   }
   if (a.type.startsWith("video/")) {
     // eslint-disable-next-line jsx-a11y/media-has-caption
-    return <video controls src={a.dataUrl} className="max-w-full p-3" />;
+    return <video controls src={srcOf(a)} className="max-w-full p-3" />;
   }
   if (a.type.startsWith("audio/")) {
     // eslint-disable-next-line jsx-a11y/media-has-caption
-    return <audio controls src={a.dataUrl} className="w-full p-3" />;
+    return <audio controls src={srcOf(a)} className="w-full p-3" />;
   }
-  if (isText(a)) {
+  if (textual) {
     return (
       <pre className="p-5 text-[13px] leading-relaxed whitespace-pre-wrap font-mono text-ink overflow-auto h-full">
-        {decode(a.dataUrl)}
+        {text ?? "Loading…"}
       </pre>
     );
   }
@@ -53,7 +80,7 @@ export function AttachmentPreview({ attachment }: { attachment: Attachment }) {
     <div className="flex flex-col items-center justify-center h-full gap-3 text-ink-faint">
       <p className="text-sm">No inline preview for this file type.</p>
       <a
-        href={a.dataUrl}
+        href={srcOf(a, true)}
         download={a.name}
         className="rounded-lg bg-accent px-4 py-2 text-sm text-white hover:bg-accent-hover"
       >
