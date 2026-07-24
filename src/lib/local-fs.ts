@@ -102,3 +102,21 @@ export async function getFile(dir: FSDir, name: string): Promise<File | null> {
     return null;
   }
 }
+
+/** Write a file at a relative path (posix separators), creating subfolders. */
+export async function writeFileDeep(root: FSDir, relPath: string, data: Blob): Promise<boolean> {
+  try {
+    const parts = relPath.split("/").filter(Boolean);
+    const name = parts.pop();
+    if (!name) return false;
+    let dir = root;
+    for (const p of parts) dir = await dir.getDirectoryHandle(p, { create: true });
+    const fh = await dir.getFileHandle(name, { create: true });
+    const w = await fh.createWritable();
+    await w.write(data);
+    await w.close();
+    return true;
+  } catch {
+    return false;
+  }
+}

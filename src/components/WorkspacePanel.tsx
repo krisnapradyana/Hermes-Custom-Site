@@ -29,6 +29,7 @@ import {
   ensurePermission,
   listDir,
   getFile,
+  writeFileDeep,
 } from "@/lib/local-fs";
 
 type PreviewKind = "image" | "markdown" | "code" | "text" | "pdf" | "video" | "audio" | "binary";
@@ -84,7 +85,8 @@ export function WorkspacePanel({ project }: { project: Project }) {
     (async () => {
       const saved = await getDirHandle(project.id);
       if (!alive || !saved) return;
-      const granted = await ensurePermission(saved).catch(() => false);
+      // readwrite: the panel also DELIVERS agent-generated files into this folder.
+      const granted = await ensurePermission(saved, true).catch(() => false);
       if (!alive) return;
       if (granted) {
         setRoot(saved);
@@ -103,6 +105,7 @@ export function WorkspacePanel({ project }: { project: Project }) {
   const connect = async () => {
     const dir = await pickDirectory();
     if (!dir) return;
+    await ensurePermission(dir, true).catch(() => false);
     await saveDirHandle(project.id, dir);
     setRoot(dir);
     setNeedsPermission(false);
@@ -111,7 +114,7 @@ export function WorkspacePanel({ project }: { project: Project }) {
 
   const reconnect = async () => {
     if (!root) return;
-    const ok = await ensurePermission(root);
+    const ok = await ensurePermission(root, true);
     if (ok) {
       setNeedsPermission(false);
       setStack([{ handle: root, name: root.name }]);
@@ -163,6 +166,7 @@ export function WorkspacePanel({ project }: { project: Project }) {
     return () => clearInterval(t);
   }, [root, syncManifest]);
 
+
   // Progress widget from the root folder.
   const loadProgress = useCallback(async () => {
     if (!root) return;
@@ -183,6 +187,59 @@ export function WorkspacePanel({ project }: { project: Project }) {
   useEffect(() => {
     loadProgress();
   }, [loadProgress, entries]);
+
+  // DELIVERY: pull files the agent wrote on the server into the user's own
+  // folder (browser is the courier — it can reach both sides). Tracked by
+  // mtime per project so each file is written once per change.
+  const [deliverMsg, setDeliverMsg] = useState("");
+  const delivering = useRef(false);
+  const deliver = useCallback(async () => {
+    if (!root || delivering.current) return;
+    delivering.current = true;
+    try {
+      const res = await fetch(`/api/projects/${encodeURIComponent(project.id)}/files`, {
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const { files } = (await res.json()) as { files: { p: string; s: number; m: number }[] };
+      if (!files?.length) return;
+      const key = `hermes-delivered-${project.id}`;
+      let seen: Record<string, number> = {};
+      try {
+        seen = JSON.parse(localStorage.getItem(key) ?? "{}");
+      } catch {}
+      let wrote = 0;
+      for (const f of files) {
+        if (seen[f.p] === f.m) continue;
+        const r = await fetch(
+          `/api/projects/${encodeURIComponent(project.id)}/files/raw?sub=${encodeURIComponent(f.p)}`
+        );
+        if (!r.ok) continue;
+        const blob = await r.blob();
+        if (await writeFileDeep(root, f.p, blob)) {
+          seen[f.p] = f.m;
+          wrote++;
+        }
+      }
+      localStorage.setItem(key, JSON.stringify(seen));
+      if (wrote > 0) {
+        setDeliverMsg(`${wrote} file${wrote > 1 ? "s" : ""} delivered to your folder`);
+        setTimeout(() => setDeliverMsg(""), 4000);
+        refresh();
+        loadProgress();
+      }
+    } catch {
+    } finally {
+      delivering.current = false;
+    }
+  }, [root, project.id, refresh, loadProgress]);
+
+  useEffect(() => {
+    if (!root) return;
+    deliver();
+    const t = setInterval(deliver, 5000);
+    return () => clearInterval(t);
+  }, [root, deliver]);
 
   const setPreviewUrl = (url: string | null) => {
     if (urlRef.current) URL.revokeObjectURL(urlRef.current);
@@ -287,6 +344,11 @@ export function WorkspacePanel({ project }: { project: Project }) {
           <RefreshCw size={12} />
         </button>
       </div>
+      {deliverMsg && (
+        <p className="px-3 py-1.5 text-[11px] text-accent border-b border-line bg-accent-soft">
+          ✓ {deliverMsg}
+        </p>
+      )}
 
       {/* Progress */}
       {progress && !preview && (

@@ -5,7 +5,6 @@ import { persist, createJSONStorage, StateStorage } from "zustand/middleware";
 import { Chat, Message, Project, Artifact, Attachment } from "./types";
 import { hermesStream } from "./hermes-api";
 import { extractArtifacts } from "./extract";
-import { toAgentPath } from "./format";
 
 let counter = 0;
 const uid = (p: string) => `${p}-${Date.now()}-${counter++}`;
@@ -148,12 +147,15 @@ export const useHermesStore = create<HermesState>()(
         const project = chat?.projectId
           ? get().projects.find((p) => p.id === chat.projectId)
           : undefined;
-        const agentFolder = project?.workingFolder
-          ? toAgentPath(project.workingFolder)
-          : undefined;
-        const context = agentFolder
-          ? `The user is working in project "${project!.name}". Working folder: ${agentFolder}. ` +
-            `Perform file operations there unless told otherwise.`
+        // The agent works in a server-side project workspace; files it saves
+        // there are auto-delivered to the user's own machine by the browser.
+        const context = project
+          ? `The user is working in project "${project.name}". ` +
+            `Your working folder on this machine: /workspace/projects/${project.id} — ` +
+            `save ALL generated files there (create it if needed). Files saved there are ` +
+            `automatically delivered to the user's own computer into their project folder ` +
+            `("${project.workingFolder ?? "their Drive folder"}"). Do not try to access ` +
+            `Windows paths like G:\\ — they exist only on the user's machine.`
           : undefined;
 
         hermesStream(

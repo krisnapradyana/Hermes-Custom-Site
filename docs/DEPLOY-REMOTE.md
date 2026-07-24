@@ -40,7 +40,10 @@ Edit `~/Hermes-Agent-Slack/docker-compose.yaml` and add this service
       - DATA_DIR=/app/data
     volumes:
       - ./assistant-data:/app/data
-      - ./documents:/workspace/documents
+      - ./agent-workspace:/workspace
+    environment:
+      # (append to the environment list above)
+      - AGENT_WORKSPACE_DIR=/workspace
 ```
 
 Notes:
@@ -50,9 +53,18 @@ Notes:
   reachable from the internet at all.
 - `${API_SERVER_KEY}` reuses the key already in `~/Hermes-Agent-Slack/.env`.
 - `assistant-data` holds per-user chats/projects/artifacts. Back it up.
-- `./documents:/workspace/documents` gives app + agent a shared folder —
-  use paths like `/workspace/documents/<project>` as project working
-  folders in the UI.
+- `./agent-workspace:/workspace` is the agent's output area. Mount the SAME
+  volume into the hermes service too:
+
+  ```yaml
+  # on the hermes agent service:
+      volumes:
+        - ./agent-workspace:/workspace
+  ```
+
+  The agent saves generated files to `/workspace/projects/<projectId>`;
+  each user's browser (workspace panel) automatically delivers those files
+  into their own local Drive folder, and Drive syncs them to the team.
 
 ## 3. Add the new secrets to `~/Hermes-Agent-Slack/.env`
 
