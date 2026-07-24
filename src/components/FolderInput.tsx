@@ -64,8 +64,11 @@ export function FolderInput({
     if (w.showDirectoryPicker) {
       try {
         const handle = await w.showDirectoryPicker();
-        applyName(handle.name);
         onHandle?.(handle);
+        // Only auto-fill the path when the field is empty, and never clobber
+        // a nested path the user typed. The browser only exposes the leaf
+        // folder name, so this is a best-guess starting point to edit.
+        if (!value.trim()) applyName(handle.name);
       } catch {
         /* user cancelled */
       }
@@ -128,9 +131,13 @@ export function FolderInput({
           Enter a full path, e.g. {DRIVE_BASE}… or /workspace/…
         </p>
       )}
-      <p className="mt-1 flex items-center gap-1 text-[11px] text-ink-faint">
-        <HardDrive size={11} />
-        Pick your project folder — it&apos;s assumed to be under {DRIVE_BASE.replace(/\\$/, "")}. Edit if it lives elsewhere.
+      <p className="mt-1 flex items-start gap-1 text-[11px] text-ink-faint">
+        <HardDrive size={11} className="mt-0.5 shrink-0" />
+        <span>
+          Type the full folder path. The browser can only read the folder&apos;s
+          name, so if it&apos;s nested (e.g. {DRIVE_BASE}Projects\…) include the
+          middle folders yourself.
+        </span>
       </p>
     </div>
   );

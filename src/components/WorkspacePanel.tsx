@@ -258,7 +258,7 @@ export function WorkspacePanel({ project }: { project: Project }) {
         <p className="text-[13px] text-ink-soft">
           {needsPermission
             ? "Reconnect this project's folder to view its files."
-            : "Connect this project's folder to browse it here."}
+            : "Connect your copy of this folder to browse it here. Each person picks it once on their own machine."}
         </p>
         {project.workingFolder && (
           <p className="text-[11px] text-ink-faint font-mono break-all">{project.workingFolder}</p>
