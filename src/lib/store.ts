@@ -5,6 +5,7 @@ import { persist, createJSONStorage, StateStorage } from "zustand/middleware";
 import { Chat, Message, Project, Artifact, Attachment } from "./types";
 import { hermesStream } from "./hermes-api";
 import { extractArtifacts } from "./extract";
+import { toAgentPath } from "./format";
 
 let counter = 0;
 const uid = (p: string) => `${p}-${Date.now()}-${counter++}`;
@@ -147,16 +148,33 @@ export const useHermesStore = create<HermesState>()(
         const project = chat?.projectId
           ? get().projects.find((p) => p.id === chat.projectId)
           : undefined;
-        // The agent works in a server-side project workspace; files it saves
-        // there are auto-delivered to the user's own machine by the browser.
-        const context = project
-          ? `The user is working in project "${project.name}". ` +
-            `Your working folder on this machine: /workspace/projects/${project.id} — ` +
-            `save ALL generated files there (create it if needed). Files saved there are ` +
-            `automatically delivered to the user's own computer into their project folder ` +
-            `("${project.workingFolder ?? "their Drive folder"}"). Do not try to access ` +
-            `Windows paths like G:\\ — they exist only on the user's machine.`
-          : undefined;
+        // Working folder for the agent:
+        // - If the project path maps onto the server's rclone Drive mount
+        //   (NEXT_PUBLIC_DRIVE_BASE → NEXT_PUBLIC_DRIVE_MOUNT_BASE), use it —
+        //   the agent then reads/writes the real shared Drive.
+        // - Otherwise fall back to the server workspace; the browser courier
+        //   delivers those files to the user's machine.
+        let context: string | undefined;
+        if (project) {
+          const mapped = project.workingFolder ? toAgentPath(project.workingFolder) : undefined;
+          const usesMount = !!mapped && mapped !== project.workingFolder;
+          // Create-only guardrail: never destroy the team's real files.
+          const safety =
+            ` File-safety rules: only CREATE new files; never delete or move files. ` +
+            `If a change to an existing file is needed, save a new versioned copy ` +
+            `(e.g. name-v2.ext) and tell the user — never overwrite the original.`;
+          context =
+            (usesMount
+              ? `The user is working in project "${project.name}". Working folder on this ` +
+                `machine: ${mapped} — it is the team's shared Drive (mounted); save all ` +
+                `generated files there and read project files from there. Do not use ` +
+                `Windows paths like G:\\ — they exist only on the user's machine.`
+              : `The user is working in project "${project.name}". Your working folder on ` +
+                `this machine: /workspace/projects/${project.id} — save ALL generated files ` +
+                `there (create it if needed); they are automatically delivered to the user's ` +
+                `computer. Do not use Windows paths like G:\\ — they exist only on the ` +
+                `user's machine.`) + safety;
+        }
 
         hermesStream(
           content,

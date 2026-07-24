@@ -1,103 +1,96 @@
-# Mounting Google Drive on the server (rclone)
+# Mounting the Shared Drive on the server (rclone + service account)
 
-Goal: the Hermes agent reads and writes the same Google Drive folder your
-team sees at `G:\My Drive\...`, so working folders "just work" with no
-per-file steps.
+Goal: the Hermes agent reads and writes the team's Google **Shared Drive**
+directly, so files it generates land in everyone's `G:\` automatically.
+
+## Why a service account (not a login)
+
+A service account is a *robot* Google identity — a key file on the server.
+Nobody signs into it, so it can't be "logged out," and it doesn't consume
+any person's storage quota. This is the durable fix for "our shared account
+can be logged out anytime." No human OAuth token involved.
 
 ## How it flows
 
 ```
-Teammate PC:  G:\My Drive\RND - PixelLab
-                    ↕  Google Drive for Desktop (already syncing today)
-Google Drive (cloud)  ← single source of truth
-                    ↕  rclone  (NEW: server signs in as the Drive owner)
+Teammate PC:  G:\...\SUPERPIXEL\RND - PixelLab   (Shared Drive shortcut)
+                    ↕  Google Drive for Desktop (already syncing)
+Google Shared Drive (cloud)  ← single source of truth
+                    ↕  rclone + service account  (NEW, on the server)
 Server:       /gdrive/RND - PixelLab
-                    ↓  read/write like a normal folder
-Hermes agent
+                    ↓
+Hermes agent  reads & writes like a normal folder
 ```
-
-Both sides point at the same cloud. A file the agent writes travels
-cloud → Drive for Desktop → your `G:\` (seconds to minutes). And back.
-
-Defaults used below — change if you prefer:
-- rclone remote name: `gdrive`
-- server mount path: `/gdrive`
-- VFS cache cap: `20G`
 
 ---
 
-## Phase 1 — Authorize rclone (headless)
+## Phase 1 — Create the service account (needs Google Workspace admin)
 
-The server has no browser, so we authorize on your Windows PC and paste the
-token over.
+In Google Cloud Console (console.cloud.google.com), on any project:
 
-**On the server:**
+1. **Enable the Drive API**: APIs & Services → Library → "Google Drive API" → Enable.
+2. **Create a service account**: IAM & Admin → Service Accounts → Create.
+   Name it e.g. `hermes-drive`. Skip role grants. Create.
+3. **Make a key**: open the service account → Keys → Add key → JSON. A
+   `.json` file downloads. This is the credential — treat it like a password.
+4. **Give it Shared Drive access**: open the Shared Drive in Google Drive →
+   Manage members → add the service account's email
+   (`hermes-drive@<project>.iam.gserviceaccount.com`) as **Contributor**.
+   Contributor lets the agent CREATE and edit files but **cannot delete or
+   move** them (Google enforces this) — the safe level. Use Content manager
+   only if you deliberately want the agent able to delete/move.
+
+Copy the JSON key to the server, e.g. `~/Hermes-Agent-Slack/gdrive-sa.json`
+(keep it out of git).
+
+## Phase 2 — Configure rclone
+
 ```bash
 sudo -v ; curl https://rclone.org/install.sh | sudo bash
-rclone version
+
+# Find the Shared Drive's ID (the service account can list them):
+rclone backend drives gdrive: 2>/dev/null || true
 ```
 
-**On your Windows PC** (install rclone from rclone.org/downloads, then in
-PowerShell):
-```powershell
-rclone authorize "drive"
-```
-A browser opens → sign in with the Google account that owns
-`RND - PixelLab` → approve. PowerShell prints a JSON token block. Copy the
-whole `{...}`.
+Create `~/.config/rclone/rclone.conf` (or via `rclone config`):
 
-**On the server**, create the remote:
-```bash
-rclone config
-# n) New remote
-# name> gdrive
-# Storage> drive          (Google Drive)
-# client_id> (leave blank)
-# client_secret> (leave blank)
-# scope> 1                (full access)
-# service_account_file> (leave blank)
-# Edit advanced config> n
-# Use auto config> n      ← IMPORTANT (headless)
-# config_token> paste the {...} from your PC
-# Configure as Shared Drive> n   (personal My Drive)
-# Keep this remote> y
-# q) Quit
+```ini
+[gdrive]
+type = drive
+scope = drive
+service_account_file = /home/krisnapradyana/Hermes-Agent-Slack/gdrive-sa.json
+team_drive = 0B94M-NC2rvx2Y0EwZUU3emEwNWs
 ```
+
+`team_drive` is the Shared Drive ID — it's the value from your path
+`G:\.shortcut-targets-by-id\0B94M-NC2rvx2Y0EwZUU3emEwNWs\...`. With it set,
+the mount root IS the Shared Drive, so `SUPERPIXEL` / `RND - PixelLab` sit
+right at the top.
 
 Verify:
 ```bash
-rclone lsd gdrive:            # lists top-level Drive folders
+rclone lsd gdrive:
 rclone ls "gdrive:RND - PixelLab" | head
 ```
 
----
+## Phase 3 — Mount as a service
 
-## Phase 2 — Mount it as a service
-
-Test first:
 ```bash
-sudo mkdir -p /gdrive
-sudo chown $USER /gdrive
+sudo mkdir -p /gdrive && sudo chown $USER /gdrive
 rclone mount gdrive: /gdrive \
-  --vfs-cache-mode full \
-  --vfs-cache-max-size 20G \
-  --vfs-cache-max-age 24h \
-  --dir-cache-time 10s \
-  --poll-interval 15s &
-ls /gdrive                    # should show your Drive
+  --vfs-cache-mode full --vfs-cache-max-size 20G --vfs-cache-max-age 24h \
+  --dir-cache-time 10s --poll-interval 15s &
+ls /gdrive        # should list SUPERPIXEL, RND - PixelLab, etc.
 ```
-`--dir-cache-time 10s` + `--poll-interval 15s` keep the listing fresh so
-agent/external changes appear quickly. `--vfs-cache-mode full` gives normal
-random-access read/write; the cache is capped at 20G and self-evicts.
 
-Kill the test (`fusermount -u /gdrive`), then make it permanent with systemd:
+Make it permanent (systemd) and enable FUSE `allow_other` — same as before:
 ```bash
+sudo sed -i 's/^#user_allow_other/user_allow_other/' /etc/fuse.conf
 sudo tee /etc/systemd/system/gdrive.service >/dev/null <<'EOF'
 [Unit]
-Description=rclone Google Drive mount
+Description=rclone shared drive mount
 After=network-online.target
 Wants=network-online.target
-
 [Service]
 Type=notify
 User=krisnapradyana
@@ -107,95 +100,61 @@ ExecStart=/usr/bin/rclone mount gdrive: /gdrive \
 ExecStop=/bin/fusermount -u /gdrive
 Restart=on-failure
 RestartSec=10
-
 [Install]
 WantedBy=default.target
 EOF
-# --allow-other needs this line uncommented in /etc/fuse.conf:
-sudo sed -i 's/^#user_allow_other/user_allow_other/' /etc/fuse.conf
-sudo systemctl daemon-reload
-sudo systemctl enable --now gdrive
-systemctl status gdrive --no-pager
-ls /gdrive
+sudo systemctl daemon-reload && sudo systemctl enable --now gdrive
 ```
 
----
+## Phase 4 — Give the containers the mount
 
-## Phase 3 — Give the container access
-
-In `~/Hermes-Agent-Slack/docker-compose.yaml`, add the mount to the
-**hermes agent service** (and optionally `assistant-web`):
+In `~/Hermes-Agent-Slack/docker-compose.yaml`, add to BOTH the hermes agent
+service and `assistant-web`:
 ```yaml
     volumes:
       - /gdrive:/gdrive:rshared
 ```
-`rshared` propagation is what lets the container see a mount that rclone
-attaches on the host after the container starts.
-
-Apply and verify the agent sees it:
+Recreate, then confirm the agent can write to the real Drive:
 ```bash
-cd ~/Hermes-Agent-Slack
-sudo docker compose up -d --force-recreate       # the hermes service
-sudo docker exec <hermes-container> ls /gdrive
+sudo docker compose up -d --force-recreate
 sudo docker exec <hermes-container> sh -c 'echo hi > "/gdrive/RND - PixelLab/_test.txt"'
+# → appears in everyone's G:\...\RND - PixelLab within ~a minute. Delete after.
 ```
-Within a minute `_test.txt` should appear in your `G:\My Drive\RND - PixelLab`.
-Delete it after.
 
----
+## Phase 5 — Path mapping (app side, already built)
 
-## Phase 4 — Point projects at it (app side, already handled)
-
-Artists keep typing the familiar `G:\My Drive\...` path. The app now
-translates that to the mount path before handing it to the agent, using
-these build args (set in the assistant-web build):
+Users type their familiar Windows path; the app maps it to the mount path
+for the agent. Because your Shared Drive shows up under the shortcut prefix
+on Windows, set the build args so the prefix maps to `/gdrive`:
 
 ```yaml
     build:
       args:
-        NEXT_PUBLIC_DRIVE_BASE: "G:\\My Drive\\"
+        NEXT_PUBLIC_DRIVE_BASE: "G:\\.shortcut-targets-by-id\\0B94M-NC2rvx2Y0EwZUU3emEwNWs\\SUPERPIXEL\\"
         NEXT_PUBLIC_DRIVE_MOUNT_BASE: "/gdrive/"
 ```
 
-So a working folder shown as `G:\My Drive\RND - PixelLab` is sent to the
-agent as `/gdrive/RND - PixelLab`. Nothing for users to learn. If your
-mount path differs, change `NEXT_PUBLIC_DRIVE_MOUNT_BASE` and rebuild.
+Then a working folder entered as
+`G:\.shortcut-targets-by-id\0B94M-…\SUPERPIXEL\RND - PixelLab\Testing`
+is handed to the agent as `/gdrive/RND - PixelLab/Testing` — the real
+mounted Shared Drive path. Rebuild `assistant-web` after changing build args.
 
----
+**Simpler for users:** tell them to enter the working folder as just
+`G:\...\SUPERPIXEL\<rest>` however it appears in their Explorer address bar;
+as long as it starts with the `NEXT_PUBLIC_DRIVE_BASE` prefix above, it maps
+correctly. Paths that don't match the prefix fall back to the browser
+courier automatically (no breakage).
 
 ## Verify end to end
 
-1. In a project chat, working folder = `G:\My Drive\RND - PixelLab`.
-2. Ask: "Create a file notes.md in the working folder with a hello line."
-3. Within a minute it appears in your `G:\...` (via Drive for Desktop).
-4. Edit a file in `G:\...`; ask the agent to read it — it sees your change.
+1. Project working folder = the `Testing` path above.
+2. Ask the agent to "create notes.md in the working folder."
+3. It writes to `/gdrive/RND - PixelLab/Testing/notes.md` → shows in your
+   `G:\...\Testing` within a minute, for every teammate.
 
----
+## Rollback / troubleshooting
 
-## Rollback
-
-```bash
-sudo systemctl disable --now gdrive
-# remove the /gdrive volume line from compose, then:
-sudo docker compose up -d --force-recreate
-```
-No data is lost — files live in Google Drive; the mount is just a view.
-
----
-
-## Troubleshooting
-
-| Symptom | Fix |
-| --- | --- |
-| `ls /gdrive` empty on host | `systemctl status gdrive`; token may be invalid — redo Phase 1 |
-| Container `/gdrive` empty but host OK | missing `:rshared`, or mount happened after container start — recreate container |
-| Writes slow / disk fills | lower `--vfs-cache-max-size`; point cache at bigger disk with `--cache-dir` |
-| "Too many requests" from Google | personal-account rate limit; pause heavy transfers, resume next day |
-| Changes take a while to appear | expected — two sync hops through the cloud |
-
-## When this grows up
-
-Personal My Drive auths as one person (their quota, their token). If this
-becomes core infra, move the folder to a **Shared Drive** and switch the
-rclone remote to a **service account** — same mount mechanics, no personal
-identity attached. The app needs no changes.
+Same as the general rclone notes: `systemctl status gdrive`, check
+`:rshared` propagation, watch `--vfs-cache-max-size` vs free disk. Files
+live in the Shared Drive; the mount is only a view, so nothing is lost by
+unmounting.
