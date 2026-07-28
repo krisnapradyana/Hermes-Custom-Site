@@ -18,7 +18,7 @@ const uid = (p: string) => `${p}-${Date.now()}-${counter++}`;
 export default function ConversationPage({ params }: { params: Promise<{ cid: string }> }) {
   const { cid } = use(params);
   const router = useRouter();
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const projects = useHermesStore((s) => s.projects);
   const loadProjects = useHermesStore((s) => s.loadProjects);
 
@@ -34,6 +34,8 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
     loadProjects();
   }, [loadProjects]);
 
+  // Guard: never let a background refresh clobber an in-progress exchange.
+  const streamingRef = useRef(false);
   const load = useCallback(async () => {
     try {
       const res = await fetch(`/api/conversations/${encodeURIComponent(cid)}`, { cache: "no-store" });
@@ -43,7 +45,7 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
       }
       const { conversation } = (await res.json()) as { conversation: Conversation };
       setConv(conversation);
-      setMessages(conversation.messages);
+      if (!streamingRef.current) setMessages(conversation.messages);
     } catch {
       setNotFound(true);
     }
@@ -58,17 +60,22 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
   }, [messages.length, streaming]);
 
   const project = conv ? projects.find((p) => p.id === conv.projectId) : undefined;
+  // Until the session resolves, assume the viewer IS the owner — assuming
+  // otherwise would start the refresh poll and wipe in-progress messages.
+  const sessionReady = sessionStatus !== "loading";
   const isOwner =
-    !conv?.createdBy?.slackId || session?.user?.slackId === conv.createdBy?.slackId;
+    !conv?.createdBy?.slackId ||
+    !sessionReady ||
+    session?.user?.slackId === conv.createdBy?.slackId;
 
   // Non-owners poll so they see new messages the owner adds.
   useEffect(() => {
-    if (isOwner || !conv) return;
+    if (!sessionReady || isOwner || !conv) return;
     const t = setInterval(() => {
-      if (document.visibilityState === "visible") load();
+      if (document.visibilityState === "visible" && !streamingRef.current) load();
     }, 6000);
     return () => clearInterval(t);
-  }, [isOwner, conv, load]);
+  }, [sessionReady, isOwner, conv, load]);
 
   const persist = async (msgs: Message[], title?: string) => {
     await fetch(`/api/conversations/${encodeURIComponent(cid)}`, {
@@ -103,9 +110,13 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
     const userMsg: Message = { id: uid("m"), role: "user", content, createdAt: now, attachments: metaAtt };
     const asstId = uid("m");
     const asstMsg: Message = { id: asstId, role: "assistant", content: "", thinking: "", createdAt: now };
-    const withUser = [...messages, { ...userMsg, attachments: refs.length ? refs : undefined }, asstMsg];
+    const storedUser = { ...userMsg, attachments: refs.length ? refs : undefined };
+    const withUser = [...messages, storedUser, asstMsg];
     setMessages(withUser);
+    streamingRef.current = true;
     setStreaming(true);
+    // Save the user's message right away so a refresh mid-reply doesn't lose it.
+    persist([...messages, storedUser], messages.length === 0 ? content : undefined);
 
     const context = project?.workingFolder
       ? `The user is working in project "${project.name}". Working folder: ${project.workingFolder} — ` +
@@ -116,21 +127,28 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
     const patch = (patchObj: Partial<Message>) =>
       setMessages((prev) => prev.map((m) => (m.id === asstId ? { ...m, ...patchObj } : m)));
 
-    const final = await hermesStream(
-      content,
-      messages,
-      attachments,
-      cid,
-      (st) => patch({ content: st.content, thinking: st.thinking }),
-      context,
-      conv.projectId
-    );
-    const done = withUser.map((m) =>
-      m.id === asstId ? { ...m, content: final.content, thinking: final.thinking } : m
-    );
-    setMessages(done);
-    setStreaming(false);
-    persist(done, conv.messages.length === 0 ? content : undefined);
+    try {
+      const final = await hermesStream(
+        content,
+        messages,
+        attachments,
+        cid,
+        (st) => patch({ content: st.content, thinking: st.thinking }),
+        context,
+        conv.projectId
+      );
+      const done = withUser.map((m) =>
+        m.id === asstId ? { ...m, content: final.content, thinking: final.thinking } : m
+      );
+      setMessages(done);
+      await persist(done);
+    } catch {
+      patch({ content: "⚠️ The reply failed. Please try again." });
+    } finally {
+      streamingRef.current = false;
+      setStreaming(false);
+      load(); // refresh metadata (title/counts) from the server
+    }
   };
 
   // Auto-send the first message carried over from the project composer.
