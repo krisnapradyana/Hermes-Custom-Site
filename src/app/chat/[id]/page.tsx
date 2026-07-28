@@ -2,7 +2,7 @@
 
 import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Pin, PinOff, Trash2, FolderKanban, X, Copy, Check, Download, PanelRight } from "lucide-react";
+import { Pin, PinOff, Trash2, FolderKanban, X, Copy, Check, Download, PanelRight, ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useHermesStore } from "@/lib/store";
 import { MessageList } from "@/components/MessageList";
@@ -49,17 +49,26 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
       {/* Chat column */}
       <div className="flex h-full flex-col flex-1 min-w-0">
         <header className="flex items-center justify-between border-b border-line bg-parchment/80 backdrop-blur px-6 py-3 sticky top-0 z-10">
-          <div className="min-w-0">
-            <h1 className="text-[15px] font-medium truncate">{chat.title}</h1>
-            {project && (
-              <Link
-                href={`/projects/${project.id}`}
-                className="inline-flex items-center gap-1 text-[11px] text-ink-faint hover:text-ink-soft"
-              >
-                <FolderKanban size={10} />
-                {project.name}
-              </Link>
-            )}
+          <div className="flex items-center gap-2.5 min-w-0">
+            <button
+              onClick={() => router.push(project ? `/projects/${project.id}` : "/")}
+              className="p-1.5 -ml-1.5 rounded-lg hover:bg-parchment-dark text-ink-soft shrink-0"
+              title={project ? `Back to ${project.name}` : "Back to home"}
+            >
+              <ArrowLeft size={16} />
+            </button>
+            <div className="min-w-0">
+              <h1 className="text-[15px] font-medium truncate">{chat.title}</h1>
+              {project && (
+                <Link
+                  href={`/projects/${project.id}`}
+                  className="inline-flex items-center gap-1 text-[11px] text-ink-faint hover:text-ink-soft"
+                >
+                  <FolderKanban size={10} />
+                  {project.name}
+                </Link>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-1">
             {project && (

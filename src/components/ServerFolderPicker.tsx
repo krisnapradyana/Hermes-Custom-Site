@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Folder, ChevronRight, HardDrive, Check, X } from "lucide-react";
+import { FolderNav } from "@/components/FolderNav";
 
 /**
  * Browses the server's Drive mount (via /api/fs/browse) so the user can pick
@@ -45,8 +46,6 @@ export function ServerFolderPicker({
     load(sub);
   }, [sub, load]);
 
-  const crumbs = sub ? sub.split("/").filter(Boolean) : [];
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4" onClick={onCancel}>
       <div
@@ -58,23 +57,13 @@ export function ServerFolderPicker({
           <h2 className="text-[15px] font-semibold">Choose a project folder</h2>
         </div>
 
-        {/* Breadcrumb */}
-        <div className="flex items-center flex-wrap gap-0.5 mb-2 text-[12px] text-ink-faint">
-          <button onClick={() => setSub("")} className="hover:text-ink">
-            {base}
-          </button>
-          {crumbs.map((c, i) => (
-            <span key={i} className="flex items-center gap-0.5">
-              <ChevronRight size={11} />
-              <button onClick={() => setSub(crumbs.slice(0, i + 1).join("/"))} className="hover:text-ink">
-                {c}
-              </button>
-            </span>
-          ))}
+        {/* Nav toolbar (Root / Up + breadcrumb) */}
+        <div className="rounded-t-lg border border-line overflow-hidden">
+          <FolderNav sub={sub} onNavigate={setSub} rootLabel={base} />
         </div>
 
         {/* Folder list */}
-        <div className="h-64 overflow-y-auto rounded-lg border border-line">
+        <div className="h-64 overflow-y-auto rounded-b-lg border border-t-0 border-line">
           {!folders && <p className="px-3 py-2 text-[12px] text-ink-faint">Loading…</p>}
           {error && <p className="px-3 py-2 text-[12px] text-red-500">{error}</p>}
           {folders?.map((f) => (

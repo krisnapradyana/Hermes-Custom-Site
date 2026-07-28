@@ -7,7 +7,6 @@ import {
   FileCode,
   FileImage,
   File as FileIcon,
-  ChevronRight,
   ArrowLeft,
   HardDrive,
   ListChecks,
@@ -16,6 +15,7 @@ import {
 } from "lucide-react";
 import { Project } from "@/lib/types";
 import { renderMarkdown, parseChecklist, ChecklistProgress } from "@/lib/markdown";
+import { FolderNav } from "@/components/FolderNav";
 
 /**
  * Reads the project's working folder from the SERVER (the rclone Drive
@@ -181,15 +181,13 @@ export function WorkspacePanel({ project }: { project: Project }) {
     );
   }
 
-  const crumbs = cwd ? cwd.split("/").filter(Boolean) : [];
-
   return (
     <div className="flex flex-col h-full text-sm">
       {/* Header */}
       <div className="px-3 pt-3 pb-2 border-b border-line flex items-center gap-2">
         <HardDrive size={12} className="text-ink-faint shrink-0" />
         <span className="text-[11px] text-ink-faint font-mono truncate flex-1" title={root}>
-          {root}
+          {root.split("/").filter(Boolean).pop() ?? root}
         </span>
         <button
           onClick={() => {
@@ -269,20 +267,14 @@ export function WorkspacePanel({ project }: { project: Project }) {
           </div>
         </div>
       ) : (
-        <div className="flex-1 min-h-0 overflow-y-auto">
-          <div className="flex items-center flex-wrap gap-0.5 px-3 pt-2 text-[11px] text-ink-faint">
-            <button onClick={() => setCwd("")} className="hover:text-ink">
-              root
-            </button>
-            {crumbs.map((c, i) => (
-              <span key={i} className="flex items-center gap-0.5">
-                <ChevronRight size={10} />
-                <button onClick={() => setCwd(crumbs.slice(0, i + 1).join("/"))} className="hover:text-ink">
-                  {c}
-                </button>
-              </span>
-            ))}
-          </div>
+        <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">
+          <FolderNav
+            sub={cwd}
+            onNavigate={(s) => {
+              setCwd(s);
+              setEntries(null);
+            }}
+          />
 
           {error && <p className="px-3 py-2 text-[12px] text-red-500">{error}</p>}
           {!error && !entries && <p className="px-3 py-2 text-[12px] text-ink-faint">Loading…</p>}
