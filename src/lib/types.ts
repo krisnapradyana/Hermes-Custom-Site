@@ -47,6 +47,20 @@ export interface Project {
   createdBy?: { name: string; slackId?: string };
 }
 
+/** Shared, project-scoped conversation (readable by all; only creator replies). */
+export interface ConversationMeta {
+  id: string;
+  projectId: string;
+  title: string;
+  createdBy?: { name: string; slackId?: string };
+  createdAt: string;
+  updatedAt: string;
+  messageCount: number;
+}
+export interface Conversation extends ConversationMeta {
+  messages: Message[];
+}
+
 export type ArtifactKind = "document" | "code" | "html" | "diagram" | "image" | "file";
 
 export interface Artifact {

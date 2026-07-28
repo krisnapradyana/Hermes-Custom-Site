@@ -1,38 +1,52 @@
 "use client";
 
-import { use, useEffect, useMemo, useState } from "react";
+import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, FolderKanban, Package, HardDrive, PanelRight } from "lucide-react";
+import { ArrowLeft, FolderKanban, HardDrive, PanelRight, User, MessageSquare } from "lucide-react";
 import { useHermesStore } from "@/lib/store";
 import { timeAgo } from "@/lib/format";
 import { Composer } from "@/components/Composer";
 import { WorkspacePanel } from "@/components/WorkspacePanel";
 import { useResizableWidth, ResizeHandle } from "@/components/ResizeHandle";
+import { ConversationMeta } from "@/lib/types";
 
 export default function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const project = useHermesStore((s) => s.projects.find((p) => p.id === id));
-  // Select raw arrays (stable references) and derive with useMemo —
-  // filtering inside the selector returns a fresh array every read and
-  // causes an infinite re-render loop.
-  const allChats = useHermesStore((s) => s.chats);
-  const allArtifacts = useHermesStore((s) => s.artifacts);
-  const chats = useMemo(() => allChats.filter((c) => c.projectId === id), [allChats, id]);
-  const artifacts = useMemo(
-    () =>
-      allArtifacts.filter(
-        (a) => a.chatId && allChats.some((c) => c.id === a.chatId && c.projectId === id)
-      ),
-    [allArtifacts, allChats, id]
-  );
-  const createChat = useHermesStore((s) => s.createChat);
   const loadProjects = useHermesStore((s) => s.loadProjects);
+
+  const [conversations, setConversations] = useState<ConversationMeta[]>([]);
+  const loadConversations = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/projects/${encodeURIComponent(id)}/conversations`, {
+        cache: "no-store",
+      });
+      if (res.ok) setConversations((await res.json()).conversations ?? []);
+    } catch {}
+  }, [id]);
 
   useEffect(() => {
     loadProjects();
-  }, [loadProjects]);
+    loadConversations();
+  }, [loadProjects, loadConversations]);
+
+  const startConversation = async (text: string) => {
+    try {
+      const res = await fetch(`/api/projects/${encodeURIComponent(id)}/conversations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: text }),
+      });
+      if (!res.ok) return;
+      const { conversation } = await res.json();
+      try {
+        sessionStorage.setItem(`pending-msg-${conversation.id}`, text);
+      } catch {}
+      router.push(`/conversation/${conversation.id}`);
+    } catch {}
+  };
 
   const [showPanel, setShowPanel] = useState(true);
   const ws = useResizableWidth("hermes-workspace-w", 320, 240, 640, true);
@@ -94,58 +108,43 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       <div className="mb-10">
         <Composer
           placeholder={`New conversation in ${project.name}…`}
-          onSend={(t, a) => {
-            const chatId = createChat(t, project.id, a);
-            router.push(`/chat/${chatId}`);
-          }}
+          onSend={(t) => startConversation(t)}
         />
       </div>
 
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-faint mb-3">
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-faint mb-1">
         Conversations
       </h2>
+      <p className="text-[12px] text-ink-faint mb-3">
+        Shared with everyone on the team — only the person who started each can reply.
+      </p>
       <div className="space-y-2 mb-10">
-        {chats.map((c) => (
+        {conversations.map((c) => (
           <Link
             key={c.id}
-            href={`/chat/${c.id}`}
+            href={`/conversation/${c.id}`}
             className="block rounded-xl border border-line bg-card px-4 py-3 hover:border-ink-faint transition-colors"
           >
             <p className="text-sm font-medium">{c.title}</p>
-            <p className="text-[12px] text-ink-faint">
-              {c.messages.length} messages · updated {timeAgo(c.updatedAt)}
+            <p className="flex items-center gap-2 text-[12px] text-ink-faint">
+              <span className="inline-flex items-center gap-1">
+                <MessageSquare size={11} />
+                {c.messageCount}
+              </span>
+              {c.createdBy?.name && (
+                <span className="inline-flex items-center gap-1">
+                  <User size={11} />
+                  {c.createdBy.name}
+                </span>
+              )}
+              <span>· updated {timeAgo(c.updatedAt)}</span>
             </p>
           </Link>
         ))}
-        {chats.length === 0 && (
+        {conversations.length === 0 && (
           <p className="text-sm text-ink-faint">No conversations in this project yet.</p>
         )}
       </div>
-
-      {artifacts.length > 0 && (
-        <>
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-faint mb-3">
-            Artifacts
-          </h2>
-          <div className="space-y-2">
-            {artifacts.map((a) => (
-              <Link
-                key={a.id}
-                href={`/artifacts?open=${a.id}`}
-                className="flex items-center gap-3 rounded-xl border border-line bg-card px-4 py-3 hover:border-ink-faint transition-colors"
-              >
-                <Package size={15} className="text-accent" />
-                <div>
-                  <p className="text-sm font-medium">{a.title}</p>
-                  <p className="text-[12px] text-ink-faint capitalize">
-                    {a.kind} · updated {timeAgo(a.updatedAt)}
-                  </p>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </>
-      )}
         </div>
       </div>
 
