@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { ArrowLeft, FolderKanban, PanelRight, Lock, User, RefreshCw } from "lucide-react";
 import { useHermesStore } from "@/lib/store";
 import { hermesStream } from "@/lib/hermes-api";
+import { beginLive, updateLive, endLive, getLive, subscribeLive } from "@/lib/conv-stream";
 import { Conversation, Message, Attachment } from "@/lib/types";
 import { MessageList } from "@/components/MessageList";
 import { Composer } from "@/components/Composer";
@@ -45,7 +46,8 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
       }
       const { conversation } = (await res.json()) as { conversation: Conversation };
       setConv(conversation);
-      if (!streamingRef.current) setMessages(conversation.messages);
+      // Don't clobber a live in-progress stream (this tab) or our own stream.
+      if (!streamingRef.current && !getLive(cid)) setMessages(conversation.messages);
     } catch {
       setNotFound(true);
     }
@@ -54,6 +56,22 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
   useEffect(() => {
     load();
   }, [load]);
+
+  // Re-attach to an in-flight stream when returning to this conversation.
+  useEffect(() => {
+    const snapshot = getLive(cid);
+    if (snapshot) {
+      setMessages(snapshot.messages);
+      setStreaming(snapshot.streaming);
+      streamingRef.current = snapshot.streaming;
+    }
+    const unsub = subscribeLive(cid, (m, s) => {
+      setMessages(m);
+      setStreaming(s);
+      streamingRef.current = s;
+    });
+    return unsub;
+  }, [cid]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -115,6 +133,7 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
     setMessages(withUser);
     streamingRef.current = true;
     setStreaming(true);
+    beginLive(cid, withUser); // register so navigating away/back keeps the stream
     // Save the user's message right away so a refresh mid-reply doesn't lose it.
     persist([...messages, storedUser], messages.length === 0 ? content : undefined);
 
@@ -124,8 +143,14 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
         `new files; never delete, move, or overwrite — save versioned copies (name-v2.ext) instead.`
       : undefined;
 
-    const patch = (patchObj: Partial<Message>) =>
-      setMessages((prev) => prev.map((m) => (m.id === asstId ? { ...m, ...patchObj } : m)));
+    // Drive updates through the live registry so any mounted copy of this
+    // page (after navigating back) stays in sync with the running stream.
+    let latest = withUser;
+    const patch = (patchObj: Partial<Message>) => {
+      latest = latest.map((m) => (m.id === asstId ? { ...m, ...patchObj } : m));
+      setMessages(latest); // this (sending) instance
+      updateLive(cid, latest); // any re-mounted instance after navigating back
+    };
 
     try {
       const final = await hermesStream(
@@ -142,8 +167,12 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
       );
       setMessages(done);
       await persist(done);
+      endLive(cid, done);
     } catch {
-      patch({ content: "⚠️ The reply failed. Please try again." });
+      const errored = latest.map((m) =>
+        m.id === asstId ? { ...m, content: "⚠️ The reply failed. Please try again." } : m
+      );
+      endLive(cid, errored);
     } finally {
       streamingRef.current = false;
       setStreaming(false);
