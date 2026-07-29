@@ -10,6 +10,7 @@ import { MessageList } from "@/components/MessageList";
 import { Composer } from "@/components/Composer";
 import { ArtifactPreview, downloadArtifact } from "@/components/ArtifactPreview";
 import { WorkspacePanel } from "@/components/WorkspacePanel";
+import { TokenMeter } from "@/components/TokenMeter";
 import { useResizableWidth, ResizeHandle } from "@/components/ResizeHandle";
 
 export default function ChatPage({ params }: { params: Promise<{ id: string }> }) {
@@ -72,6 +73,10 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
             </div>
           </div>
           <div className="flex items-center gap-1">
+            <TokenMeter
+              sessionId={chat.id}
+              refreshKey={isStreaming ? "live" : chat.messages.length}
+            />
             {project && (
               <button
                 onClick={() => setShowWorkspace(!showWorkspace)}

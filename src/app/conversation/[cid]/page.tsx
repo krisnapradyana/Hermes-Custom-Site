@@ -12,6 +12,7 @@ import { MessageList } from "@/components/MessageList";
 import { Composer } from "@/components/Composer";
 import { WorkspacePanel } from "@/components/WorkspacePanel";
 import { useResizableWidth, ResizeHandle } from "@/components/ResizeHandle";
+import { TokenMeter } from "@/components/TokenMeter";
 
 let counter = 0;
 const uid = (p: string) => `${p}-${Date.now()}-${counter++}`;
@@ -274,6 +275,7 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
             </div>
           </div>
           <div className="flex items-center gap-1">
+            <TokenMeter sessionId={cid} refreshKey={streaming ? "live" : messages.length} />
             {!isOwner && (
               <span className="inline-flex items-center gap-1 rounded-full bg-parchment-dark px-2.5 py-1 text-[11px] text-ink-soft">
                 <Lock size={11} /> Read-only
