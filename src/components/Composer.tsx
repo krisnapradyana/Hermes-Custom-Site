@@ -5,6 +5,55 @@ import { ArrowUp, Paperclip, X, FileText, Folder, File as FileIcon } from "lucid
 import { Attachment } from "@/lib/types";
 
 const MAX_FILE_MB = 5;
+/**
+ * Downscale images before sending: LLM providers cap image dimensions (~1568px
+ * on the long edge), and oversized images make the agent shrink-and-retry in a
+ * loop — slow and token-expensive. Resizing here avoids that entirely.
+ */
+const MAX_IMAGE_EDGE = 1536;
+
+async function toDataUrl(file: File): Promise<{ dataUrl: string; size: number }> {
+  const readAsDataUrl = () =>
+    new Promise<string>((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(String(fr.result));
+      fr.onerror = () => reject(fr.error);
+      fr.readAsDataURL(file);
+    });
+
+  if (!file.type.startsWith("image/") || file.type === "image/svg+xml") {
+    const dataUrl = await readAsDataUrl();
+    return { dataUrl, size: file.size };
+  }
+
+  try {
+    const bitmap = await createImageBitmap(file);
+    const longEdge = Math.max(bitmap.width, bitmap.height);
+    if (longEdge <= MAX_IMAGE_EDGE) {
+      bitmap.close?.();
+      const dataUrl = await readAsDataUrl();
+      return { dataUrl, size: file.size };
+    }
+    const scale = MAX_IMAGE_EDGE / longEdge;
+    const w = Math.round(bitmap.width * scale);
+    const h = Math.round(bitmap.height * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("no 2d context");
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close?.();
+    // PNG keeps transparency; everything else goes to JPEG for size.
+    const isPng = file.type === "image/png";
+    const dataUrl = canvas.toDataURL(isPng ? "image/png" : "image/jpeg", isPng ? undefined : 0.9);
+    const size = Math.round((dataUrl.length - dataUrl.indexOf(",") - 1) * 0.75);
+    return { dataUrl, size };
+  } catch {
+    const dataUrl = await readAsDataUrl();
+    return { dataUrl, size: file.size };
+  }
+}
 
 interface TreeFile {
   p: string;
@@ -98,18 +147,23 @@ export function Composer({
   const addFiles = (files: FileList | null) => {
     if (!files) return;
     setWarn("");
-    Array.from(files).forEach((f) => {
+    Array.from(files).forEach(async (f) => {
       if (f.size > MAX_FILE_MB * 1024 * 1024) {
         setWarn(`"${f.name}" is over ${MAX_FILE_MB}MB — skipped.`);
         return;
       }
-      const reader = new FileReader();
-      reader.onload = () =>
-        setAttachments((prev) => [
-          ...prev,
-          { name: f.name, type: f.type || "application/octet-stream", size: f.size, dataUrl: String(reader.result) },
-        ]);
-      reader.readAsDataURL(f);
+      const { dataUrl, size } = await toDataUrl(f);
+      const shrank = f.type.startsWith("image/") && size < f.size * 0.95;
+      if (shrank) setWarn(`"${f.name}" resized for faster processing.`);
+      setAttachments((prev) => [
+        ...prev,
+        {
+          name: f.name,
+          type: f.type === "image/png" || !f.type.startsWith("image/") ? f.type || "application/octet-stream" : "image/jpeg",
+          size,
+          dataUrl,
+        },
+      ]);
     });
     if (fileRef.current) fileRef.current.value = "";
   };
