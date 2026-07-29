@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Pin, PinOff, Trash2, FolderKanban, X, Copy, Check, Download, PanelRight, ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useHermesStore } from "@/lib/store";
+import { rehydrateAttachments } from "@/lib/hermes-api";
 import { MessageList } from "@/components/MessageList";
 import { Composer } from "@/components/Composer";
 import { ArtifactPreview, downloadArtifact } from "@/components/ArtifactPreview";
@@ -108,7 +109,9 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
               messages={chat.messages}
               streaming={isStreaming}
               onOpenArtifact={setOpenArtifactId}
-              onRetry={(text) => sendMessage(chat.id, text)}
+              onRetry={async (text, atts) =>
+                sendMessage(chat.id, text, await rehydrateAttachments(atts))
+              }
             />
             <div ref={bottomRef} />
           </div>

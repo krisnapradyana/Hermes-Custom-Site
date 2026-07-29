@@ -27,6 +27,8 @@ export interface Message {
   state?: "working" | "done" | "failed";
   /** The user text to resend when retrying a failed turn. */
   retryOf?: string;
+  /** Attachments to resend with a retry (stored server-side, fetched by id). */
+  retryAttachments?: Attachment[];
 }
 
 export interface Chat {

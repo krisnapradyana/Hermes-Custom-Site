@@ -206,11 +206,17 @@ export const useHermesStore = create<HermesState>()(
           project?.id
         )
           .catch((err: unknown) => {
-            // Mark the turn failed so the UI can offer Retry.
+            // Mark the turn failed so the UI can offer Retry — including the
+            // attachments (read back from the stored user message, so they
+            // carry their server ids and can be resent).
+            const storedUser = get()
+              .chats.find((c) => c.id === chatId)
+              ?.messages.find((m) => m.id === userId);
             patchAsst({
               state: "failed",
               status: undefined,
               retryOf: content,
+              retryAttachments: storedUser?.attachments,
               content: `⚠️ ${err instanceof Error ? err.message : "The reply failed."}`,
             });
             set({ isStreaming: false });

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { ArrowLeft, FolderKanban, PanelRight, Lock, User, RefreshCw } from "lucide-react";
 import { useHermesStore } from "@/lib/store";
-import { hermesStream } from "@/lib/hermes-api";
+import { hermesStream, rehydrateAttachments } from "@/lib/hermes-api";
 import { beginLive, updateLive, endLive, getLive, subscribeLive } from "@/lib/conv-stream";
 import { Conversation, Message, Attachment } from "@/lib/types";
 import { MessageList } from "@/components/MessageList";
@@ -193,6 +193,7 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
               status: undefined,
               state: "failed" as const,
               retryOf: content,
+              retryAttachments: refs.length ? refs : undefined,
             }
           : m
       );
@@ -291,7 +292,11 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
             <MessageList
               messages={messages}
               streaming={streaming}
-              onRetry={isOwner ? (text) => send(text, []) : undefined}
+              onRetry={
+                isOwner
+                  ? async (text, atts) => send(text, await rehydrateAttachments(atts))
+                  : undefined
+              }
             />
             <div ref={bottomRef} />
           </div>

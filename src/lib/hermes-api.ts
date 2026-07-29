@@ -224,6 +224,34 @@ export async function hermesStream(
   }
 }
 
+/**
+ * Rehydrate stored attachments (which only carry an id) back into data URLs so
+ * they can be resent to the agent — used when retrying a failed turn.
+ */
+export async function rehydrateAttachments(list: Attachment[] = []): Promise<Attachment[]> {
+  const out: Attachment[] = [];
+  for (const a of list) {
+    if (a.dataUrl) {
+      out.push(a);
+      continue;
+    }
+    if (!a.id) continue;
+    try {
+      const res = await fetch(`/api/attachments/${a.id}`);
+      if (!res.ok) continue;
+      const blob = await res.blob();
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(String(fr.result));
+        fr.onerror = () => reject(fr.error);
+        fr.readAsDataURL(blob);
+      });
+      out.push({ ...a, dataUrl });
+    } catch {}
+  }
+  return out;
+}
+
 export interface GatewayHealth {
   configured: boolean;
   reachable: boolean;

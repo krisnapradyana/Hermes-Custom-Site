@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Package, FileText, ChevronDown, ChevronRight, BrainCircuit, TriangleAlert, RotateCw, Loader2 } from "lucide-react";
-import { Message } from "@/lib/types";
+import { Message, Attachment } from "@/lib/types";
 import { useHermesStore } from "@/lib/store";
 import { PixelMark } from "@/components/PixelMark";
 
@@ -16,7 +16,7 @@ export function MessageList({
   messages: Message[];
   streaming: boolean;
   onOpenArtifact?: (artifactId: string) => void;
-  onRetry?: (text: string) => void;
+  onRetry?: (text: string, attachments?: Attachment[]) => void;
 }) {
   const artifacts = useHermesStore((s) => s.artifacts);
 
@@ -98,8 +98,13 @@ export function MessageList({
                   </span>
                   {onRetry && m.retryOf && (
                     <button
-                      onClick={() => onRetry(m.retryOf!)}
+                      onClick={() => onRetry(m.retryOf!, m.retryAttachments)}
                       className="flex items-center gap-1 rounded-md bg-accent px-2.5 py-1 text-[12px] text-white hover:bg-accent-hover"
+                      title={
+                        m.retryAttachments?.length
+                          ? `Resend with ${m.retryAttachments.length} attachment(s)`
+                          : "Resend this message"
+                      }
                     >
                       <RotateCw size={11} /> Retry
                     </button>
