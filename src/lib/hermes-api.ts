@@ -14,6 +14,41 @@ import { Message, Attachment } from "./types";
 export interface StreamState {
   content: string;
   thinking: string;
+  /** Live one-line summary of what the agent is doing right now. */
+  status?: string;
+  /** ms since the last token/tool event — lets the UI flag a quiet stretch. */
+  idleMs?: number;
+}
+
+/** Human-readable label for a tool the agent is running. */
+const TOOL_LABELS: Record<string, string> = {
+  terminal: "Running a command",
+  bash: "Running a command",
+  write_file: "Writing a file",
+  read_file: "Reading a file",
+  edit_file: "Editing a file",
+  list_files: "Looking through files",
+  search_files: "Searching files",
+  glob: "Searching files",
+  grep: "Searching file contents",
+  web_search: "Searching the web",
+  browser: "Browsing the web",
+  fetch: "Fetching a page",
+  vision_analyze: "Looking at an image",
+  session_search: "Checking memory",
+  memory: "Checking memory",
+  slack: "Checking Slack",
+  python: "Running code",
+};
+
+function statusFor(toolName: string, phase: string): string {
+  const key = toolName.toLowerCase();
+  const label =
+    TOOL_LABELS[key] ??
+    `Using ${toolName.replace(/_/g, " ")}`;
+  return phase === "completed" || phase === "complete" || phase === "done"
+    ? `${label} — done`
+    : label + "…";
 }
 
 /** Split accumulated raw text into visible content and <think> sections. */
@@ -50,6 +85,10 @@ export async function hermesStream(
     onUpdate(state);
     return state;
   };
+
+  // "Sending…" until the server acknowledges the request.
+  onUpdate({ content: "", thinking: "", status: "Sending…" });
+  let heartbeatRef: ReturnType<typeof setInterval> | undefined;
 
   try {
     const res = await fetch("/api/hermes", {
@@ -95,18 +134,27 @@ export async function hermesStream(
     // what makes long replies feel laggy. A trailing flush (below) guarantees
     // the final, complete text is always shown.
     let lastEmit = 0;
+    let status = "Thinking…"; // live one-line summary of current activity
+    let lastActivity = Date.now();
     const emit = (force = false) => {
       const now = Date.now();
       if (!force && now - lastEmit < 50) return;
       lastEmit = now;
       const { content, think } = splitThink(rawText);
       const thinking = [toolLines.join("\n"), reasoning, think].filter(Boolean).join("\n");
-      onUpdate({ content, thinking });
+      onUpdate({ content, thinking, status, idleMs: now - lastActivity });
     };
 
+    // Heartbeat: refresh the idle timer view even when nothing arrives, so the
+    // UI can say "still working, quiet for Xs" instead of looking frozen.
+    const heartbeat = setInterval(() => emit(true), 1000);
+    heartbeatRef = heartbeat;
+
+    let sawDone = false;
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
+      lastActivity = Date.now();
       buffer += decoder.decode(value, { stream: true });
 
       const blocks = buffer.split("\n\n");
@@ -120,7 +168,11 @@ export async function hermesStream(
           else if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
         }
         const dataStr = dataLines.join("\n");
-        if (!dataStr || dataStr === "[DONE]") continue;
+        if (dataStr === "[DONE]") {
+          sawDone = true;
+          continue;
+        }
+        if (!dataStr) continue;
 
         let data: Record<string, unknown>;
         try {
@@ -131,7 +183,10 @@ export async function hermesStream(
 
         if (eventName.includes("tool")) {
           toolLines.push(toolLine(data));
-          emit();
+          const name = (data.tool ?? data.name ?? data.tool_name ?? "tool") as string;
+          const phase = String(data.status ?? data.phase ?? "");
+          status = statusFor(name, phase);
+          emit(true);
           continue;
         }
 
@@ -140,18 +195,32 @@ export async function hermesStream(
           | { delta?: { content?: string; reasoning_content?: string } }[]
           | undefined;
         const delta = choices?.[0]?.delta;
-        if (delta?.reasoning_content) reasoning += delta.reasoning_content;
-        if (delta?.content) rawText += delta.content;
+        if (delta?.reasoning_content) {
+          reasoning += delta.reasoning_content;
+          status = "Reasoning…";
+        }
+        if (delta?.content) {
+          rawText += delta.content;
+          status = "Writing the answer…";
+        }
         if (delta?.content || delta?.reasoning_content) emit();
       }
     }
+    clearInterval(heartbeat);
 
     const { content, think } = splitThink(rawText);
     const thinking = [toolLines.join("\n"), reasoning, think].filter(Boolean).join("\n");
+
+    // Stream closed without the completion marker → treat as interrupted so
+    // the UI can offer Retry instead of silently accepting a partial answer.
+    if (!sawDone && !content) {
+      throw new Error("The connection closed before the assistant replied.");
+    }
     return finish(content || "(empty response)", thinking);
   } catch (err) {
+    if (heartbeatRef) clearInterval(heartbeatRef);
     const msg = err instanceof Error ? err.message : "network error";
-    return finish(`⚠️ Could not reach the Hermes proxy: ${msg}`, "");
+    throw new Error(msg);
   }
 }
 

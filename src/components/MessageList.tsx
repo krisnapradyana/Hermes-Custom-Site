@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Package, FileText, ChevronDown, ChevronRight, BrainCircuit } from "lucide-react";
+import { Package, FileText, ChevronDown, ChevronRight, BrainCircuit, TriangleAlert, RotateCw, Loader2 } from "lucide-react";
 import { Message } from "@/lib/types";
 import { useHermesStore } from "@/lib/store";
 import { PixelMark } from "@/components/PixelMark";
@@ -11,10 +11,12 @@ export function MessageList({
   messages,
   streaming,
   onOpenArtifact,
+  onRetry,
 }: {
   messages: Message[];
   streaming: boolean;
   onOpenArtifact?: (artifactId: string) => void;
+  onRetry?: (text: string) => void;
 }) {
   const artifacts = useHermesStore((s) => s.artifacts);
 
@@ -70,7 +72,12 @@ export function MessageList({
                 />
               )}
 
-              {isPendingAssistant ? (
+              {/* Live activity line — what the agent is doing right now. */}
+              {streaming && isLast && m.role === "assistant" && (
+                <StatusLine status={m.status} idleMs={m.idleMs} hasText={!!m.content} />
+              )}
+
+              {isPendingAssistant && !m.status ? (
                 <div className="flex items-center gap-1.5 h-[26px]">
                   <span className="w-1.5 h-1.5 rounded-full bg-ink-faint animate-bounce [animation-delay:0ms]" />
                   <span className="w-1.5 h-1.5 rounded-full bg-ink-faint animate-bounce [animation-delay:150ms]" />
@@ -80,6 +87,24 @@ export function MessageList({
                 m.content && (
                   <div className="text-[15px] leading-relaxed whitespace-pre-wrap">{m.content}</div>
                 )
+              )}
+
+              {/* Failed turn — offer a retry. */}
+              {m.state === "failed" && (
+                <div className="mt-2 flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/5 px-3 py-2">
+                  <TriangleAlert size={13} className="text-red-500 shrink-0" />
+                  <span className="text-[12px] text-ink-soft flex-1">
+                    This reply didn&apos;t complete.
+                  </span>
+                  {onRetry && m.retryOf && (
+                    <button
+                      onClick={() => onRetry(m.retryOf!)}
+                      className="flex items-center gap-1 rounded-md bg-accent px-2.5 py-1 text-[12px] text-white hover:bg-accent-hover"
+                    >
+                      <RotateCw size={11} /> Retry
+                    </button>
+                  )}
+                </div>
               )}
 
               {artifact &&
@@ -102,6 +127,31 @@ export function MessageList({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/** Gemini-style live status: says what's happening, and flags quiet stretches. */
+function StatusLine({
+  status,
+  idleMs,
+  hasText,
+}: {
+  status?: string;
+  idleMs?: number;
+  hasText: boolean;
+}) {
+  if (!status) return null;
+  // Once the answer is streaming in, the text itself is the signal.
+  if (hasText && status === "Writing the answer…") return null;
+  const quietSec = idleMs && idleMs > 20000 ? Math.round(idleMs / 1000) : 0;
+  return (
+    <div className="flex items-center gap-1.5 mb-1.5 text-[12px] text-ink-soft">
+      <Loader2 size={12} className="animate-spin text-accent shrink-0" />
+      <span>{status}</span>
+      {quietSec > 0 && (
+        <span className="text-ink-faint">· still working, quiet for {quietSec}s</span>
+      )}
     </div>
   );
 }

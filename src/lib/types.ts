@@ -19,6 +19,14 @@ export interface Message {
   attachments?: Attachment[];
   /** Reasoning + tool activity streamed before the answer (collapsible in UI). */
   thinking?: string;
+  /** Live one-line summary while working (e.g. "Running a command…"). */
+  status?: string;
+  /** ms since the last stream activity — UI flags long quiet stretches. */
+  idleMs?: number;
+  /** Delivery/completion state of an assistant turn. */
+  state?: "working" | "done" | "failed";
+  /** The user text to resend when retrying a failed turn. */
+  retryOf?: string;
 }
 
 export interface Chat {

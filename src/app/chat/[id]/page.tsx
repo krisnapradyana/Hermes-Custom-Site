@@ -108,6 +108,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
               messages={chat.messages}
               streaming={isStreaming}
               onOpenArtifact={setOpenArtifactId}
+              onRetry={(text) => sendMessage(chat.id, text)}
             />
             <div ref={bottomRef} />
           </div>

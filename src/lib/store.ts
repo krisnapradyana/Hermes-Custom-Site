@@ -194,29 +194,52 @@ export const useHermesStore = create<HermesState>()(
           priorHistory,
           attachments ?? [],
           chatId,
-          (state) => patchAsst({ content: state.content, thinking: state.thinking }),
+          (state) =>
+            patchAsst({
+              content: state.content,
+              thinking: state.thinking,
+              status: state.status,
+              idleMs: state.idleMs,
+              state: "working",
+            }),
           context,
           project?.id
-        ).then((final) => {
-          // Promote substantial code blocks in the reply to artifacts.
-          const newArtifacts = extractArtifacts(
-            final.content,
-            chatId,
-            chat?.title ?? "Conversation",
-            () => uid("art")
-          );
-          const doneAt = new Date().toISOString();
-          patchAsst({
-            content: final.content,
-            thinking: final.thinking,
-            artifactId: newArtifacts[0]?.id,
+        )
+          .catch((err: unknown) => {
+            // Mark the turn failed so the UI can offer Retry.
+            patchAsst({
+              state: "failed",
+              status: undefined,
+              retryOf: content,
+              content: `⚠️ ${err instanceof Error ? err.message : "The reply failed."}`,
+            });
+            set({ isStreaming: false });
+            return null;
+          })
+          .then((final) => {
+            if (!final) return;
+            // Promote substantial code blocks in the reply to artifacts.
+            const newArtifacts = extractArtifacts(
+              final.content,
+              chatId,
+              chat?.title ?? "Conversation",
+              () => uid("art")
+            );
+            const doneAt = new Date().toISOString();
+            patchAsst({
+              content: final.content,
+              thinking: final.thinking,
+              artifactId: newArtifacts[0]?.id,
+              status: undefined,
+              idleMs: undefined,
+              state: "done",
+            });
+            set((s) => ({
+              isStreaming: false,
+              artifacts: [...s.artifacts, ...newArtifacts],
+              chats: s.chats.map((c) => (c.id === chatId ? { ...c, updatedAt: doneAt } : c)),
+            }));
           });
-          set((s) => ({
-            isStreaming: false,
-            artifacts: [...s.artifacts, ...newArtifacts],
-            chats: s.chats.map((c) => (c.id === chatId ? { ...c, updatedAt: doneAt } : c)),
-          }));
-        });
       },
 
       togglePin: (chatId) =>

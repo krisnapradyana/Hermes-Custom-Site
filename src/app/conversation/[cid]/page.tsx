@@ -158,20 +158,46 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
         messages,
         attachments,
         cid,
-        (st) => patch({ content: st.content, thinking: st.thinking }),
+        (st) =>
+          patch({
+            content: st.content,
+            thinking: st.thinking,
+            status: st.status,
+            idleMs: st.idleMs,
+            state: "working",
+          }),
         context,
         conv.projectId
       );
       const done = withUser.map((m) =>
-        m.id === asstId ? { ...m, content: final.content, thinking: final.thinking } : m
+        m.id === asstId
+          ? {
+              ...m,
+              content: final.content,
+              thinking: final.thinking,
+              status: undefined,
+              idleMs: undefined,
+              state: "done" as const,
+            }
+          : m
       );
       setMessages(done);
       await persist(done);
       endLive(cid, done);
-    } catch {
+    } catch (err) {
       const errored = latest.map((m) =>
-        m.id === asstId ? { ...m, content: "⚠️ The reply failed. Please try again." } : m
+        m.id === asstId
+          ? {
+              ...m,
+              content: `⚠️ ${err instanceof Error ? err.message : "The reply failed."}`,
+              status: undefined,
+              state: "failed" as const,
+              retryOf: content,
+            }
+          : m
       );
+      setMessages(errored);
+      await persist(errored);
       endLive(cid, errored);
     } finally {
       streamingRef.current = false;
@@ -262,7 +288,11 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
 
         <div className="flex-1 overflow-y-auto">
           <div className="mx-auto max-w-3xl px-6 py-8">
-            <MessageList messages={messages} streaming={streaming} />
+            <MessageList
+              messages={messages}
+              streaming={streaming}
+              onRetry={isOwner ? (text) => send(text, []) : undefined}
+            />
             <div ref={bottomRef} />
           </div>
         </div>
