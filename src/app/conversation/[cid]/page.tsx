@@ -103,7 +103,7 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
     }).catch(() => {});
   };
 
-  const send = async (content: string, attachments: Attachment[]) => {
+  const send = async (content: string, attachments: Attachment[], mentions?: string[]) => {
     if (!conv || streaming) return;
     const now = new Date().toISOString();
     const metaAtt: Attachment[] | undefined = attachments.length
@@ -137,10 +137,19 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
     // Save the user's message right away so a refresh mid-reply doesn't lose it.
     persist([...messages, storedUser], messages.length === 0 ? content : undefined);
 
+    // Files the user referenced with "@" — give the agent their full paths so
+    // it can read them straight from the mounted Drive (nothing is uploaded).
+    const mentionNote =
+      mentions?.length && project?.workingFolder
+        ? ` The user referenced these project files — read them from disk:\n` +
+          mentions.map((m) => `- ${project.workingFolder}/${m}`).join("\n")
+        : "";
+
     const context = project?.workingFolder
       ? `The user is working in project "${project.name}". Working folder: ${project.workingFolder} — ` +
         `the team's shared Drive, mounted on this machine. Read and save files there. Only CREATE ` +
-        `new files; never delete, move, or overwrite — save versioned copies (name-v2.ext) instead.`
+        `new files; never delete, move, or overwrite — save versioned copies (name-v2.ext) instead.` +
+        mentionNote
       : undefined;
 
     // Drive updates through the live registry so any mounted copy of this
@@ -305,7 +314,7 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
         <div className="border-t border-line bg-parchment px-6 py-4">
           <div className="mx-auto max-w-3xl">
             {isOwner ? (
-              <Composer onSend={send} disabled={streaming} />
+              <Composer onSend={send} disabled={streaming} projectId={conv.projectId} />
             ) : (
               <p className="text-center text-[13px] text-ink-faint py-2">
                 This conversation is read-only — only {conv.createdBy?.name ?? "the creator"} can reply.
