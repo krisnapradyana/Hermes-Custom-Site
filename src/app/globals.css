@@ -120,3 +120,26 @@ body.resizing iframe {
   color: var(--color-accent);
   text-decoration: underline;
 }
+.md-body .md-table-wrap {
+  overflow-x: auto;
+  margin: 0.5em 0 0.75em;
+}
+.md-body .md-table {
+  border-collapse: collapse;
+  font-size: 0.9em;
+  min-width: 50%;
+}
+.md-body .md-table th,
+.md-body .md-table td {
+  border: 1px solid var(--color-line);
+  padding: 0.35em 0.7em;
+  text-align: left;
+  vertical-align: top;
+}
+.md-body .md-table th {
+  font-weight: 600;
+  background: var(--color-parchment-dark);
+}
+.md-body .md-table tbody tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--color-parchment-dark) 40%, transparent);
+}

@@ -72,7 +72,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
               )}
             </div>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 min-w-0 ml-3">
             <TokenMeter
               sessionId={chat.id}
               refreshKey={isStreaming ? "live" : chat.messages.length}

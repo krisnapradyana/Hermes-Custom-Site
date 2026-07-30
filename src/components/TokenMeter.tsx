@@ -58,10 +58,10 @@ export function TokenMeter({ sessionId, refreshKey }: { sessionId: string; refre
   return (
     <span
       title={tip}
-      className="inline-flex items-center gap-1.5 rounded-full border border-line px-2.5 py-1 text-[11px] text-ink-faint cursor-help shrink-0"
+      className="inline-flex items-center gap-1.5 rounded-full border border-line px-2.5 py-1 text-[11px] text-ink-faint cursor-help min-w-0 max-w-[40vw] overflow-hidden"
     >
-      <Coins size={11} className="text-accent" />
-      <span>
+      <Coins size={11} className="text-accent shrink-0" />
+      <span className="truncate whitespace-nowrap">
         in {fmt(totalIn)} · out {fmt(u.outputTokens)} · total {fmt(total)}
       </span>
     </span>

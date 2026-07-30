@@ -284,7 +284,7 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 min-w-0 ml-3">
             <TokenMeter sessionId={cid} refreshKey={streaming ? "live" : messages.length} />
             {!isOwner && (
               <span className="inline-flex items-center gap-1 rounded-full bg-parchment-dark px-2.5 py-1 text-[11px] text-ink-soft">
