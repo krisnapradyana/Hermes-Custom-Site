@@ -1,11 +1,55 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { Package, FileText, ChevronDown, ChevronRight, BrainCircuit, TriangleAlert, RotateCw, Loader2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Package, FileText, ChevronDown, ChevronRight, BrainCircuit, TriangleAlert, RotateCw, Loader2, Download } from "lucide-react";
 import { Message, Attachment } from "@/lib/types";
 import { useHermesStore } from "@/lib/store";
+import { renderMarkdown } from "@/lib/markdown";
 import { PixelMark } from "@/components/PixelMark";
+
+/**
+ * Server file paths the agent mentions in a reply (its Drive mount or its
+ * own output dir) become download chips, so "the file is at /opt/data/x.docx"
+ * is one click instead of a dead end. Path must look like a file (has an
+ * extension) and start with a servable root.
+ */
+const FILE_PATH_RE = /(?:^|[\s"'`(])((?:\/gdrive|\/opt\/data|\/workspace)\/[^\s"'`()<>]*\.[A-Za-z0-9]{1,8})/g;
+
+function extractFilePaths(text: string): string[] {
+  const found = new Set<string>();
+  for (const m of text.matchAll(FILE_PATH_RE)) {
+    // Trim trailing punctuation that's sentence, not path.
+    found.add(m[1].replace(/[.,;:!?]+$/, ""));
+  }
+  return [...found].slice(0, 8);
+}
+
+function FileChips({ text }: { text: string }) {
+  const paths = useMemo(() => extractFilePaths(text), [text]);
+  if (paths.length === 0) return null;
+  return (
+    <div className="mt-2.5 flex flex-wrap gap-2">
+      {paths.map((p) => {
+        const dir = p.slice(0, p.lastIndexOf("/")) || "/";
+        const name = p.slice(p.lastIndexOf("/") + 1);
+        return (
+          <a
+            key={p}
+            href={`/api/fs/download?root=${encodeURIComponent(dir)}&sub=${encodeURIComponent(name)}`}
+            className="flex items-center gap-2 rounded-xl border border-line bg-card px-3 py-2 hover:border-ink-faint transition-colors max-w-full"
+            title={p}
+          >
+            <div className="w-7 h-7 rounded-lg bg-accent-soft flex items-center justify-center shrink-0">
+              <Download size={13} className="text-accent" />
+            </div>
+            <span className="text-[12px] font-medium truncate">{name}</span>
+          </a>
+        );
+      })}
+    </div>
+  );
+}
 
 export function MessageList({
   messages,
@@ -85,7 +129,14 @@ export function MessageList({
                 </div>
               ) : (
                 m.content && (
-                  <div className="text-[15px] leading-relaxed whitespace-pre-wrap">{m.content}</div>
+                  <>
+                    <div
+                      className="md-body text-[15px] leading-relaxed"
+                      // Safe: renderMarkdown escapes all input before transforming.
+                      dangerouslySetInnerHTML={{ __html: renderMarkdown(m.content) }}
+                    />
+                    <FileChips text={m.content} />
+                  </>
                 )
               )}
 

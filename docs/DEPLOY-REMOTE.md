@@ -42,7 +42,15 @@ Edit `~/Hermes-Agent-Slack/docker-compose.yaml` and add this service
     volumes:
       - ./assistant-data:/app/data
       - /gdrive:/gdrive:rshared        # rclone Drive mount — panel reads this
+      # Agent output dir: mount the SAME source that backs the hermes
+      # service's /opt/data, read-only. This makes files the agent saves to
+      # /opt/data downloadable from chat. Match the hermes service's volume
+      # line — e.g. if hermes has `- ./data:/opt/data`, use:
+      - ./data:/opt/data:ro
 ```
+
+If the agent's output dir lives somewhere else, set `AGENT_DATA_DIRS`
+(comma-separated) in the web service's environment; default is `/opt/data`.
 
 Notes:
 - `HERMES_API_URL` uses the container name — traffic stays on Docker's
