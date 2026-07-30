@@ -26,19 +26,18 @@ export async function GET() {
       signal: AbortSignal.timeout(4000),
       cache: "no-store",
     });
+    // Note: never include the upstream URL — this endpoint is public
+    // (pre-login status dot) and must not leak infrastructure details.
     return NextResponse.json({
       configured: true,
       reachable: true,
-      url,
       detail: `HTTP ${res.status}`,
     });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "unknown error";
+  } catch {
     return NextResponse.json({
       configured: true,
       reachable: false,
-      url,
-      detail: msg,
+      detail: "no response",
     });
   }
 }

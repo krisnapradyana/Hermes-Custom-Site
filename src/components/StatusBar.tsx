@@ -31,7 +31,7 @@ export function StatusBar() {
 
   return (
     <footer className="h-6 shrink-0 border-t border-line bg-sidebar flex items-center justify-between px-3 text-[10.5px] text-ink-faint select-none">
-      <span className="flex items-center gap-1.5 min-w-0" title={health?.url ?? health?.detail ?? ""}>
+      <span className="flex items-center gap-1.5 min-w-0" title={health?.detail ?? ""}>
         <span
           className={`w-1.5 h-1.5 rounded-full shrink-0 ${
             !health

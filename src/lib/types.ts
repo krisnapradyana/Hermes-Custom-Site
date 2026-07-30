@@ -84,14 +84,3 @@ export interface Artifact {
   updatedAt: string;
 }
 
-export interface CronJob {
-  id: string;
-  name: string;
-  schedule: string; // cron expression
-  prompt: string;
-  enabled: boolean;
-  lastRunAt?: string;
-  lastStatus?: "success" | "failed" | "running";
-  nextRunAt?: string;
-  target: "chat" | "slack";
-}

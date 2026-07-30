@@ -16,11 +16,6 @@ export function projectWorkspaceDir(projectId: string): string {
   return path.join(BASE, "projects", safeId(projectId));
 }
 
-/** Path the AGENT should be told about (POSIX style, inside the containers). */
-export function projectWorkspaceAgentPath(projectId: string): string {
-  return `${BASE.replace(/\\/g, "/")}/projects/${safeId(projectId)}`.replace(/\/+/g, "/");
-}
-
 export interface WorkspaceFile {
   p: string; // relative path (posix separators)
   s: number; // size

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getUserKey } from "@/lib/user-key";
-import { readProjects, writeProjects } from "@/lib/projects-store";
+import { readProjects, updateProjects } from "@/lib/projects-store";
 import { Project } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -34,18 +34,20 @@ export async function POST(req: NextRequest) {
   }
   if (!body.name?.trim()) return NextResponse.json({ error: "Name required" }, { status: 400 });
 
-  const list = await readProjects();
-  const project: Project = {
-    id: uid(),
-    name: body.name.trim(),
-    description: body.description?.trim() ?? "",
-    color: COLORS[list.length % COLORS.length],
-    createdAt: new Date().toISOString(),
-    workingFolder: body.workingFolder?.trim() || undefined,
-    driveFolder: body.driveFolder?.trim() || undefined,
-    createdBy: await creator(),
-  };
-  list.push(project);
-  await writeProjects(list);
+  const by = await creator();
+  let project: Project | null = null;
+  await updateProjects((list) => {
+    project = {
+      id: uid(),
+      name: body.name!.trim(),
+      description: body.description?.trim() ?? "",
+      color: COLORS[list.length % COLORS.length],
+      createdAt: new Date().toISOString(),
+      workingFolder: body.workingFolder?.trim() || undefined,
+      driveFolder: body.driveFolder?.trim() || undefined,
+      createdBy: by,
+    };
+    return [...list, project];
+  });
   return NextResponse.json({ project });
 }

@@ -1,6 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { Conversation, ConversationMeta, Message } from "./types";
+import { withLock } from "./mutex";
 
 /**
  * SHARED, project-scoped conversations. Stored server-side so every member
@@ -28,6 +29,21 @@ async function writeIndex(list: ConversationMeta[]): Promise<void> {
   await fs.writeFile(tmp, JSON.stringify(list, null, 2), "utf-8");
   await fs.rename(tmp, INDEX);
 }
+
+/** Atomic write for a conversation file — a crash mid-write must never
+ *  leave a truncated, unparseable JSON behind (that IS data loss, because
+ *  getConversation would then return null forever). */
+async function writeConv(conv: Conversation): Promise<void> {
+  await fs.mkdir(DIR, { recursive: true });
+  const tmp = file(conv.id) + ".tmp";
+  await fs.writeFile(tmp, JSON.stringify(conv, null, 2), "utf-8");
+  await fs.rename(tmp, file(conv.id));
+}
+
+/** All index read-modify-write cycles go through one lock: every user's
+ *  message persist touches the same index.json, and unlocked concurrent
+ *  updates silently drop entries (conversation vanishes from its project). */
+const INDEX_LOCK = "conversations-index";
 
 const toMeta = (c: Conversation): ConversationMeta => ({
   id: c.id,
@@ -73,11 +89,12 @@ export async function createConversation(
     messageCount: 0,
     messages: [],
   };
-  await fs.mkdir(DIR, { recursive: true });
-  await fs.writeFile(file(conv.id), JSON.stringify(conv, null, 2), "utf-8");
-  const idx = await readIndex();
-  idx.push(toMeta(conv));
-  await writeIndex(idx);
+  await writeConv(conv);
+  await withLock(INDEX_LOCK, async () => {
+    const idx = await readIndex();
+    idx.push(toMeta(conv));
+    await writeIndex(idx);
+  });
   return conv;
 }
 
@@ -92,11 +109,14 @@ export async function saveMessages(
   conv.messageCount = messages.length;
   conv.updatedAt = new Date().toISOString();
   if (title) conv.title = title.slice(0, 80);
-  await fs.writeFile(file(cid), JSON.stringify(conv, null, 2), "utf-8");
-  const idx = await readIndex();
-  const i = idx.findIndex((c) => c.id === cid);
-  if (i >= 0) idx[i] = toMeta(conv);
-  await writeIndex(idx);
+  await writeConv(conv);
+  await withLock(INDEX_LOCK, async () => {
+    const idx = await readIndex();
+    const i = idx.findIndex((c) => c.id === cid);
+    if (i >= 0) idx[i] = toMeta(conv);
+    else idx.push(toMeta(conv)); // heal a previously lost entry
+    await writeIndex(idx);
+  });
   return conv;
 }
 
@@ -104,6 +124,8 @@ export async function deleteConversation(cid: string): Promise<void> {
   try {
     await fs.unlink(file(cid));
   } catch {}
-  const idx = await readIndex();
-  await writeIndex(idx.filter((c) => c.id !== cid));
+  await withLock(INDEX_LOCK, async () => {
+    const idx = await readIndex();
+    await writeIndex(idx.filter((c) => c.id !== cid));
+  });
 }

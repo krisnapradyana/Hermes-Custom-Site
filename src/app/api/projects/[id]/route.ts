@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserKey } from "@/lib/user-key";
-import { readProjects, writeProjects } from "@/lib/projects-store";
+import { updateProjects } from "@/lib/projects-store";
 import { Project } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -27,19 +27,22 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
-  const list = await readProjects();
-  const idx = list.findIndex((p) => p.id === id);
-  if (idx === -1) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-  for (const k of EDITABLE) {
-    if (k in body) {
-      const v = body[k];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (list[idx] as any)[k] = typeof v === "string" ? v.trim() || undefined : v;
+  let updated: Project | undefined;
+  await updateProjects((list) => {
+    const idx = list.findIndex((p) => p.id === id);
+    if (idx === -1) return null; // abort, no write
+    const next = { ...list[idx] } as Record<string, unknown>;
+    for (const k of EDITABLE) {
+      if (k in body) {
+        const v = body[k];
+        next[k] = typeof v === "string" ? v.trim() || undefined : v;
+      }
     }
-  }
-  await writeProjects(list);
-  return NextResponse.json({ project: list[idx] });
+    updated = next as unknown as Project;
+    return list.map((p, i) => (i === idx ? updated! : p));
+  });
+  if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  return NextResponse.json({ project: updated });
 }
 
 export async function DELETE(
@@ -48,7 +51,6 @@ export async function DELETE(
 ) {
   if (!(await getUserKey())) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   const { id } = await params;
-  const list = await readProjects();
-  await writeProjects(list.filter((p) => p.id !== id));
+  await updateProjects((list) => list.filter((p) => p.id !== id));
   return NextResponse.json({ ok: true });
 }

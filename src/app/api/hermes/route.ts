@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { getUserKey } from "@/lib/user-key";
 import { extractDocumentText } from "@/lib/extract-server";
 import { readManifest } from "@/lib/projects-store";
 
@@ -135,6 +135,12 @@ async function buildUserContent(
 }
 
 export async function POST(req: NextRequest) {
+  // This route drives the paid LLM agent — it must never run unauthenticated.
+  const userKey = await getUserKey();
+  if (!userKey) {
+    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  }
+
   if (!API_URL) {
     return NextResponse.json(
       { error: "HERMES_API_URL is not set. Copy .env.example to .env.local and fill it in." },
@@ -165,13 +171,10 @@ export async function POST(req: NextRequest) {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (API_KEY) headers["Authorization"] = `Bearer ${API_KEY}`;
 
-  // Phase 2: identity + transcript scoping
-  try {
-    const session = await auth();
-    const slackId = session?.user?.slackId;
-    if (slackId) headers["X-Hermes-Session-Key"] = `${SESSION_KEY_PREFIX}${slackId}`;
-  } catch {
-    // auth not configured — proceed anonymously
+  // Phase 2: identity + transcript scoping. userKey is the Slack id when
+  // auth is enabled, or "local" in single-user dev mode (no scoping needed).
+  if (userKey !== "local") {
+    headers["X-Hermes-Session-Key"] = `${SESSION_KEY_PREFIX}${userKey}`;
   }
   if (body.chatId) headers["X-Hermes-Session-Id"] = body.chatId;
 
