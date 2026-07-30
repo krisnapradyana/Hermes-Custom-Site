@@ -62,11 +62,9 @@ export function AttachmentPreview({ attachment }: { attachment: Attachment }) {
     return <iframe src={srcOf(a)} className="w-full h-full" title={a.name} />;
   }
   if (a.type.startsWith("video/")) {
-    // eslint-disable-next-line jsx-a11y/media-has-caption
     return <video controls src={srcOf(a)} className="max-w-full p-3" />;
   }
   if (a.type.startsWith("audio/")) {
-    // eslint-disable-next-line jsx-a11y/media-has-caption
     return <audio controls src={srcOf(a)} className="w-full p-3" />;
   }
   if (textual) {

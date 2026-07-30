@@ -1,0 +1,54 @@
+# Reference compose for the SuperPixel Assistant stack.
+# Copy the relevant blocks into your server's docker-compose.yml
+# (usually ~/Hermes-Agent-Slack/docker-compose.yaml, next to the hermes service).
+#
+# Secrets come from the .env file next to the compose file:
+#   API_SERVER_KEY, ASSISTANT_PUBLIC_URL, ASSISTANT_AUTH_SECRET,
+#   AUTH_SLACK_ID, AUTH_SLACK_SECRET
+
+services:
+  # --- your existing Hermes agent service; only the volume line is new ---
+  hermes:
+    # image/build/env as you already have them
+    volumes:
+      - hermes-data:/opt/data # named volume: state survives recreates
+
+  assistant-web:
+    build:
+      context: /path/to/Hermes-Custom-Site
+      args:
+        NEXT_PUBLIC_AUTH_ENABLED: "true"
+    container_name: assistant-web
+    restart: unless-stopped
+    environment:
+      - HERMES_API_URL=http://hermes-local-agent:8642
+      - HERMES_API_MODE=openai
+      - HERMES_API_KEY=${API_SERVER_KEY}
+      - HERMES_MODEL=hermes-agent
+      - DRIVE_MOUNT_DIR=/gdrive
+      - AGENT_DATA_DIRS=/opt/data
+      - NEXT_PUBLIC_AUTH_ENABLED=true
+      - AUTH_URL=${ASSISTANT_PUBLIC_URL}
+      - AUTH_SECRET=${ASSISTANT_AUTH_SECRET}
+      - AUTH_SLACK_ID=${AUTH_SLACK_ID}
+      - AUTH_SLACK_SECRET=${AUTH_SLACK_SECRET}
+      - DATA_DIR=/app/data
+    volumes:
+      - ./assistant-data:/app/data # projects/conversations/attachments
+      - /gdrive:/gdrive:rshared # rclone Drive mount
+      - hermes-data:/opt/data:ro # agent output → download chips (read-only)
+    # No published port: caddy fronts it on the compose network.
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    command: caddy reverse-proxy --from ${ASSISTANT_DOMAIN} --to assistant-web:3000
+    volumes:
+      - caddy-data:/data
+
+volumes:
+  hermes-data:
+  caddy-data:

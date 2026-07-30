@@ -204,6 +204,7 @@ export default function ProjectsPage() {
           {s && s.thumbs.length > 0 && p.workingFolder && (
             <div className="flex gap-1.5 mb-3">
               {s.thumbs.map((t) => (
+                // eslint-disable-next-line @next/next/no-img-element -- served by our own /api/thumb resize pipeline; next/image can't optimize it further
                 <img
                   key={t.sub}
                   src={`/api/thumb?root=${encodeURIComponent(p.workingFolder!)}&sub=${encodeURIComponent(

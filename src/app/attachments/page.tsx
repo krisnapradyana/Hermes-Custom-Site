@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Paperclip, FileText, FileCode, Image as ImageIcon, File as FileIcon, X, Download, MessageSquare } from "lucide-react";
+import { FileText, FileCode, Image as ImageIcon, File as FileIcon, X, Download, MessageSquare } from "lucide-react";
 import Link from "next/link";
 import { useHermesStore } from "@/lib/store";
 import { timeAgo } from "@/lib/format";

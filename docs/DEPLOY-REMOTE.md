@@ -17,6 +17,9 @@ git clone https://github.com/krisnapradyana/Hermes-Custom-Site.git
 Edit `~/Hermes-Agent-Slack/docker-compose.yaml` and add this service
 (same level as the hermes/seedance/oauth-helper services):
 
+> The maintained reference lives in the repo: `docker-compose.example.yml`.
+> The snippet below is illustrative — when in doubt, the example file wins.
+
 ```yaml
   assistant-web:
     build:

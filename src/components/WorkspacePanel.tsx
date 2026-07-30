@@ -249,11 +249,9 @@ export function WorkspacePanel({ project }: { project: Project }) {
             {fileData?.kind === "html" && <iframe src={rawUrl(selected.sub)} sandbox="allow-scripts" className="w-full h-full bg-white" title={selected.name} />}
             {fileData?.kind === "pdf" && <iframe src={rawUrl(selected.sub)} className="w-full h-full" title={selected.name} />}
             {fileData?.kind === "video" && (
-              // eslint-disable-next-line jsx-a11y/media-has-caption
               <video controls src={rawUrl(selected.sub)} className="max-w-full p-3" />
             )}
             {fileData?.kind === "audio" && (
-              // eslint-disable-next-line jsx-a11y/media-has-caption
               <audio controls src={rawUrl(selected.sub)} className="w-full p-3" />
             )}
             {fileData?.kind === "binary" && (
