@@ -146,10 +146,20 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
           mentions.map((m) => `- ${project.workingFolder}/${m}`).join("\n")
         : "";
 
+    // Keep this wording aligned with store.ts — the agent must behave the same
+    // whether the user sends from a private chat or a project conversation.
+    const SAFETY_RULES =
+      `File-safety rules: only CREATE new files; never delete or move files; if a ` +
+      `change to an existing file is needed, save a new versioned copy ` +
+      `(e.g. name-v2.ext) and tell the user — never overwrite the original.`;
+
     const context = project?.workingFolder
-      ? `The user is working in project "${project.name}". Working folder: ${project.workingFolder} — ` +
-        `the team's shared Drive, mounted on this machine. Read and save files there. Only CREATE ` +
-        `new files; never delete, move, or overwrite — save versioned copies (name-v2.ext) instead.` +
+      ? `The user is working in project "${project.name}". Working folder: ` +
+        `${project.workingFolder} — it is the team's shared Drive, mounted on this ` +
+        `machine. Read project files from there and save all generated files there. ` +
+        `When you finish a file, always tell the user its full absolute path — the ` +
+        `interface turns that path into a download button. ` +
+        SAFETY_RULES +
         mentionNote
       : undefined;
 

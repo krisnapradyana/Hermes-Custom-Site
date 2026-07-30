@@ -16,11 +16,15 @@ import { PixelMark } from "@/components/PixelMark";
  */
 const FILE_PATH_RE = /(?:^|[\s"'`(])((?:\/gdrive|\/opt\/data|\/workspace)\/[^\s"'`()<>]*\.[A-Za-z0-9]{1,8})/g;
 
+/** Hermes' own internals live in /opt/data — never offer those as downloads. */
+const INTERNAL_RE = /^\/opt\/data\/(auth\.json|auth\.lock|custom-\.env|cache\/|audio_cache\/|bin\/|backups\/|memories\/|custom-config\.yaml)/;
+
 function extractFilePaths(text: string): string[] {
   const found = new Set<string>();
   for (const m of text.matchAll(FILE_PATH_RE)) {
     // Trim trailing punctuation that's sentence, not path.
-    found.add(m[1].replace(/[.,;:!?]+$/, ""));
+    const p = m[1].replace(/[.,;:!?]+$/, "");
+    if (!INTERNAL_RE.test(p)) found.add(p);
   }
   return [...found].slice(0, 8);
 }

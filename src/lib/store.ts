@@ -178,15 +178,28 @@ export const useHermesStore = create<HermesState>()(
         //   the agent then reads/writes the real shared Drive.
         // - Otherwise fall back to the server workspace; the browser courier
         //   delivers those files to the user's machine.
+        const SAFETY_RULES =
+          `File-safety rules: only CREATE new files; never delete or move files; if a ` +
+          `change to an existing file is needed, save a new versioned copy ` +
+          `(e.g. name-v2.ext) and tell the user — never overwrite the original.`;
+
         let context: string | undefined;
         if (project?.workingFolder) {
           context =
             `The user is working in project "${project.name}". Working folder: ` +
             `${project.workingFolder} — it is the team's shared Drive, mounted on this ` +
             `machine. Read project files from there and save all generated files there. ` +
-            `File-safety rules: only CREATE new files; never delete or move files; if a ` +
-            `change to an existing file is needed, save a new versioned copy ` +
-            `(e.g. name-v2.ext) and tell the user — never overwrite the original.`;
+            SAFETY_RULES;
+        } else {
+          // Private chat: no project folder. Keep deliverables in one predictable
+          // place instead of the agent's data root, and always state the full
+          // path — the UI turns it into a download button for the user.
+          context =
+            `This is a private chat with no project folder. Save any files you ` +
+            `generate in /opt/data/outputs/ (create the folder if needed), not in ` +
+            `/opt/data directly. When you finish a file, always tell the user its ` +
+            `full absolute path — the interface turns that path into a download ` +
+            `button. ` + SAFETY_RULES;
         }
 
         hermesStream(
