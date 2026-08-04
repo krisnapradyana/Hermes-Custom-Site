@@ -6,6 +6,7 @@ import { Chat, Message, Project, Artifact, Attachment } from "./types";
 import { hermesStream, StoppedError } from "./hermes-api";
 import { extractArtifacts } from "./extract";
 import { uid } from "./uid";
+import { api } from "./api";
 import {
   buildAgentContext,
   uploadAttachments,
@@ -55,18 +56,48 @@ const serverStorage: StateStorage = {
   },
 };
 
+/**
+ * Per-chat message persistence, debounced per chat id. Only the chat that
+ * changed is written — the old design re-serialised every chat and every
+ * message on every keystroke batch.
+ */
+const saveTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+function persistChat(chat: Chat, delay = 600): void {
+  if (!chat.loaded) return; // never overwrite server history with an unloaded stub
+  clearTimeout(saveTimers.get(chat.id));
+  saveTimers.set(
+    chat.id,
+    setTimeout(async () => {
+      saveTimers.delete(chat.id);
+      const res = await api.put(`/api/chats/${encodeURIComponent(chat.id)}`, {
+        messages: chat.messages,
+        title: chat.title,
+        pinned: chat.pinned,
+      });
+      if (!res.ok) console.warn(`[chats] save failed for ${chat.id}: ${res.error}`);
+    }, delay)
+  );
+}
+
 interface HermesState {
   chats: Chat[];
   projects: Project[];
   artifacts: Artifact[];
   isStreaming: boolean;
   _hasHydrated: boolean;
+  _chatsLoaded: boolean;
 
   createChat: (firstMessage: string, projectId?: string, attachments?: Attachment[]) => string;
   sendMessage: (chatId: string, content: string, attachments?: Attachment[]) => void;
   togglePin: (chatId: string) => void;
   deleteChat: (chatId: string) => void;
   renameChat: (chatId: string, title: string) => void;
+
+  /** Load chat metadata (no messages) — runs migration server-side on first call. */
+  loadChats: () => Promise<void>;
+  /** Fetch one chat's messages on demand; no-op if already loaded. */
+  ensureChatLoaded: (chatId: string) => Promise<void>;
 
   /** Projects are SHARED across all members via /api/projects. */
   loadProjects: () => Promise<void>;
@@ -88,6 +119,46 @@ export const useHermesStore = create<HermesState>()(
       artifacts: [],
       isStreaming: false,
       _hasHydrated: false,
+      _chatsLoaded: false,
+
+      loadChats: async () => {
+        const res = await api.get<{ chats: Chat[]; migration?: { chats: number } }>("/api/chats");
+        if (!res.ok) {
+          console.warn(`[chats] list failed: ${res.error}`);
+          return;
+        }
+        if (res.data.migration) {
+          console.log(`[chats] migrated ${res.data.migration.chats} chats to per-chat storage`);
+        }
+        // Metadata only: messages arrive when a chat is opened.
+        set((s) => {
+          const localLoaded = new Map(
+            s.chats.filter((c) => c.loaded).map((c) => [c.id, c] as const)
+          );
+          return {
+            _chatsLoaded: true,
+            chats: res.data.chats.map((meta) => {
+              const local = localLoaded.get(meta.id);
+              return local ? { ...meta, messages: local.messages, loaded: true } : { ...meta, messages: [] };
+            }),
+          };
+        });
+      },
+
+      ensureChatLoaded: async (chatId) => {
+        const existing = get().chats.find((c) => c.id === chatId);
+        if (existing?.loaded) return;
+        const res = await api.get<{ chat: Chat }>(`/api/chats/${encodeURIComponent(chatId)}`);
+        if (!res.ok) {
+          console.warn(`[chats] load failed for ${chatId}: ${res.error}`);
+          return;
+        }
+        set((s) => ({
+          chats: s.chats.some((c) => c.id === chatId)
+            ? s.chats.map((c) => (c.id === chatId ? { ...res.data.chat, loaded: true } : c))
+            : [{ ...res.data.chat, loaded: true }, ...s.chats],
+        }));
+      },
 
       createChat: (firstMessage, projectId, attachments) => {
         const now = new Date().toISOString();
@@ -100,8 +171,13 @@ export const useHermesStore = create<HermesState>()(
           createdAt: now,
           updatedAt: now,
           messages: [],
+          loaded: true, // brand new: nothing on the server to lose
         };
         set((s) => ({ chats: [chat, ...s.chats] }));
+        // Create server-side first so the later message PUT has a target.
+        api.post("/api/chats", { ...chat, messages: [] }).then((res) => {
+          if (!res.ok) console.warn(`[chats] create failed: ${res.error}`);
+        });
         get().sendMessage(id, firstMessage, attachments);
         return id;
       },
@@ -148,6 +224,11 @@ export const useHermesStore = create<HermesState>()(
                 : c
             ),
           }));
+        /** Write this chat's messages to its own file (debounced). */
+        const saveThisChat = () => {
+          const c = get().chats.find((x) => x.id === chatId);
+          if (c) persistChat(c);
+        };
         const patchAsst = (patch: Partial<Message>) => patchMsg(asstId, patch);
 
         // Upload attachment bytes to the server (off the state blob), then
@@ -200,6 +281,7 @@ export const useHermesStore = create<HermesState>()(
               content: stopped ? "⏹ Stopped." : turnErrorMessage(err),
             });
             set({ isStreaming: false });
+            saveThisChat();
             return null;
           })
           .then((final) => {
@@ -225,72 +307,80 @@ export const useHermesStore = create<HermesState>()(
               artifacts: [...s.artifacts, ...newArtifacts],
               chats: s.chats.map((c) => (c.id === chatId ? { ...c, updatedAt: doneAt } : c)),
             }));
+            saveThisChat();
           })
           .finally(() => abortControllers.delete(chatId));
       },
 
-      togglePin: (chatId) =>
+      togglePin: (chatId) => {
+        const next = !get().chats.find((c) => c.id === chatId)?.pinned;
         set((s) => ({
-          chats: s.chats.map((c) => (c.id === chatId ? { ...c, pinned: !c.pinned } : c)),
-        })),
+          chats: s.chats.map((c) => (c.id === chatId ? { ...c, pinned: next } : c)),
+        }));
+        // Metadata-only PATCH — does not rewrite the message file.
+        api.patch(`/api/chats/${encodeURIComponent(chatId)}`, { pinned: next });
+      },
 
-      deleteChat: (chatId) =>
-        set((s) => ({ chats: s.chats.filter((c) => c.id !== chatId) })),
+      deleteChat: (chatId) => {
+        clearTimeout(saveTimers.get(chatId)); // don't resurrect it with a pending save
+        saveTimers.delete(chatId);
+        set((s) => ({ chats: s.chats.filter((c) => c.id !== chatId) }));
+        api.del(`/api/chats/${encodeURIComponent(chatId)}`);
+      },
 
-      renameChat: (chatId, title) =>
+      renameChat: (chatId, title) => {
         set((s) => ({
           chats: s.chats.map((c) => (c.id === chatId ? { ...c, title } : c)),
-        })),
+        }));
+        api.patch(`/api/chats/${encodeURIComponent(chatId)}`, { title });
+      },
 
       loadProjects: async () => {
-        try {
-          const res = await fetch("/api/projects", { cache: "no-store" });
-          if (!res.ok) return;
-          const data = (await res.json()) as { projects?: Project[] };
-          set({ projects: data.projects ?? [] });
-        } catch {}
+        const res = await api.get<{ projects?: Project[] }>("/api/projects");
+        if (!res.ok) {
+          console.warn(`[projects] load failed: ${res.error}`);
+          return;
+        }
+        set({ projects: res.data.projects ?? [] });
       },
 
       createProject: async (name, description, folders) => {
-        try {
-          const res = await fetch("/api/projects", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name, description, ...folders }),
-          });
-          if (!res.ok) return undefined;
-          const { project } = (await res.json()) as { project: Project };
-          set((s) => ({ projects: [...s.projects, project] }));
-          return project;
-        } catch {
+        const res = await api.post<{ project: Project }>("/api/projects", {
+          name,
+          description,
+          ...folders,
+        });
+        if (!res.ok) {
+          console.warn(`[projects] create failed: ${res.error}`);
           return undefined;
         }
+        set((s) => ({ projects: [...s.projects, res.data.project] }));
+        return res.data.project;
       },
 
       updateProject: async (id, patch) => {
         // optimistic
         set((s) => ({ projects: s.projects.map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
-        try {
-          await fetch(`/api/projects/${encodeURIComponent(id)}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(patch),
-          });
-        } catch {}
+        const res = await api.patch(`/api/projects/${encodeURIComponent(id)}`, patch);
+        if (!res.ok) console.warn(`[projects] update failed: ${res.error}`);
       },
 
       deleteProject: async (id) => {
+        const doomed = get().chats.filter((c) => c.projectId === id);
         set((s) => {
-          const chatIds = new Set(s.chats.filter((c) => c.projectId === id).map((c) => c.id));
+          const chatIds = new Set(doomed.map((c) => c.id));
           return {
             projects: s.projects.filter((p) => p.id !== id),
             chats: s.chats.filter((c) => c.projectId !== id),
             artifacts: s.artifacts.filter((a) => !(a.chatId && chatIds.has(a.chatId))),
           };
         });
-        try {
-          await fetch(`/api/projects/${encodeURIComponent(id)}`, { method: "DELETE" });
-        } catch {}
+        // Remove the chat files too, or they'd linger as orphans on disk.
+        await Promise.all(
+          doomed.map((c) => api.del(`/api/chats/${encodeURIComponent(c.id)}`))
+        );
+        const res = await api.del(`/api/projects/${encodeURIComponent(id)}`);
+        if (!res.ok) console.warn(`[projects] delete failed: ${res.error}`);
       },
     }),
     {
@@ -298,13 +388,17 @@ export const useHermesStore = create<HermesState>()(
       storage: createJSONStorage(() => serverStorage),
       // Rehydrate manually after mount to avoid SSR hydration mismatches.
       skipHydration: true,
-      // Projects are NOT persisted here — they live in the shared store.
+      // Only artifacts live in this blob now. Chats moved to one file each
+      // (/api/chats) — keeping them here is what grew the blob to 8 MB and
+      // made every keystroke re-serialise the entire history.
+      // Projects are NOT persisted here either — they live in the shared store.
       partialize: (s) => ({
-        chats: s.chats,
         artifacts: s.artifacts,
       }),
       onRehydrateStorage: () => () => {
         useHermesStore.setState({ _hasHydrated: true });
+        // Chats live server-side now; fetch their metadata once state is ready.
+        useHermesStore.getState().loadChats();
       },
     }
   )

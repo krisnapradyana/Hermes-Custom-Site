@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FileText, FileCode, Image as ImageIcon, File as FileIcon, X, Download, MessageSquare } from "lucide-react";
 import Link from "next/link";
-import { useHermesStore } from "@/lib/store";
 import { timeAgo } from "@/lib/format";
+import { api } from "@/lib/api";
 import { Attachment } from "@/lib/types";
 import { AttachmentPreview, attachmentIconKind } from "@/components/AttachmentPreview";
 
@@ -30,25 +30,49 @@ function fmtSize(n: number) {
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
+interface ServerAttachment {
+  name: string;
+  type: string;
+  size: number;
+  id?: string;
+  chatId: string;
+  chatTitle: string;
+  createdAt: string;
+}
+
 export default function AttachmentsPage() {
-  const chats = useHermesStore((s) => s.chats);
   const [openKey, setOpenKey] = useState<string | null>(null);
+  const [rows, setRows] = useState<ServerAttachment[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Collected server-side: messages live in per-chat files, so the client no
+  // longer holds every message needed to scan for attachments.
+  useEffect(() => {
+    (async () => {
+      const res = await api.get<{ attachments: ServerAttachment[] }>("/api/chats/attachments");
+      if (res.ok) setRows(res.data.attachments);
+      else console.warn(`[attachments] load failed: ${res.error}`);
+      setLoading(false);
+    })();
+  }, []);
 
   const items = useMemo(() => {
     const out: Item[] = [];
     const seen = new Set<string>();
-    for (const c of chats) {
-      for (const m of c.messages) {
-        for (const a of m.attachments ?? []) {
-          const key = a.id ?? `${a.name}-${a.size}`;
-          if (seen.has(key)) continue;
-          seen.add(key);
-          out.push({ key, attachment: a, chatId: c.id, chatTitle: c.title, createdAt: m.createdAt });
-        }
-      }
+    for (const a of rows) {
+      const key = a.id ?? `${a.name}-${a.size}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        key,
+        attachment: { name: a.name, type: a.type, size: a.size, id: a.id },
+        chatId: a.chatId,
+        chatTitle: a.chatTitle,
+        createdAt: a.createdAt,
+      });
     }
     return out.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  }, [chats]);
+  }, [rows]);
 
   const open = items.find((i) => i.key === openKey);
 
@@ -78,7 +102,11 @@ export default function AttachmentsPage() {
               </button>
             ))}
             {items.length === 0 && (
-              <p className="text-sm text-ink-faint">No attachments yet. Upload a file in a chat to see it here.</p>
+              <p className="text-sm text-ink-faint">
+                {loading
+                  ? "Loading…"
+                  : "No attachments yet. Upload a file in a chat to see it here."}
+              </p>
             )}
           </div>
         </div>

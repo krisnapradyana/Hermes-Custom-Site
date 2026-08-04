@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   PenSquare,
   Pin,
@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import { useHermesStore } from "@/lib/store";
 import { timeAgo } from "@/lib/format";
+import { api } from "@/lib/api";
+import { Chat } from "@/lib/types";
 import { useResizableWidth, ResizeHandle } from "@/components/ResizeHandle";
 import { UserBadge } from "@/components/UserBadge";
 import { BrandMark } from "@/components/BrandMark";
@@ -52,26 +54,29 @@ export function Sidebar() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const results = useMemo(() => {
-    if (!q) return [];
-    return chats
-      .map((c) => {
-        const titleHit = c.title.toLowerCase().includes(q);
-        const msg = c.messages.find((m) => m.content.toLowerCase().includes(q));
-        if (!titleHit && !msg) return null;
-        let snippet = "";
-        if (msg) {
-          const idx = msg.content.toLowerCase().indexOf(q);
-          snippet =
-            (idx > 20 ? "…" : "") +
-            msg.content.slice(Math.max(0, idx - 20), idx + q.length + 40).replace(/\s+/g, " ");
-        }
-        return { chat: c, snippet };
-      })
-      .filter((r): r is { chat: (typeof chats)[number]; snippet: string } => r !== null)
-      .sort((a, b) => b.chat.updatedAt.localeCompare(a.chat.updatedAt))
-      .slice(0, 30);
-  }, [chats, q]);
+  /**
+   * Search runs on the server: message bodies live in per-chat files now, and
+   * scanning them here would mean downloading every message. Debounced so
+   * typing doesn't fire a request per keystroke.
+   */
+  const [results, setResults] = useState<{ chat: Chat; snippet: string }[]>([]);
+  const [searching, setSearching] = useState(false);
+  useEffect(() => {
+    if (!q) {
+      setResults([]);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    const t = setTimeout(async () => {
+      const res = await api.get<{ results: { chat: Chat; snippet: string }[] }>(
+        `/api/chats/search?q=${encodeURIComponent(q)}`
+      );
+      setResults(res.ok ? res.data.results : []);
+      setSearching(false);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [q]);
 
   // Rehydrate persisted state + load shared projects once on the client.
   useEffect(() => {
@@ -222,7 +227,9 @@ export function Sidebar() {
               />
             ))}
             {results.length === 0 && (
-              <p className="px-2.5 py-1 text-xs text-ink-faint">No chats match “{query}”.</p>
+              <p className="px-2.5 py-1 text-xs text-ink-faint">
+                {searching ? "Searching…" : `No chats match “${query}”.`}
+              </p>
             )}
           </ChatSection>
         ) : (

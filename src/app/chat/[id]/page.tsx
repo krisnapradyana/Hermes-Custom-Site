@@ -25,6 +25,8 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
   const sendMessage = useHermesStore((s) => s.sendMessage);
   const togglePin = useHermesStore((s) => s.togglePin);
   const deleteChat = useHermesStore((s) => s.deleteChat);
+  const ensureChatLoaded = useHermesStore((s) => s.ensureChatLoaded);
+  const chatsLoaded = useHermesStore((s) => s._chatsLoaded);
 
   const [openArtifactId, setOpenArtifactId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -38,8 +40,14 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chat?.messages.length, isStreaming]);
 
+  // Messages are stored per chat and fetched on open (the list only carries
+  // metadata), so pull them in as soon as this page mounts.
+  useEffect(() => {
+    ensureChatLoaded(id);
+  }, [id, ensureChatLoaded]);
+
   if (!chat) {
-    return <EmptyState>Conversation not found.</EmptyState>;
+    return <EmptyState>{chatsLoaded ? "Conversation not found." : "Loading…"}</EmptyState>;
   }
 
   const project = chat.projectId ? projects.find((p) => p.id === chat.projectId) : undefined;

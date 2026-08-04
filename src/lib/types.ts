@@ -39,6 +39,13 @@ export interface Chat {
   messages: Message[];
   createdAt: string;
   updatedAt: string;
+  /**
+   * Client-only: true once this chat's messages have been fetched from
+   * /api/chats/<id>. Chat lists load metadata only, so `messages` is empty
+   * until a chat is opened — never persist while this is false or the empty
+   * array would overwrite real history on the server.
+   */
+  loaded?: boolean;
 }
 
 export interface Project {
