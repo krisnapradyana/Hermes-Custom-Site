@@ -2,13 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getUserKey } from "@/lib/user-key";
 import { readProjects, updateProjects } from "@/lib/projects-store";
+import { uid } from "@/lib/uid";
 import { Project } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-let counter = 0;
-const uid = () => `proj-${Date.now()}-${counter++}`;
 const COLORS = ["#2a73e1", "#6a9b7e", "#7d8bc4", "#c4a35a", "#a3719b"];
 
 async function creator(): Promise<{ name: string; slackId?: string }> {
@@ -38,7 +37,7 @@ export async function POST(req: NextRequest) {
   let project: Project | null = null;
   await updateProjects((list) => {
     project = {
-      id: uid(),
+      id: uid("proj"),
       name: body.name!.trim(),
       description: body.description?.trim() ?? "",
       color: COLORS[list.length % COLORS.length],

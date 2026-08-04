@@ -3,11 +3,16 @@
 import { create } from "zustand";
 import { persist, createJSONStorage, StateStorage } from "zustand/middleware";
 import { Chat, Message, Project, Artifact, Attachment } from "./types";
-import { hermesStream } from "./hermes-api";
+import { hermesStream, StoppedError } from "./hermes-api";
 import { extractArtifacts } from "./extract";
-
-let counter = 0;
-const uid = (p: string) => `${p}-${Date.now()}-${counter++}`;
+import { uid } from "./uid";
+import {
+  buildAgentContext,
+  uploadAttachments,
+  attachmentMeta,
+  turnErrorMessage,
+  abortControllers,
+} from "./send-turn";
 
 /**
  * Phase 3: state lives on the server (per Slack user) via /api/state.
@@ -105,9 +110,7 @@ export const useHermesStore = create<HermesState>()(
         const now = new Date().toISOString();
         const userId = uid("m");
         // Store only lightweight metadata in state — never the base64 bytes.
-        const metaAttachments: Attachment[] | undefined = attachments?.length
-          ? attachments.map((a) => ({ name: a.name, type: a.type, size: a.size }))
-          : undefined;
+        const metaAttachments = attachmentMeta(attachments);
         const userMsg: Message = {
           id: userId,
           role: "user",
@@ -150,57 +153,18 @@ export const useHermesStore = create<HermesState>()(
         // Upload attachment bytes to the server (off the state blob), then
         // patch the user message with lightweight {…,id} references.
         if (attachments?.length) {
-          (async () => {
-            const refs: Attachment[] = [];
-            for (const a of attachments) {
-              const base: Attachment = { name: a.name, type: a.type, size: a.size };
-              try {
-                const res = await fetch("/api/attachments", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ name: a.name, type: a.type, dataUrl: a.dataUrl }),
-                });
-                if (res.ok) base.id = (await res.json()).id;
-              } catch {}
-              refs.push(base);
-            }
-            patchMsg(userId, { attachments: refs });
-          })();
+          uploadAttachments(attachments).then((refs) => patchMsg(userId, { attachments: refs }));
         }
 
-        // Project working-folder context travels with every message.
+        // Shared context builder — identical wording on every send path.
         const project = chat?.projectId
           ? get().projects.find((p) => p.id === chat.projectId)
           : undefined;
-        // Working folder for the agent:
-        // - If the project path maps onto the server's rclone Drive mount
-        //   (NEXT_PUBLIC_DRIVE_BASE → NEXT_PUBLIC_DRIVE_MOUNT_BASE), use it —
-        //   the agent then reads/writes the real shared Drive.
-        // - Otherwise fall back to the server workspace; the browser courier
-        //   delivers those files to the user's machine.
-        const SAFETY_RULES =
-          `File-safety rules: only CREATE new files; never delete or move files; if a ` +
-          `change to an existing file is needed, save a new versioned copy ` +
-          `(e.g. name-v2.ext) and tell the user — never overwrite the original.`;
+        const context = buildAgentContext(project);
 
-        let context: string | undefined;
-        if (project?.workingFolder) {
-          context =
-            `The user is working in project "${project.name}". Working folder: ` +
-            `${project.workingFolder} — it is the team's shared Drive, mounted on this ` +
-            `machine. Read project files from there and save all generated files there. ` +
-            SAFETY_RULES;
-        } else {
-          // Private chat: no project folder. Keep deliverables in one predictable
-          // place instead of the agent's data root, and always state the full
-          // path — the UI turns it into a download button for the user.
-          context =
-            `This is a private chat with no project folder. Save any files you ` +
-            `generate in /opt/data/outputs/ (create the folder if needed), not in ` +
-            `/opt/data directly. When you finish a file, always tell the user its ` +
-            `full absolute path — the interface turns that path into a download ` +
-            `button. ` + SAFETY_RULES;
-        }
+        // Register an abort handle so the UI can stop this turn.
+        const controller = new AbortController();
+        abortControllers.set(chatId, controller);
 
         hermesStream(
           content,
@@ -216,7 +180,8 @@ export const useHermesStore = create<HermesState>()(
               state: "working",
             }),
           context,
-          project?.id
+          project?.id,
+          controller.signal
         )
           .catch((err: unknown) => {
             // Mark the turn failed so the UI can offer Retry — including the
@@ -225,12 +190,14 @@ export const useHermesStore = create<HermesState>()(
             const storedUser = get()
               .chats.find((c) => c.id === chatId)
               ?.messages.find((m) => m.id === userId);
+            const stopped = err instanceof StoppedError;
             patchAsst({
-              state: "failed",
+              state: stopped ? "done" : "failed",
               status: undefined,
-              retryOf: content,
-              retryAttachments: storedUser?.attachments,
-              content: `⚠️ ${err instanceof Error ? err.message : "The reply failed."}`,
+              idleMs: undefined,
+              retryOf: stopped ? undefined : content,
+              retryAttachments: stopped ? undefined : storedUser?.attachments,
+              content: stopped ? "⏹ Stopped." : turnErrorMessage(err),
             });
             set({ isStreaming: false });
             return null;
@@ -258,7 +225,8 @@ export const useHermesStore = create<HermesState>()(
               artifacts: [...s.artifacts, ...newArtifacts],
               chats: s.chats.map((c) => (c.id === chatId ? { ...c, updatedAt: doneAt } : c)),
             }));
-          });
+          })
+          .finally(() => abortControllers.delete(chatId));
       },
 
       togglePin: (chatId) =>

@@ -78,7 +78,9 @@ export async function hermesStream(
   chatId: string | undefined,
   onUpdate: (state: StreamState) => void,
   context?: string,
-  projectId?: string
+  projectId?: string,
+  /** Abort the request — powers the Stop button. */
+  signal?: AbortSignal
 ): Promise<StreamState> {
   const finish = (content: string, thinking: string): StreamState => {
     const state = { content, thinking };
@@ -93,6 +95,7 @@ export async function hermesStream(
   try {
     const res = await fetch("/api/hermes", {
       method: "POST",
+      signal,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         message: userMessage,
@@ -219,8 +222,20 @@ export async function hermesStream(
     return finish(content || "(empty response)", thinking);
   } catch (err) {
     if (heartbeatRef) clearInterval(heartbeatRef);
+    // User pressed Stop — a deliberate cancellation, not a failure.
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new StoppedError();
+    }
     const msg = err instanceof Error ? err.message : "network error";
     throw new Error(msg);
+  }
+}
+
+/** Thrown when the user stops a turn, so callers can render it calmly. */
+export class StoppedError extends Error {
+  constructor() {
+    super("Stopped.");
+    this.name = "StoppedError";
   }
 }
 

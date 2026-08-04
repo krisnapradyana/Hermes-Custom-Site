@@ -2,6 +2,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import { Conversation, ConversationMeta, Message } from "./types";
 import { withLock } from "./mutex";
+import { uid } from "./uid";
 
 /**
  * SHARED, project-scoped conversations. Stored server-side so every member
@@ -70,9 +71,6 @@ export async function getConversation(cid: string): Promise<Conversation | null>
   }
 }
 
-let counter = 0;
-const uid = () => `conv-${Date.now()}-${counter++}`;
-
 export async function createConversation(
   projectId: string,
   title: string,
@@ -80,7 +78,7 @@ export async function createConversation(
 ): Promise<Conversation> {
   const now = new Date().toISOString();
   const conv: Conversation = {
-    id: uid(),
+    id: uid("conv"),
     projectId,
     title: title.slice(0, 80) || "New conversation",
     createdBy,

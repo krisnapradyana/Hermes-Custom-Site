@@ -5,17 +5,25 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { ArrowLeft, FolderKanban, PanelRight, Lock, User, RefreshCw } from "lucide-react";
 import { useHermesStore } from "@/lib/store";
-import { hermesStream, rehydrateAttachments } from "@/lib/hermes-api";
+import { hermesStream, rehydrateAttachments, StoppedError } from "@/lib/hermes-api";
 import { beginLive, updateLive, endLive, getLive, subscribeLive } from "@/lib/conv-stream";
+import {
+  buildAgentContext,
+  uploadAttachments,
+  attachmentMeta,
+  turnErrorMessage,
+  abortControllers,
+  stopTurn,
+} from "@/lib/send-turn";
+import { uid } from "@/lib/uid";
+import { api } from "@/lib/api";
 import { Conversation, Message, Attachment } from "@/lib/types";
 import { MessageList } from "@/components/MessageList";
 import { Composer } from "@/components/Composer";
 import { WorkspacePanel } from "@/components/WorkspacePanel";
 import { useResizableWidth, ResizeHandle } from "@/components/ResizeHandle";
 import { TokenMeter } from "@/components/TokenMeter";
-
-let counter = 0;
-const uid = (p: string) => `${p}-${Date.now()}-${counter++}`;
+import { IconButton, EmptyState, ScreenHeader, SidePanel } from "@/components/ui";
 
 export default function ConversationPage({ params }: { params: Promise<{ cid: string }> }) {
   const { cid } = use(params);
@@ -39,19 +47,16 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
   // Guard: never let a background refresh clobber an in-progress exchange.
   const streamingRef = useRef(false);
   const load = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/conversations/${encodeURIComponent(cid)}`, { cache: "no-store" });
-      if (!res.ok) {
-        setNotFound(true);
-        return;
-      }
-      const { conversation } = (await res.json()) as { conversation: Conversation };
-      setConv(conversation);
-      // Don't clobber a live in-progress stream (this tab) or our own stream.
-      if (!streamingRef.current && !getLive(cid)) setMessages(conversation.messages);
-    } catch {
+    const res = await api.get<{ conversation: Conversation }>(
+      `/api/conversations/${encodeURIComponent(cid)}`
+    );
+    if (!res.ok) {
       setNotFound(true);
+      return;
     }
+    setConv(res.data.conversation);
+    // Don't clobber a live in-progress stream (this tab) or our own stream.
+    if (!streamingRef.current && !getLive(cid)) setMessages(res.data.conversation.messages);
   }, [cid]);
 
   useEffect(() => {
@@ -97,34 +102,19 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
   }, [sessionReady, isOwner, conv, load]);
 
   const persist = async (msgs: Message[], title?: string) => {
-    await fetch(`/api/conversations/${encodeURIComponent(cid)}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: msgs, title }),
-    }).catch(() => {});
+    const res = await api.put(`/api/conversations/${encodeURIComponent(cid)}`, {
+      messages: msgs,
+      title,
+    });
+    if (!res.ok) console.warn(`[conversation] save failed: ${res.error}`);
   };
 
   const send = async (content: string, attachments: Attachment[], mentions?: string[]) => {
     if (!conv || streaming) return;
     const now = new Date().toISOString();
-    const metaAtt: Attachment[] | undefined = attachments.length
-      ? attachments.map((a) => ({ name: a.name, type: a.type, size: a.size }))
-      : undefined;
-
-    // Upload attachment bytes off the message body.
-    const refs: Attachment[] = [];
-    for (const a of attachments) {
-      const base: Attachment = { name: a.name, type: a.type, size: a.size };
-      try {
-        const r = await fetch("/api/attachments", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: a.name, type: a.type, dataUrl: a.dataUrl }),
-        });
-        if (r.ok) base.id = (await r.json()).id;
-      } catch {}
-      refs.push(base);
-    }
+    const metaAtt = attachmentMeta(attachments);
+    // Upload attachment bytes off the message body (shared implementation).
+    const refs = await uploadAttachments(attachments);
 
     const userMsg: Message = { id: uid("m"), role: "user", content, createdAt: now, attachments: metaAtt };
     const asstId = uid("m");
@@ -138,30 +128,12 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
     // Save the user's message right away so a refresh mid-reply doesn't lose it.
     persist([...messages, storedUser], messages.length === 0 ? content : undefined);
 
-    // Files the user referenced with "@" — give the agent their full paths so
-    // it can read them straight from the mounted Drive (nothing is uploaded).
-    const mentionNote =
-      mentions?.length && project?.workingFolder
-        ? ` The user referenced these project files — read them from disk:\n` +
-          mentions.map((m) => `- ${project.workingFolder}/${m}`).join("\n")
-        : "";
+    // Shared context builder — "@" mentions become absolute paths the agent
+    // reads straight from the mounted Drive (nothing is uploaded).
+    const context = buildAgentContext(project, mentions);
 
-    // Keep this wording aligned with store.ts — the agent must behave the same
-    // whether the user sends from a private chat or a project conversation.
-    const SAFETY_RULES =
-      `File-safety rules: only CREATE new files; never delete or move files; if a ` +
-      `change to an existing file is needed, save a new versioned copy ` +
-      `(e.g. name-v2.ext) and tell the user — never overwrite the original.`;
-
-    const context = project?.workingFolder
-      ? `The user is working in project "${project.name}". Working folder: ` +
-        `${project.workingFolder} — it is the team's shared Drive, mounted on this ` +
-        `machine. Read project files from there and save all generated files there. ` +
-        `When you finish a file, always tell the user its full absolute path — the ` +
-        `interface turns that path into a download button. ` +
-        SAFETY_RULES +
-        mentionNote
-      : undefined;
+    const controller = new AbortController();
+    abortControllers.set(cid, controller);
 
     // Drive updates through the live registry so any mounted copy of this
     // page (after navigating back) stays in sync with the running stream.
@@ -187,7 +159,8 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
             state: "working",
           }),
         context,
-        conv.projectId
+        conv.projectId,
+        controller.signal
       );
       const done = withUser.map((m) =>
         m.id === asstId
@@ -205,15 +178,17 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
       await persist(done);
       endLive(cid, done);
     } catch (err) {
+      const stopped = err instanceof StoppedError;
       const errored = latest.map((m) =>
         m.id === asstId
           ? {
               ...m,
-              content: `⚠️ ${err instanceof Error ? err.message : "The reply failed."}`,
+              content: stopped ? "⏹ Stopped." : turnErrorMessage(err),
               status: undefined,
-              state: "failed" as const,
-              retryOf: content,
-              retryAttachments: refs.length ? refs : undefined,
+              idleMs: undefined,
+              state: (stopped ? "done" : "failed") as "done" | "failed",
+              retryOf: stopped ? undefined : content,
+              retryAttachments: stopped || !refs.length ? undefined : refs,
             }
           : m
       );
@@ -221,6 +196,7 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
       await persist(errored);
       endLive(cid, errored);
     } finally {
+      abortControllers.delete(cid);
       streamingRef.current = false;
       setStreaming(false);
       load(); // refresh metadata (title/counts) from the server
@@ -243,70 +219,66 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conv, isOwner, messages.length]);
 
-  if (notFound) {
-    return (
-      <div className="flex h-full items-center justify-center text-ink-faint text-sm">
-        Conversation not found.
-      </div>
-    );
-  }
-  if (!conv) {
-    return <div className="flex h-full items-center justify-center text-ink-faint text-sm">Loading…</div>;
-  }
+  if (notFound) return <EmptyState>Conversation not found.</EmptyState>;
+  if (!conv) return <EmptyState>Loading…</EmptyState>;
 
   return (
     <div className="flex h-full">
       <div className="flex h-full flex-col flex-1 min-w-0">
-        <header className="flex items-center justify-between border-b border-line bg-parchment/80 backdrop-blur px-6 py-3 sticky top-0 z-10">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <button
-              onClick={() => router.push(`/projects/${conv.projectId}`)}
-              className="p-1.5 -ml-1.5 rounded-lg hover:bg-parchment-dark text-ink-soft shrink-0"
-              title="Back to project"
-            >
-              <ArrowLeft size={16} />
-            </button>
-            <div className="min-w-0">
-              <h1 className="text-[15px] font-medium truncate">{conv.title}</h1>
-              <div className="flex items-center gap-2 text-[11px] text-ink-faint">
-                {project && (
-                  <span className="inline-flex items-center gap-1">
-                    <FolderKanban size={10} />
-                    {project.name}
-                  </span>
-                )}
-                {conv.createdBy?.name && (
-                  <span className="inline-flex items-center gap-1">
-                    <User size={10} />
-                    {conv.createdBy.name}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-1 min-w-0 ml-3">
-            <TokenMeter sessionId={cid} refreshKey={streaming ? "live" : messages.length} />
-            {!isOwner && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-parchment-dark px-2.5 py-1 text-[11px] text-ink-soft">
-                <Lock size={11} /> Read-only
-              </span>
-            )}
-            {!isOwner && (
-              <button onClick={load} className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft" title="Refresh">
-                <RefreshCw size={15} />
-              </button>
-            )}
-            {project?.workingFolder && (
-              <button
-                onClick={() => setShowWorkspace(!showWorkspace)}
-                className={`p-2 rounded-lg hover:bg-parchment-dark ${showWorkspace ? "text-accent" : "text-ink-soft"}`}
-                title={showWorkspace ? "Hide workspace panel" : "Show workspace panel"}
+        <ScreenHeader
+          left={
+            <>
+              <IconButton
+                onClick={() => router.push(`/projects/${conv.projectId}`)}
+                title="Back to project"
+                className="-ml-1.5 shrink-0"
               >
-                <PanelRight size={15} />
-              </button>
-            )}
-          </div>
-        </header>
+                <ArrowLeft size={16} />
+              </IconButton>
+              <div className="min-w-0">
+                <h1 className="text-[15px] font-medium truncate">{conv.title}</h1>
+                <div className="flex items-center gap-2 text-[11px] text-ink-faint">
+                  {project && (
+                    <span className="inline-flex items-center gap-1">
+                      <FolderKanban size={10} />
+                      {project.name}
+                    </span>
+                  )}
+                  {conv.createdBy?.name && (
+                    <span className="inline-flex items-center gap-1">
+                      <User size={10} />
+                      {conv.createdBy.name}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </>
+          }
+          right={
+            <>
+              <TokenMeter sessionId={cid} refreshKey={streaming ? "live" : messages.length} />
+              {!isOwner && (
+                <>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-parchment-dark px-2.5 py-1 text-[11px] text-ink-soft">
+                    <Lock size={11} /> Read-only
+                  </span>
+                  <IconButton onClick={load} title="Refresh">
+                    <RefreshCw size={15} />
+                  </IconButton>
+                </>
+              )}
+              {project?.workingFolder && (
+                <IconButton
+                  onClick={() => setShowWorkspace(!showWorkspace)}
+                  active={showWorkspace}
+                  title={showWorkspace ? "Hide workspace panel" : "Show workspace panel"}
+                >
+                  <PanelRight size={15} />
+                </IconButton>
+              )}
+            </>
+          }
+        />
 
         <div className="flex-1 overflow-y-auto">
           <div className="mx-auto max-w-3xl px-6 py-8">
@@ -326,7 +298,12 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
         <div className="border-t border-line bg-parchment px-6 py-4">
           <div className="mx-auto max-w-3xl">
             {isOwner ? (
-              <Composer onSend={send} disabled={streaming} projectId={conv.projectId} />
+              <Composer
+                onSend={send}
+                disabled={streaming}
+                projectId={conv.projectId}
+                onStop={() => stopTurn(cid)}
+              />
             ) : (
               <p className="text-center text-[13px] text-ink-faint py-2">
                 This conversation is read-only — only {conv.createdBy?.name ?? "the creator"} can reply.
@@ -339,9 +316,9 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
       {project?.workingFolder && showWorkspace && (
         <>
           <ResizeHandle onPointerDown={ws.startResize} />
-          <div className="shrink-0 border-l border-line bg-card flex flex-col" style={{ width: ws.width }}>
+          <SidePanel width={ws.width}>
             <WorkspacePanel project={project} />
-          </div>
+          </SidePanel>
         </>
       )}
     </div>

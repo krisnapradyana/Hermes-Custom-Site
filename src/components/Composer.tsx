@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowUp, Paperclip, X, FileText, Folder, File as FileIcon } from "lucide-react";
+import { ArrowUp, Paperclip, X, FileText, Folder, File as FileIcon, Square } from "lucide-react";
 import { Attachment } from "@/lib/types";
 
 const MAX_FILE_MB = 5;
@@ -66,6 +66,7 @@ export function Composer({
   placeholder = "Message Assistant…",
   autoFocus,
   projectId,
+  onStop,
 }: {
   onSend: (text: string, attachments: Attachment[], mentions?: string[]) => void;
   disabled?: boolean;
@@ -73,6 +74,8 @@ export function Composer({
   autoFocus?: boolean;
   /** Enables "@file" mentions from the project's working folder. */
   projectId?: string;
+  /** When provided and a turn is running, the send button becomes Stop. */
+  onStop?: () => void;
 }) {
   const [value, setValue] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -315,14 +318,24 @@ export function Composer({
                 : "Assistant · powered by Hermes")}
           </span>
         </div>
-        <button
-          onClick={submit}
-          disabled={(!value.trim() && attachments.length === 0) || disabled}
-          className="p-1.5 rounded-lg bg-accent text-white disabled:opacity-30 hover:bg-accent-hover transition-colors"
-          title="Send"
-        >
-          <ArrowUp size={16} />
-        </button>
+        {disabled && onStop ? (
+          <button
+            onClick={onStop}
+            className="p-1.5 rounded-lg bg-parchment-dark text-ink border border-line hover:border-ink-faint transition-colors"
+            title="Stop generating"
+          >
+            <Square size={16} className="fill-current" />
+          </button>
+        ) : (
+          <button
+            onClick={submit}
+            disabled={(!value.trim() && attachments.length === 0) || disabled}
+            className="p-1.5 rounded-lg bg-accent text-white disabled:opacity-30 hover:bg-accent-hover transition-colors"
+            title="Send"
+          >
+            <ArrowUp size={16} />
+          </button>
+        )}
       </div>
     </div>
   );
