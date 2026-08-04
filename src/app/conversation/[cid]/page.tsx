@@ -116,9 +116,21 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
     // Upload attachment bytes off the message body (shared implementation).
     const refs = await uploadAttachments(attachments);
 
-    const userMsg: Message = { id: uid("m"), role: "user", content, createdAt: now, attachments: metaAtt };
+    const userMsg: Message = {
+      id: uid("m"),
+      role: "user",
+      content,
+      createdAt: now,
+      attachments: metaAtt,
+    };
     const asstId = uid("m");
-    const asstMsg: Message = { id: asstId, role: "assistant", content: "", thinking: "", createdAt: now };
+    const asstMsg: Message = {
+      id: asstId,
+      role: "assistant",
+      content: "",
+      thinking: "",
+      createdAt: now,
+    };
     const storedUser = { ...userMsg, attachments: refs.length ? refs : undefined };
     const withUser = [...messages, storedUser, asstMsg];
     setMessages(withUser);
@@ -306,7 +318,8 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
               />
             ) : (
               <p className="text-center text-[13px] text-ink-faint py-2">
-                This conversation is read-only — only {conv.createdBy?.name ?? "the creator"} can reply.
+                This conversation is read-only — only {conv.createdBy?.name ?? "the creator"} can
+                reply.
               </p>
             )}
           </div>

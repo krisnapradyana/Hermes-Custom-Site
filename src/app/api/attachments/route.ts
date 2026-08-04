@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserKey } from "@/lib/user-key";
+import { requireUser } from "@/lib/user-key";
 import { saveAttachment } from "@/lib/attachment-store";
 import { uid } from "@/lib/uid";
 
@@ -9,7 +9,8 @@ export const dynamic = "force-dynamic";
 const MAX = 8 * 1024 * 1024; // 8MB decoded
 
 export async function POST(req: NextRequest) {
-  if (!(await getUserKey())) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const gate = await requireUser();
+  if (gate.denied) return gate.denied;
 
   let body: { name?: string; type?: string; dataUrl?: string };
   try {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { promises as fs } from "fs";
 import path from "path";
-import { getUserKey } from "@/lib/user-key";
+import { requireUser } from "@/lib/user-key";
 import { isAllowedRoot, resolveSafe } from "@/lib/fs-access";
 
 export const runtime = "nodejs";
@@ -19,9 +19,35 @@ const IMAGE_MIME: Record<string, string> = {
 };
 
 const CODE_EXT = new Set([
-  ".ts", ".tsx", ".js", ".jsx", ".py", ".sh", ".sql", ".css", ".scss", ".html",
-  ".json", ".yml", ".yaml", ".xml", ".toml", ".ini", ".rs", ".go", ".java",
-  ".c", ".cpp", ".h", ".cs", ".rb", ".php", ".mjs", ".cjs", ".vue", ".svelte",
+  ".ts",
+  ".tsx",
+  ".js",
+  ".jsx",
+  ".py",
+  ".sh",
+  ".sql",
+  ".css",
+  ".scss",
+  ".html",
+  ".json",
+  ".yml",
+  ".yaml",
+  ".xml",
+  ".toml",
+  ".ini",
+  ".rs",
+  ".go",
+  ".java",
+  ".c",
+  ".cpp",
+  ".h",
+  ".cs",
+  ".rb",
+  ".php",
+  ".mjs",
+  ".cjs",
+  ".vue",
+  ".svelte",
 ]);
 const TEXT_EXT = new Set([".txt", ".csv", ".tsv", ".log", ".env"]);
 
@@ -29,8 +55,9 @@ const MAX_IMAGE = 8 * 1024 * 1024;
 const MAX_TEXT = 2 * 1024 * 1024;
 
 export async function POST(req: NextRequest) {
-  const key = await getUserKey();
-  if (!key) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const gate = await requireUser();
+  if (gate.denied) return gate.denied;
+  const key = gate.key;
 
   let body: { root?: string; sub?: string };
   try {

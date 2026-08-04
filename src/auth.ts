@@ -14,9 +14,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     jwt({ token, profile }) {
       if (profile) {
         token.slackId =
-          (profile["https://slack.com/user_id"] as string | undefined) ??
-          profile.sub ??
-          undefined;
+          (profile["https://slack.com/user_id"] as string | undefined) ?? profile.sub ?? undefined;
         token.teamId = profile["https://slack.com/team_id"] as string | undefined;
       }
       return token;

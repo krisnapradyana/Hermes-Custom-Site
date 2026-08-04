@@ -24,13 +24,8 @@ let pendingBlob = "";
 
 const serverStorage: StateStorage = {
   getItem: async (name) => {
-    try {
-      const res = await fetch("/api/state", { cache: "no-store" });
-      if (res.ok) {
-        const data = (await res.json()) as { blob?: string | null };
-        if (data.blob) return data.blob;
-      }
-    } catch {}
+    const res = await api.get<{ blob?: string | null }>("/api/state");
+    if (res.ok && res.data.blob) return res.data.blob;
     // First run: migrate any legacy localStorage state to the server.
     try {
       const legacy = localStorage.getItem(name);
@@ -43,16 +38,13 @@ const serverStorage: StateStorage = {
   setItem: (_name, value) => {
     pendingBlob = value;
     clearTimeout(putTimer);
-    putTimer = setTimeout(() => {
-      fetch("/api/state", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ blob: pendingBlob }),
-      }).catch(() => {});
+    putTimer = setTimeout(async () => {
+      const res = await api.put("/api/state", { blob: pendingBlob });
+      if (!res.ok) console.warn(`[state] save failed: ${res.error}`);
     }, 800);
   },
   removeItem: async () => {
-    await fetch("/api/state", { method: "DELETE" }).catch(() => {});
+    await api.del("/api/state");
   },
 };
 
@@ -139,7 +131,9 @@ export const useHermesStore = create<HermesState>()(
             _chatsLoaded: true,
             chats: res.data.chats.map((meta) => {
               const local = localLoaded.get(meta.id);
-              return local ? { ...meta, messages: local.messages, loaded: true } : { ...meta, messages: [] };
+              return local
+                ? { ...meta, messages: local.messages, loaded: true }
+                : { ...meta, messages: [] };
             }),
           };
         });
@@ -376,9 +370,7 @@ export const useHermesStore = create<HermesState>()(
           };
         });
         // Remove the chat files too, or they'd linger as orphans on disk.
-        await Promise.all(
-          doomed.map((c) => api.del(`/api/chats/${encodeURIComponent(c.id)}`))
-        );
+        await Promise.all(doomed.map((c) => api.del(`/api/chats/${encodeURIComponent(c.id)}`)));
         const res = await api.del(`/api/projects/${encodeURIComponent(id)}`);
         if (!res.ok) console.warn(`[projects] delete failed: ${res.error}`);
       },

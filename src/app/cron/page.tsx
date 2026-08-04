@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Plus, Trash2, Clock, Play, Pause, RefreshCw, Zap, Settings2 } from "lucide-react";
 import { describeCron, buildCron, timeAgo, Frequency } from "@/lib/format";
+import { api, type ApiResult } from "@/lib/api";
+import { IconButton } from "@/components/ui";
 
 /**
  * Phase 4a: this page reflects the agent's REAL scheduled jobs via
@@ -38,9 +40,9 @@ function mapJob(j: Record<string, unknown>): JobView {
 function extractJobs(data: unknown): JobView[] {
   const list = Array.isArray(data)
     ? data
-    : ((data as Record<string, unknown>)?.jobs as unknown[]) ??
+    : (((data as Record<string, unknown>)?.jobs as unknown[]) ??
       ((data as Record<string, unknown>)?.data as unknown[]) ??
-      [];
+      []);
   return (list as Record<string, unknown>[]).map(mapJob);
 }
 
@@ -61,34 +63,32 @@ export default function CronPage() {
   const [advanced, setAdvanced] = useState(false);
   const [rawSchedule, setRawSchedule] = useState("");
 
-  const schedule = advanced && rawSchedule.trim() ? rawSchedule.trim() : buildCron(freq, time, weekday, dayOfMonth);
+  const schedule =
+    advanced && rawSchedule.trim()
+      ? rawSchedule.trim()
+      : buildCron(freq, time, weekday, dayOfMonth);
 
   const refresh = useCallback(async () => {
     setError("");
-    try {
-      const res = await fetch("/api/cron", { cache: "no-store" });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error ?? `Failed to load jobs (${res.status})`);
-        setJobs([]);
-      } else {
-        setJobs(extractJobs(data));
-      }
-    } catch {
-      setError("Could not reach the gateway.");
-    } finally {
-      setLoading(false);
+    const res = await api.get<unknown>("/api/cron");
+    if (!res.ok) {
+      setError(res.error);
+      setJobs([]);
+    } else {
+      setJobs(extractJobs(res.data));
     }
+    setLoading(false);
   }, []);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
 
-  const act = async (id: string, doIt: () => Promise<Response>) => {
+  const act = async (id: string, doIt: () => Promise<ApiResult<unknown>>) => {
     setBusy(id);
     try {
-      await doIt();
+      const res = await doIt();
+      if (!res.ok) console.warn(`[cron] job action failed: ${res.error}`);
       await refresh();
     } finally {
       setBusy("");
@@ -99,11 +99,12 @@ export default function CronPage() {
     if (!prompt.trim()) return;
     setBusy("new");
     try {
-      await fetch("/api/cron", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim() || undefined, schedule, prompt: prompt.trim() }),
+      const res = await api.post("/api/cron", {
+        name: name.trim() || undefined,
+        schedule,
+        prompt: prompt.trim(),
       });
+      if (!res.ok) console.warn(`[cron] create failed: ${res.error}`);
       setName("");
       setPrompt("");
       setShowForm(false);
@@ -123,13 +124,9 @@ export default function CronPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={refresh}
-            className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
-            title="Refresh"
-          >
+          <IconButton onClick={refresh} title="Refresh">
             <RefreshCw size={15} />
-          </button>
+          </IconButton>
           <button
             onClick={() => setShowForm(true)}
             className="flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-sm font-medium text-white hover:bg-accent-hover transition-colors"
@@ -281,9 +278,7 @@ export default function CronPage() {
 
       {loading && <p className="text-sm text-ink-faint">Loading tasks…</p>}
       {error && (
-        <p className="text-sm text-red-500 mb-4">
-          {error} — is the Hermes gateway running?
-        </p>
+        <p className="text-sm text-red-500 mb-4">{error} — is the Hermes gateway running?</p>
       )}
 
       <div className="space-y-3">
@@ -313,7 +308,7 @@ export default function CronPage() {
               <div className="flex items-center gap-1 shrink-0">
                 <button
                   onClick={() =>
-                    act(j.id, () => fetch(`/api/cron/${encodeURIComponent(j.id)}/run`, { method: "POST" }))
+                    act(j.id, () => api.post(`/api/cron/${encodeURIComponent(j.id)}/run`))
                   }
                   disabled={busy === j.id}
                   className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
@@ -324,9 +319,9 @@ export default function CronPage() {
                 <button
                   onClick={() =>
                     act(j.id, () =>
-                      fetch(`/api/cron/${encodeURIComponent(j.id)}/${j.enabled ? "pause" : "resume"}`, {
-                        method: "POST",
-                      })
+                      api.post(
+                        `/api/cron/${encodeURIComponent(j.id)}/${j.enabled ? "pause" : "resume"}`
+                      )
                     )
                   }
                   disabled={busy === j.id}
@@ -336,9 +331,7 @@ export default function CronPage() {
                   {j.enabled ? <Pause size={14} /> : <Play size={14} />}
                 </button>
                 <button
-                  onClick={() =>
-                    act(j.id, () => fetch(`/api/cron/${encodeURIComponent(j.id)}`, { method: "DELETE" }))
-                  }
+                  onClick={() => act(j.id, () => api.del(`/api/cron/${encodeURIComponent(j.id)}`))}
                   disabled={busy === j.id}
                   className="p-2 rounded-lg hover:bg-parchment-dark text-ink-faint hover:text-red-500"
                   title="Delete job"
@@ -350,7 +343,9 @@ export default function CronPage() {
           </div>
         ))}
         {!loading && !error && jobs.length === 0 && (
-          <p className="text-sm text-ink-faint">Nothing scheduled yet. Create a task to get started.</p>
+          <p className="text-sm text-ink-faint">
+            Nothing scheduled yet. Create a task to get started.
+          </p>
         )}
       </div>
     </div>

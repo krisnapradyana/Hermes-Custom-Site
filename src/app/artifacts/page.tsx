@@ -3,11 +3,25 @@
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Package, FileText, Code2, Globe, GitBranch, Copy, Check, MessageSquare, X, Download, Image as ImageIcon, File } from "lucide-react";
+import {
+  Package,
+  FileText,
+  Code2,
+  Globe,
+  GitBranch,
+  Copy,
+  Check,
+  MessageSquare,
+  X,
+  Download,
+  Image as ImageIcon,
+  File,
+} from "lucide-react";
 import { useHermesStore } from "@/lib/store";
 import { timeAgo } from "@/lib/format";
 import { Artifact, ArtifactKind } from "@/lib/types";
 import { ArtifactPreview, downloadArtifact } from "@/components/ArtifactPreview";
+import { IconButton } from "@/components/ui";
 
 const kindIcon: Record<ArtifactKind, React.ReactNode> = {
   document: <FileText size={15} />,
@@ -110,13 +124,9 @@ function ArtifactsContent() {
               </div>
             </div>
             <div className="flex items-center gap-1">
-              <button
-                onClick={() => downloadArtifact(open)}
-                className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
-                title="Download"
-              >
+              <IconButton onClick={() => downloadArtifact(open)} title="Download">
                 <Download size={15} />
-              </button>
+              </IconButton>
               {open.chatId && (
                 <Link
                   href={`/chat/${open.chatId}`}
@@ -126,20 +136,12 @@ function ArtifactsContent() {
                   <MessageSquare size={15} />
                 </Link>
               )}
-              <button
-                onClick={() => copy(open)}
-                className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
-                title="Copy content"
-              >
+              <IconButton onClick={() => copy(open)} title="Copy content">
                 {copied ? <Check size={15} className="text-green-600" /> : <Copy size={15} />}
-              </button>
-              <button
-                onClick={() => setOpenId(null)}
-                className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
-                title="Close"
-              >
+              </IconButton>
+              <IconButton onClick={() => setOpenId(null)} title="Close">
                 <X size={15} />
-              </button>
+              </IconButton>
             </div>
           </div>
           <div className="flex-1 overflow-hidden">

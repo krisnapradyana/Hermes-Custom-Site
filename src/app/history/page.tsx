@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { History, RefreshCw, ChevronDown, ChevronRight, MessageSquare } from "lucide-react";
 import { timeAgo } from "@/lib/format";
 import { useHermesStore } from "@/lib/store";
+import { api } from "@/lib/api";
+import { IconButton } from "@/components/ui";
 
 /**
  * Phase 4b: read-only view of the agent's real session history from Hermes
@@ -50,9 +52,7 @@ function extractList(data: unknown, key: string): Record<string, unknown>[] {
 function mapMessage(m: Record<string, unknown>): MessageView {
   let content = str(m.content) ?? str(m.text) ?? str(m.message) ?? "";
   if (!content && Array.isArray(m.content)) {
-    content = (m.content as Record<string, unknown>[])
-      .map((p) => str(p.text) ?? "")
-      .join("");
+    content = (m.content as Record<string, unknown>[]).map((p) => str(p.text) ?? "").join("");
   }
   return { role: str(m.role) ?? str(m.sender) ?? "unknown", content };
 }
@@ -82,7 +82,7 @@ const SOURCE_LABELS: Record<string, string> = {
   tui: "CLI",
 };
 
-const sourceLabel = (s?: string) => (s ? SOURCE_LABELS[s.toLowerCase()] ?? s : undefined);
+const sourceLabel = (s?: string) => (s ? (SOURCE_LABELS[s.toLowerCase()] ?? s) : undefined);
 
 export default function HistoryPage() {
   const [sessions, setSessions] = useState<SessionView[]>([]);
@@ -99,24 +99,18 @@ export default function HistoryPage() {
 
   const refresh = useCallback(async () => {
     setError("");
-    try {
-      const res = await fetch("/api/agent-sessions", { cache: "no-store" });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error ?? `Failed to load sessions (${res.status})`);
-      } else {
-        const myIds = new Set(useHermesStore.getState().chats.map((c) => c.id));
-        const list = extractList(data, "sessions")
-          .map(mapSession)
-          .filter((s) => myIds.has(s.id));
-        setSessions(list);
-        autoTitle(list);
-      }
-    } catch {
-      setError("Could not reach the gateway.");
-    } finally {
-      setLoading(false);
+    const res = await api.get<unknown>("/api/agent-sessions");
+    if (!res.ok) {
+      setError(res.error);
+    } else {
+      const myIds = new Set(useHermesStore.getState().chats.map((c) => c.id));
+      const list = extractList(res.data, "sessions")
+        .map(mapSession)
+        .filter((s) => myIds.has(s.id));
+      setSessions(list);
+      autoTitle(list);
     }
+    setLoading(false);
   }, []);
 
   /**
@@ -128,25 +122,20 @@ export default function HistoryPage() {
     const targets = list.filter((s) => isUglyTitle(s.title, s.id)).slice(0, 15);
     await Promise.all(
       targets.map(async (s) => {
-        try {
-          const res = await fetch(`/api/agent-sessions/${encodeURIComponent(s.id)}`, {
-            cache: "no-store",
-          });
-          const data = await res.json();
-          const msgs = extractList(data, "messages").map(mapMessage);
-          setMessages((prev) => ({ ...prev, [s.id]: msgs }));
-          const title = titleFromMessages(msgs);
-          if (!title) return;
-          setSessions((prev) =>
-            prev.map((x) => (x.id === s.id ? { ...x, title } : x))
-          );
-          // Best-effort: persist upstream so the title sticks.
-          fetch(`/api/agent-sessions/${encodeURIComponent(s.id)}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ title }),
-          }).catch(() => {});
-        } catch {}
+        const res = await api.get<unknown>(`/api/agent-sessions/${encodeURIComponent(s.id)}`);
+        if (!res.ok) {
+          console.warn(`[history] load session failed: ${res.error}`);
+          return;
+        }
+        const msgs = extractList(res.data, "messages").map(mapMessage);
+        setMessages((prev) => ({ ...prev, [s.id]: msgs }));
+        const title = titleFromMessages(msgs);
+        if (!title) return;
+        setSessions((prev) => prev.map((x) => (x.id === s.id ? { ...x, title } : x)));
+        // Best-effort: persist upstream so the title sticks.
+        void api.patch(`/api/agent-sessions/${encodeURIComponent(s.id)}`, { title }).then((r) => {
+          if (!r.ok) console.warn(`[history] title patch failed: ${r.error}`);
+        });
       })
     );
   };
@@ -164,20 +153,17 @@ export default function HistoryPage() {
     setOpenId(id);
     if (!messages[id]) {
       setLoadingMsgs(id);
-      try {
-        const res = await fetch(`/api/agent-sessions/${encodeURIComponent(id)}`, {
-          cache: "no-store",
-        });
-        const data = await res.json();
+      const res = await api.get<unknown>(`/api/agent-sessions/${encodeURIComponent(id)}`);
+      if (!res.ok) {
+        console.warn(`[history] load messages failed: ${res.error}`);
+        setMessages((prev) => ({ ...prev, [id]: [] }));
+      } else {
         setMessages((prev) => ({
           ...prev,
-          [id]: extractList(data, "messages").map(mapMessage),
+          [id]: extractList(res.data, "messages").map(mapMessage),
         }));
-      } catch {
-        setMessages((prev) => ({ ...prev, [id]: [] }));
-      } finally {
-        setLoadingMsgs("");
       }
+      setLoadingMsgs("");
     }
   };
 
@@ -186,17 +172,11 @@ export default function HistoryPage() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="font-serif-display text-3xl mb-1">Agent history</h1>
-          <p className="text-sm text-ink-soft">
-            Your past conversations with the agent.
-          </p>
+          <p className="text-sm text-ink-soft">Your past conversations with the agent.</p>
         </div>
-        <button
-          onClick={refresh}
-          className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
-          title="Refresh"
-        >
+        <IconButton onClick={refresh} title="Refresh">
           <RefreshCw size={15} />
-        </button>
+        </IconButton>
       </div>
 
       {loading && <p className="text-sm text-ink-faint">Loading sessions…</p>}

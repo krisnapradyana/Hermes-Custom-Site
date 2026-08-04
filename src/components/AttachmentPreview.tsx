@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { Attachment } from "@/lib/types";
 
-const TEXT_RE = /\.(md|markdown|txt|csv|tsv|json|ts|tsx|js|jsx|py|sh|sql|css|html?|ya?ml|xml|log|env|toml|ini)$/i;
+const TEXT_RE =
+  /\.(md|markdown|txt|csv|tsv|json|ts|tsx|js|jsx|py|sh|sql|css|html?|ya?ml|xml|log|env|toml|ini)$/i;
 const CODE_RE = /\.(ts|tsx|js|jsx|py|sh|sql|css|html?|ya?ml|xml|toml|ini|rs|go)$/i;
 
 function isText(a: Attachment) {
@@ -91,6 +92,7 @@ export function AttachmentPreview({ attachment }: { attachment: Attachment }) {
 export function attachmentIconKind(a: Attachment): "image" | "code" | "doc" | "file" {
   if (a.type.startsWith("image/")) return "image";
   if (CODE_RE.test(a.name)) return "code";
-  if (isText(a) || a.type === "application/pdf" || /\.(pdf|docx?|xlsx?)$/i.test(a.name)) return "doc";
+  if (isText(a) || a.type === "application/pdf" || /\.(pdf|docx?|xlsx?)$/i.test(a.name))
+    return "doc";
   return "file";
 }

@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowDownAZ, ArrowUpAZ, ClockArrowDown, ClockArrowUp, ArrowUpDown, Check } from "lucide-react";
+import {
+  ArrowDownAZ,
+  ArrowUpAZ,
+  ClockArrowDown,
+  ClockArrowUp,
+  ArrowUpDown,
+  Check,
+} from "lucide-react";
 
 /**
  * Shared folder/file sort control — used by the project-folder picker and the
@@ -79,7 +86,9 @@ export function SortMenu({
       <button
         onClick={() => setOpen(!open)}
         className={`flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] transition-colors ${
-          open ? "bg-parchment-dark text-ink" : "text-ink-faint hover:text-ink hover:bg-parchment-dark"
+          open
+            ? "bg-parchment-dark text-ink"
+            : "text-ink-faint hover:text-ink hover:bg-parchment-dark"
         }`}
         title={`Sort: ${current.label}`}
       >

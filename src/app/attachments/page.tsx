@@ -1,12 +1,21 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { FileText, FileCode, Image as ImageIcon, File as FileIcon, X, Download, MessageSquare } from "lucide-react";
+import {
+  FileText,
+  FileCode,
+  Image as ImageIcon,
+  File as FileIcon,
+  X,
+  Download,
+  MessageSquare,
+} from "lucide-react";
 import Link from "next/link";
 import { timeAgo } from "@/lib/format";
 import { api } from "@/lib/api";
 import { Attachment } from "@/lib/types";
 import { AttachmentPreview, attachmentIconKind } from "@/components/AttachmentPreview";
+import { IconButton } from "@/components/ui";
 
 interface Item {
   key: string;
@@ -81,7 +90,9 @@ export default function AttachmentsPage() {
       <div className={`${open ? "w-96 border-r border-line" : "flex-1"} overflow-y-auto shrink-0`}>
         <div className={`${open ? "px-5" : "mx-auto max-w-4xl px-8"} py-10`}>
           <h1 className="font-serif-display text-3xl mb-1">Attachments</h1>
-          <p className="text-sm text-ink-soft mb-6">Files you&apos;ve uploaded into conversations.</p>
+          <p className="text-sm text-ink-soft mb-6">
+            Files you&apos;ve uploaded into conversations.
+          </p>
 
           <div className="space-y-2">
             {items.map((it) => (
@@ -89,7 +100,9 @@ export default function AttachmentsPage() {
                 key={it.key}
                 onClick={() => setOpenKey(it.key)}
                 className={`w-full text-left rounded-xl border px-4 py-3 transition-colors ${
-                  openKey === it.key ? "border-accent bg-accent-soft" : "border-line bg-card hover:border-ink-faint"
+                  openKey === it.key
+                    ? "border-accent bg-accent-soft"
+                    : "border-line bg-card hover:border-ink-faint"
                 }`}
               >
                 <div className="flex items-center gap-2.5 mb-1">
@@ -97,7 +110,8 @@ export default function AttachmentsPage() {
                   <p className="text-sm font-medium truncate">{it.attachment.name}</p>
                 </div>
                 <p className="text-[12px] text-ink-faint">
-                  {fmtSize(it.attachment.size)} · {timeAgo(it.createdAt)} · from &ldquo;{it.chatTitle}&rdquo;
+                  {fmtSize(it.attachment.size)} · {timeAgo(it.createdAt)} · from &ldquo;
+                  {it.chatTitle}&rdquo;
                 </p>
               </button>
             ))}
@@ -129,8 +143,7 @@ export default function AttachmentsPage() {
               </Link>
               <a
                 href={
-                  open.attachment.dataUrl ??
-                  `/api/attachments/${open.attachment.id}?download=1`
+                  open.attachment.dataUrl ?? `/api/attachments/${open.attachment.id}?download=1`
                 }
                 download={open.attachment.name}
                 className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
@@ -138,13 +151,9 @@ export default function AttachmentsPage() {
               >
                 <Download size={15} />
               </a>
-              <button
-                onClick={() => setOpenKey(null)}
-                className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
-                title="Close"
-              >
+              <IconButton onClick={() => setOpenKey(null)} title="Close">
                 <X size={15} />
-              </button>
+              </IconButton>
             </div>
           </div>
           <div className="flex-1 overflow-hidden">

@@ -80,10 +80,10 @@ export function downloadArtifact(artifact: Artifact) {
     artifact.kind === "html"
       ? "html"
       : artifact.kind === "diagram"
-      ? "mmd"
-      : artifact.kind === "document"
-      ? "md"
-      : artifact.language || "txt";
+        ? "mmd"
+        : artifact.kind === "document"
+          ? "md"
+          : artifact.language || "txt";
   const name = artifact.title.includes(".") ? artifact.title : `${artifact.title}.${ext}`;
   const blob = new Blob([artifact.content], { type: "text/plain;charset=utf-8" });
   const url = URL.createObjectURL(blob);

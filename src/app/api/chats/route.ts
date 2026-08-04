@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserKey } from "@/lib/user-key";
+import { requireUser } from "@/lib/user-key";
 import { listChats, saveChat } from "@/lib/chats-store";
 import { migrateUserChats } from "@/lib/chats-migrate";
 import { Chat } from "@/lib/types";
@@ -14,8 +14,9 @@ export const dynamic = "force-dynamic";
  */
 
 export async function GET() {
-  const key = await getUserKey();
-  if (!key) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const gate = await requireUser();
+  if (gate.denied) return gate.denied;
+  const key = gate.key;
 
   const migration = await migrateUserChats(key);
   const chats = await listChats(key);
@@ -24,8 +25,9 @@ export async function GET() {
 
 /** Create a chat (metadata + optional initial messages). */
 export async function POST(req: NextRequest) {
-  const key = await getUserKey();
-  if (!key) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const gate = await requireUser();
+  if (gate.denied) return gate.denied;
+  const key = gate.key;
 
   let body: Partial<Chat>;
   try {

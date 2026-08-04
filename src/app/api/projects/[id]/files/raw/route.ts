@@ -2,18 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { promises as fs, createReadStream } from "fs";
 import { Readable } from "stream";
 import path from "path";
-import { getUserKey } from "@/lib/user-key";
+import { requireUser } from "@/lib/user-key";
 import { resolveWorkspaceFile } from "@/lib/agent-workspace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** Streams one agent-generated file so the browser can deliver it locally. */
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  if (!(await getUserKey())) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const gate = await requireUser();
+  if (gate.denied) return gate.denied;
   const { id } = await params;
   const sub = req.nextUrl.searchParams.get("sub") ?? "";
   const full = sub ? resolveWorkspaceFile(id, sub) : null;

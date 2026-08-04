@@ -38,8 +38,7 @@ export function describeCron(expr: string): string {
   }
   if (min === "0" && hour === "*") return "Every hour";
   if (min.startsWith("*/")) return `Every ${min.slice(2)} minutes`;
-  if (hour.startsWith("*/") && (min === "0" || isNum(min)))
-    return `Every ${hour.slice(2)} hours`;
+  if (hour.startsWith("*/") && (min === "0" || isNum(min))) return `Every ${hour.slice(2)} hours`;
   return expr;
 }
 

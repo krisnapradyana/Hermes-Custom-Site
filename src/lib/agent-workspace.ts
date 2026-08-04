@@ -12,7 +12,7 @@ const BASE = process.env.AGENT_WORKSPACE_DIR ?? "/workspace";
 
 const safeId = (id: string) => id.replace(/[^\w.-]+/g, "_");
 
-export function projectWorkspaceDir(projectId: string): string {
+function projectWorkspaceDir(projectId: string): string {
   return path.join(BASE, "projects", safeId(projectId));
 }
 

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { promises as fs } from "fs";
 import path from "path";
-import { getUserKey } from "@/lib/user-key";
+import { requireUser } from "@/lib/user-key";
 import { readProjects } from "@/lib/projects-store";
 import { listByProject } from "@/lib/conversations-store";
 
@@ -75,7 +75,8 @@ async function recentImages(root: string): Promise<Thumb[]> {
 }
 
 export async function GET() {
-  if (!(await getUserKey())) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const gate = await requireUser();
+  if (gate.denied) return gate.denied;
 
   const projects = await readProjects();
   const now = Date.now();
@@ -92,7 +93,12 @@ export async function GET() {
         id: p.id,
         conversationCount: convs.length,
         latest: latest
-          ? { id: latest.id, title: latest.title, updatedAt: latest.updatedAt, by: latest.createdBy?.name }
+          ? {
+              id: latest.id,
+              title: latest.title,
+              updatedAt: latest.updatedAt,
+              by: latest.createdBy?.name,
+            }
           : null,
         lastActivityAt,
         activeNow,

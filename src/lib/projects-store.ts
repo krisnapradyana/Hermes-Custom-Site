@@ -22,7 +22,7 @@ export async function readProjects(): Promise<Project[]> {
   }
 }
 
-export async function writeProjects(list: Project[]): Promise<void> {
+async function writeProjects(list: Project[]): Promise<void> {
   await fs.mkdir(DATA_DIR, { recursive: true });
   const tmp = FILE + ".tmp";
   await fs.writeFile(tmp, JSON.stringify(list, null, 2), "utf-8");

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserKey } from "@/lib/user-key";
+import { requireUser } from "@/lib/user-key";
 import { hermesFetch } from "@/lib/hermes-admin";
 
 export const runtime = "nodejs";
@@ -37,17 +37,15 @@ function map(s: Record<string, unknown>): Usage {
       typeof s.actual_cost_usd === "number"
         ? s.actual_cost_usd
         : typeof s.estimated_cost_usd === "number"
-        ? s.estimated_cost_usd
-        : null,
+          ? s.estimated_cost_usd
+          : null,
     found: true,
   };
 }
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ sid: string }> }
-) {
-  if (!(await getUserKey())) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ sid: string }> }) {
+  const gate = await requireUser();
+  if (gate.denied) return gate.denied;
   const { sid } = await params;
 
   // Preferred: the single-session endpoint.

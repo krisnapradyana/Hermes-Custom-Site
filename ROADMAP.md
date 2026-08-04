@@ -17,11 +17,13 @@ agent uses (and stores) the same per-person context it already has from Slack.
 - Per-conversation `X-Hermes-Session-Id`; drop client-side history resending in
   favor of Hermes' server-side conversation state (`/v1/responses` or session chat).
 
-## Phase 3 — Server-side storage  ✅ done
+## Phase 3 — Server-side storage  ✅ done (architecture updated since)
 
-- Implemented as per-user JSON blobs in `data/` behind `/api/state`, keyed by
-  Slack ID (zero new dependencies; legacy localStorage state auto-migrates).
-- Upgrade path: swap `src/lib/server-store.ts` for Prisma/Postgres when scale demands.
+- Current design: private chats are ONE FILE PER CHAT under `data/chats/<user>/`
+  with a metadata index (`src/lib/chats-store.ts`, `/api/chats`); the old
+  single-blob `/api/state` now persists only artifacts. Legacy blobs are
+  auto-split on first load with a backup kept (`src/lib/chats-migrate.ts`).
+- Upgrade path: swap the JSON stores for SQLite/Postgres when scale demands.
 
 ## Phase 4 — Unified history  ✅ done
 

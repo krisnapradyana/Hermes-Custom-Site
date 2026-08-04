@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserKey } from "@/lib/user-key";
+import { requireUser } from "@/lib/user-key";
 import { listByProject, getConversation } from "@/lib/conversations-store";
 import { extractArtifacts } from "@/lib/extract";
 import { Artifact, Attachment } from "@/lib/types";
@@ -21,11 +21,9 @@ interface AttachmentItem extends Attachment {
   at: string;
 }
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  if (!(await getUserKey())) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const gate = await requireUser();
+  if (gate.denied) return gate.denied;
   const { id } = await params;
 
   const metas = await listByProject(id);

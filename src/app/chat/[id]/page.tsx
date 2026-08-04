@@ -2,7 +2,18 @@
 
 import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Pin, PinOff, Trash2, FolderKanban, X, Copy, Check, Download, PanelRight, ArrowLeft } from "lucide-react";
+import {
+  Pin,
+  PinOff,
+  Trash2,
+  FolderKanban,
+  X,
+  Copy,
+  Check,
+  Download,
+  PanelRight,
+  ArrowLeft,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useHermesStore } from "@/lib/store";
 import { rehydrateAttachments } from "@/lib/hermes-api";

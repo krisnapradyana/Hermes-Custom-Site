@@ -2,7 +2,17 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Package, FileText, ChevronDown, ChevronRight, BrainCircuit, TriangleAlert, RotateCw, Loader2, Download } from "lucide-react";
+import {
+  Package,
+  FileText,
+  ChevronDown,
+  ChevronRight,
+  BrainCircuit,
+  TriangleAlert,
+  RotateCw,
+  Loader2,
+  Download,
+} from "lucide-react";
 import { Message, Attachment } from "@/lib/types";
 import { useHermesStore } from "@/lib/store";
 import { renderMarkdown } from "@/lib/markdown";
@@ -14,10 +24,12 @@ import { PixelMark } from "@/components/PixelMark";
  * is one click instead of a dead end. Path must look like a file (has an
  * extension) and start with a servable root.
  */
-const FILE_PATH_RE = /(?:^|[\s"'`(])((?:\/gdrive|\/opt\/data|\/workspace)\/[^\s"'`()<>]*\.[A-Za-z0-9]{1,8})/g;
+const FILE_PATH_RE =
+  /(?:^|[\s"'`(])((?:\/gdrive|\/opt\/data|\/workspace)\/[^\s"'`()<>]*\.[A-Za-z0-9]{1,8})/g;
 
 /** Hermes' own internals live in /opt/data — never offer those as downloads. */
-const INTERNAL_RE = /^\/opt\/data\/(auth\.json|auth\.lock|custom-\.env|cache\/|audio_cache\/|bin\/|backups\/|memories\/|custom-config\.yaml)/;
+const INTERNAL_RE =
+  /^\/opt\/data\/(auth\.json|auth\.lock|custom-\.env|cache\/|audio_cache\/|bin\/|backups\/|memories\/|custom-config\.yaml)/;
 
 function extractFilePaths(text: string): string[] {
   const found = new Set<string>();
@@ -114,10 +126,7 @@ export function MessageList({
             </div>
             <div className="min-w-0 flex-1">
               {m.thinking && (
-                <ThinkingBlock
-                  text={m.thinking}
-                  live={streaming && isLast && !m.content}
-                />
+                <ThinkingBlock text={m.thinking} live={streaming && isLast && !m.content} />
               )}
 
               {/* Live activity line — what the agent is doing right now. */}

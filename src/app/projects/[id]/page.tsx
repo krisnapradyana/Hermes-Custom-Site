@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, FolderKanban, HardDrive, PanelRight, User, MessageSquare } from "lucide-react";
 import { useHermesStore } from "@/lib/store";
 import { timeAgo } from "@/lib/format";
+import { api } from "@/lib/api";
+import { IconButton } from "@/components/ui";
 import { Composer } from "@/components/Composer";
 import { WorkspacePanel } from "@/components/WorkspacePanel";
 import { useResizableWidth, ResizeHandle } from "@/components/ResizeHandle";
@@ -31,12 +33,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
   const [conversations, setConversations] = useState<ConversationMeta[]>([]);
   const loadConversations = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/projects/${encodeURIComponent(id)}/conversations`, {
-        cache: "no-store",
-      });
-      if (res.ok) setConversations((await res.json()).conversations ?? []);
-    } catch {}
+    const res = await api.get<{ conversations?: ConversationMeta[] }>(
+      `/api/projects/${encodeURIComponent(id)}/conversations`
+    );
+    if (res.ok) setConversations(res.data.conversations ?? []);
+    else console.warn(`[project] load conversations failed: ${res.error}`);
   }, [id]);
 
   useEffect(() => {
@@ -45,19 +46,19 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   }, [loadProjects, loadConversations]);
 
   const startConversation = async (text: string) => {
+    const res = await api.post<{ conversation: ConversationMeta }>(
+      `/api/projects/${encodeURIComponent(id)}/conversations`,
+      { title: text }
+    );
+    if (!res.ok) {
+      console.warn(`[project] create conversation failed: ${res.error}`);
+      return;
+    }
+    const { conversation } = res.data;
     try {
-      const res = await fetch(`/api/projects/${encodeURIComponent(id)}/conversations`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: text }),
-      });
-      if (!res.ok) return;
-      const { conversation } = await res.json();
-      try {
-        sessionStorage.setItem(`pending-msg-${conversation.id}`, text);
-      } catch {}
-      router.push(`/conversation/${conversation.id}`);
+      sessionStorage.setItem(`pending-msg-${conversation.id}`, text);
     } catch {}
+    router.push(`/conversation/${conversation.id}`);
   };
 
   const [showPanel, setShowPanel] = useState(true);
@@ -74,10 +75,13 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
   useEffect(() => {
     if (tab === "conversations" || collected) return;
-    fetch(`/api/projects/${encodeURIComponent(id)}/collect`, { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => d && setCollected(d))
-      .catch(() => {});
+    (async () => {
+      const res = await api.get<{ attachments: AttachmentItem[]; artifacts: ArtifactItem[] }>(
+        `/api/projects/${encodeURIComponent(id)}/collect`
+      );
+      if (!res.ok) console.warn(`[project] collect failed: ${res.error}`);
+      else if (res.data) setCollected(res.data);
+    })();
   }, [tab, collected, id]);
 
   if (!project) {
@@ -103,158 +107,160 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               All projects
             </Link>
             {hasPanel && (
-              <button
+              <IconButton
                 onClick={() => setShowPanel((v) => !v)}
-                className={`p-2 rounded-lg hover:bg-parchment-dark ${
-                  showPanel ? "text-accent" : "text-ink-soft"
-                }`}
                 title={showPanel ? "Hide workspace panel" : "Show workspace panel"}
+                active={showPanel}
               >
                 <PanelRight size={15} />
-              </button>
+              </IconButton>
             )}
           </div>
 
-      <div className="flex items-center gap-3 mb-2">
-        <div
-          className="w-10 h-10 rounded-xl flex items-center justify-center"
-          style={{ backgroundColor: `${project.color}22` }}
-        >
-          <FolderKanban size={18} style={{ color: project.color }} />
-        </div>
-        <h1 className="font-serif-display text-3xl">{project.name}</h1>
-      </div>
-      <p className="text-ink-soft mb-5">{project.description}</p>
-
-      {/* Working folder — fixed at creation, not editable */}
-      <div className="mb-8 rounded-xl border border-line bg-card px-4 py-3">
-        <div className="flex items-center gap-1.5 text-[13px] font-mono truncate">
-          <HardDrive size={13} className="text-accent shrink-0" />
-          {project.workingFolder ?? <span className="text-ink-faint font-sans">No working folder</span>}
-        </div>
-      </div>
-
-      <div className="mb-10">
-        <Composer
-          placeholder={`New conversation in ${project.name}…`}
-          onSend={(t) => startConversation(t)}
-          projectId={project.id}
-        />
-      </div>
-
-      {/* Tabs */}
-      <div className="flex items-center gap-1 mb-4 border-b border-line">
-        {([
-          ["conversations", "Conversations", <MessageSquare key="c" size={13} />],
-          ["attachments", "Attachments", <Paperclip key="p" size={13} />],
-          ["artifacts", "Artifacts", <Package key="a" size={13} />],
-        ] as [Tab, string, React.ReactNode][]).map(([key, label, icon]) => (
-          <button
-            key={key}
-            onClick={() => setTab(key)}
-            className={`flex items-center gap-1.5 px-3 py-2 text-[13px] border-b-2 -mb-px transition-colors ${
-              tab === key
-                ? "border-accent text-accent font-medium"
-                : "border-transparent text-ink-soft hover:text-ink"
-            }`}
-          >
-            {icon}
-            {label}
-            {key === "attachments" && collected && (
-              <span className="text-[11px] text-ink-faint">{collected.attachments.length}</span>
-            )}
-            {key === "artifacts" && collected && (
-              <span className="text-[11px] text-ink-faint">{collected.artifacts.length}</span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {tab === "attachments" && (
-        <div className="space-y-2 mb-10">
-          <p className="text-[12px] text-ink-faint mb-2">
-            Files uploaded into this project&apos;s conversations by anyone on the team.
-          </p>
-          {!collected && <p className="text-sm text-ink-faint">Loading…</p>}
-          {collected?.attachments.map((a, i) => (
-            <button
-              key={`${a.id ?? a.name}-${i}`}
-              onClick={() => setOpenAtt(a)}
-              className="w-full text-left rounded-xl border border-line bg-card px-4 py-3 hover:border-ink-faint transition-colors"
+          <div className="flex items-center gap-3 mb-2">
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center"
+              style={{ backgroundColor: `${project.color}22` }}
             >
-              <p className="text-sm font-medium truncate">{a.name}</p>
-              <p className="text-[12px] text-ink-faint">
-                {attachmentIconKind(a)} · {a.by ? `${a.by} · ` : ""}
-                {timeAgo(a.at)} · in &ldquo;{a.conversationTitle}&rdquo;
-              </p>
-            </button>
-          ))}
-          {collected && collected.attachments.length === 0 && (
-            <p className="text-sm text-ink-faint">No attachments in this project yet.</p>
-          )}
-        </div>
-      )}
+              <FolderKanban size={18} style={{ color: project.color }} />
+            </div>
+            <h1 className="font-serif-display text-3xl">{project.name}</h1>
+          </div>
+          <p className="text-ink-soft mb-5">{project.description}</p>
 
-      {tab === "artifacts" && (
-        <div className="space-y-2 mb-10">
-          <p className="text-[12px] text-ink-faint mb-2">
-            Code and documents the assistant produced in this project&apos;s conversations.
-          </p>
-          {!collected && <p className="text-sm text-ink-faint">Loading…</p>}
-          {collected?.artifacts.map((a) => (
-            <button
-              key={a.id}
-              onClick={() => setOpenArt(a)}
-              className="w-full text-left rounded-xl border border-line bg-card px-4 py-3 hover:border-ink-faint transition-colors"
-            >
-              <p className="text-sm font-medium truncate">{a.title}</p>
-              <p className="text-[12px] text-ink-faint capitalize">
-                {a.kind}
-                {a.language ? ` · ${a.language}` : ""} · {a.by ? `${a.by} · ` : ""}
-                {timeAgo(a.createdAt)}
-              </p>
-            </button>
-          ))}
-          {collected && collected.artifacts.length === 0 && (
-            <p className="text-sm text-ink-faint">No artifacts in this project yet.</p>
-          )}
-        </div>
-      )}
-
-      {tab === "conversations" && (
-      <>
-      <p className="text-[12px] text-ink-faint mb-3">
-        Shared with everyone on the team — only the person who started each can reply.
-      </p>
-      <div className="space-y-2 mb-10">
-        {conversations.map((c) => (
-          <Link
-            key={c.id}
-            href={`/conversation/${c.id}`}
-            className="block rounded-xl border border-line bg-card px-4 py-3 hover:border-ink-faint transition-colors"
-          >
-            <p className="text-sm font-medium">{c.title}</p>
-            <p className="flex items-center gap-2 text-[12px] text-ink-faint">
-              <span className="inline-flex items-center gap-1">
-                <MessageSquare size={11} />
-                {c.messageCount}
-              </span>
-              {c.createdBy?.name && (
-                <span className="inline-flex items-center gap-1">
-                  <User size={11} />
-                  {c.createdBy.name}
-                </span>
+          {/* Working folder — fixed at creation, not editable */}
+          <div className="mb-8 rounded-xl border border-line bg-card px-4 py-3">
+            <div className="flex items-center gap-1.5 text-[13px] font-mono truncate">
+              <HardDrive size={13} className="text-accent shrink-0" />
+              {project.workingFolder ?? (
+                <span className="text-ink-faint font-sans">No working folder</span>
               )}
-              <span>· updated {timeAgo(c.updatedAt)}</span>
-            </p>
-          </Link>
-        ))}
-        {conversations.length === 0 && (
-          <p className="text-sm text-ink-faint">No conversations in this project yet.</p>
-        )}
-      </div>
-      </>
-      )}
+            </div>
+          </div>
+
+          <div className="mb-10">
+            <Composer
+              placeholder={`New conversation in ${project.name}…`}
+              onSend={(t) => startConversation(t)}
+              projectId={project.id}
+            />
+          </div>
+
+          {/* Tabs */}
+          <div className="flex items-center gap-1 mb-4 border-b border-line">
+            {(
+              [
+                ["conversations", "Conversations", <MessageSquare key="c" size={13} />],
+                ["attachments", "Attachments", <Paperclip key="p" size={13} />],
+                ["artifacts", "Artifacts", <Package key="a" size={13} />],
+              ] as [Tab, string, React.ReactNode][]
+            ).map(([key, label, icon]) => (
+              <button
+                key={key}
+                onClick={() => setTab(key)}
+                className={`flex items-center gap-1.5 px-3 py-2 text-[13px] border-b-2 -mb-px transition-colors ${
+                  tab === key
+                    ? "border-accent text-accent font-medium"
+                    : "border-transparent text-ink-soft hover:text-ink"
+                }`}
+              >
+                {icon}
+                {label}
+                {key === "attachments" && collected && (
+                  <span className="text-[11px] text-ink-faint">{collected.attachments.length}</span>
+                )}
+                {key === "artifacts" && collected && (
+                  <span className="text-[11px] text-ink-faint">{collected.artifacts.length}</span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {tab === "attachments" && (
+            <div className="space-y-2 mb-10">
+              <p className="text-[12px] text-ink-faint mb-2">
+                Files uploaded into this project&apos;s conversations by anyone on the team.
+              </p>
+              {!collected && <p className="text-sm text-ink-faint">Loading…</p>}
+              {collected?.attachments.map((a, i) => (
+                <button
+                  key={`${a.id ?? a.name}-${i}`}
+                  onClick={() => setOpenAtt(a)}
+                  className="w-full text-left rounded-xl border border-line bg-card px-4 py-3 hover:border-ink-faint transition-colors"
+                >
+                  <p className="text-sm font-medium truncate">{a.name}</p>
+                  <p className="text-[12px] text-ink-faint">
+                    {attachmentIconKind(a)} · {a.by ? `${a.by} · ` : ""}
+                    {timeAgo(a.at)} · in &ldquo;{a.conversationTitle}&rdquo;
+                  </p>
+                </button>
+              ))}
+              {collected && collected.attachments.length === 0 && (
+                <p className="text-sm text-ink-faint">No attachments in this project yet.</p>
+              )}
+            </div>
+          )}
+
+          {tab === "artifacts" && (
+            <div className="space-y-2 mb-10">
+              <p className="text-[12px] text-ink-faint mb-2">
+                Code and documents the assistant produced in this project&apos;s conversations.
+              </p>
+              {!collected && <p className="text-sm text-ink-faint">Loading…</p>}
+              {collected?.artifacts.map((a) => (
+                <button
+                  key={a.id}
+                  onClick={() => setOpenArt(a)}
+                  className="w-full text-left rounded-xl border border-line bg-card px-4 py-3 hover:border-ink-faint transition-colors"
+                >
+                  <p className="text-sm font-medium truncate">{a.title}</p>
+                  <p className="text-[12px] text-ink-faint capitalize">
+                    {a.kind}
+                    {a.language ? ` · ${a.language}` : ""} · {a.by ? `${a.by} · ` : ""}
+                    {timeAgo(a.createdAt)}
+                  </p>
+                </button>
+              ))}
+              {collected && collected.artifacts.length === 0 && (
+                <p className="text-sm text-ink-faint">No artifacts in this project yet.</p>
+              )}
+            </div>
+          )}
+
+          {tab === "conversations" && (
+            <>
+              <p className="text-[12px] text-ink-faint mb-3">
+                Shared with everyone on the team — only the person who started each can reply.
+              </p>
+              <div className="space-y-2 mb-10">
+                {conversations.map((c) => (
+                  <Link
+                    key={c.id}
+                    href={`/conversation/${c.id}`}
+                    className="block rounded-xl border border-line bg-card px-4 py-3 hover:border-ink-faint transition-colors"
+                  >
+                    <p className="text-sm font-medium">{c.title}</p>
+                    <p className="flex items-center gap-2 text-[12px] text-ink-faint">
+                      <span className="inline-flex items-center gap-1">
+                        <MessageSquare size={11} />
+                        {c.messageCount}
+                      </span>
+                      {c.createdBy?.name && (
+                        <span className="inline-flex items-center gap-1">
+                          <User size={11} />
+                          {c.createdBy.name}
+                        </span>
+                      )}
+                      <span>· updated {timeAgo(c.updatedAt)}</span>
+                    </p>
+                  </Link>
+                ))}
+                {conversations.length === 0 && (
+                  <p className="text-sm text-ink-faint">No conversations in this project yet.</p>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -278,12 +284,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 >
                   <MessageSquare size={15} />
                 </Link>
-                <button
-                  onClick={() => setOpenAtt(null)}
-                  className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
-                >
+                <IconButton onClick={() => setOpenAtt(null)} title="Close">
                   ✕
-                </button>
+                </IconButton>
               </div>
             </div>
             <div className="flex-1 overflow-hidden">
@@ -312,12 +315,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 >
                   <MessageSquare size={15} />
                 </Link>
-                <button
-                  onClick={() => setOpenArt(null)}
-                  className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
-                >
+                <IconButton onClick={() => setOpenArt(null)} title="Close">
                   ✕
-                </button>
+                </IconButton>
               </div>
             </div>
             <div className="flex-1 overflow-hidden">

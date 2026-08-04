@@ -33,8 +33,8 @@ function Gate({ children }: { children: React.ReactNode }) {
           <BrandMark size={34} />
         </div>
         <p className="text-ink-soft mb-8 text-center max-w-sm">
-          Sign in with your Slack account — your conversations and the agent&apos;s
-          memory of you carry over from Slack.
+          Sign in with your Slack account — your conversations and the agent&apos;s memory of you
+          carry over from Slack.
         </p>
         <button
           onClick={() => signIn("slack")}

@@ -22,7 +22,7 @@ const REPORT_PATH =
   `interface turns that path into a download button.`;
 
 /** Where private-chat deliverables go (keeps them out of Hermes' data root). */
-export const PRIVATE_OUTPUT_DIR = "/opt/data/outputs";
+const PRIVATE_OUTPUT_DIR = "/opt/data/outputs";
 
 /**
  * Build the system context for a turn. Identical for every send path.
@@ -31,11 +31,10 @@ export const PRIVATE_OUTPUT_DIR = "/opt/data/outputs";
  */
 export function buildAgentContext(project?: Project, mentions?: string[]): string {
   if (project?.workingFolder) {
-    const mentionNote =
-      mentions?.length
-        ? `\nThe user referenced these project files — read them from disk:\n` +
-          mentions.map((m) => `- ${project.workingFolder}/${m}`).join("\n")
-        : "";
+    const mentionNote = mentions?.length
+      ? `\nThe user referenced these project files — read them from disk:\n` +
+        mentions.map((m) => `- ${project.workingFolder}/${m}`).join("\n")
+      : "";
     return (
       `The user is working in project "${project.name}". Working folder: ` +
       `${project.workingFolder} — it is the team's shared Drive, mounted on this ` +

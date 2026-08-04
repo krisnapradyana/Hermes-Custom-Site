@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserKey } from "@/lib/user-key";
+import { requireUser } from "@/lib/user-key";
 import { updateProjects } from "@/lib/projects-store";
 import { Project } from "@/lib/types";
 
@@ -14,11 +14,9 @@ const EDITABLE: (keyof Project)[] = [
   "slackChannel",
 ];
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  if (!(await getUserKey())) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const gate = await requireUser();
+  if (gate.denied) return gate.denied;
   const { id } = await params;
   let body: Partial<Project>;
   try {
@@ -45,11 +43,9 @@ export async function PATCH(
   return NextResponse.json({ project: updated });
 }
 
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  if (!(await getUserKey())) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const gate = await requireUser();
+  if (gate.denied) return gate.denied;
   const { id } = await params;
   await updateProjects((list) => list.filter((p) => p.id !== id));
   return NextResponse.json({ ok: true });

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { promises as fs } from "fs";
 import path from "path";
-import { getUserKey } from "@/lib/user-key";
+import { requireUser } from "@/lib/user-key";
 import { isAllowedRoot, resolveSafe } from "@/lib/fs-access";
 
 export const runtime = "nodejs";
@@ -10,8 +10,9 @@ export const dynamic = "force-dynamic";
 const MAX_DOWNLOAD = 200 * 1024 * 1024; // 200MB
 
 export async function GET(req: NextRequest) {
-  const key = await getUserKey();
-  if (!key) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const gate = await requireUser();
+  if (gate.denied) return gate.denied;
+  const key = gate.key;
 
   const root = (req.nextUrl.searchParams.get("root") ?? "").trim();
   const sub = req.nextUrl.searchParams.get("sub") ?? "";

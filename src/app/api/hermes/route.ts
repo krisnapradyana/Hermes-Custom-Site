@@ -80,10 +80,13 @@ interface AttachmentIn {
   dataUrl: string;
 }
 
-const TEXT_EXTENSIONS = /\.(md|txt|json|csv|tsv|ts|tsx|js|jsx|py|html|css|yml|yaml|xml|sh|sql|log|env|toml|ini)$/i;
+const TEXT_EXTENSIONS =
+  /\.(md|txt|json|csv|tsv|ts|tsx|js|jsx|py|html|css|yml|yaml|xml|sh|sql|log|env|toml|ini)$/i;
 
 function isTextFile(a: AttachmentIn): boolean {
-  return a.type.startsWith("text/") || a.type === "application/json" || TEXT_EXTENSIONS.test(a.name);
+  return (
+    a.type.startsWith("text/") || a.type === "application/json" || TEXT_EXTENSIONS.test(a.name)
+  );
 }
 
 function decodeDataUrl(dataUrl: string): string {
@@ -92,8 +95,7 @@ function decodeDataUrl(dataUrl: string): string {
 }
 
 type ContentPart =
-  | { type: "text"; text: string }
-  | { type: "image_url"; image_url: { url: string } };
+  { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
 
 function dataUrlToBuffer(dataUrl: string): Buffer {
   return Buffer.from(dataUrl.slice(dataUrl.indexOf(",") + 1), "base64");

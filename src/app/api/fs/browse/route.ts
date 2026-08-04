@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { promises as fs } from "fs";
 import path from "path";
-import { getUserKey } from "@/lib/user-key";
+import { requireUser } from "@/lib/user-key";
 import { MOUNT_BASE, resolveSafe } from "@/lib/fs-access";
 
 export const runtime = "nodejs";
@@ -13,7 +13,8 @@ export const dynamic = "force-dynamic";
  * choose a working folder. Folders only; traversal-locked to the mount.
  */
 export async function GET(req: NextRequest) {
-  if (!(await getUserKey())) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const gate = await requireUser();
+  if (gate.denied) return gate.denied;
 
   const sub = req.nextUrl.searchParams.get("sub") ?? "";
   const full = resolveSafe(MOUNT_BASE, sub);

@@ -44,11 +44,7 @@ export async function migrateUserChats(userKey: string): Promise<MigrationResult
     if (!raw) {
       // No legacy state — create an empty index so we don't re-check forever.
       await fs.mkdir(path.join(DATA_DIR, "chats", safe(userKey)), { recursive: true });
-      await fs.writeFile(
-        path.join(DATA_DIR, "chats", safe(userKey), "index.json"),
-        "[]",
-        "utf-8"
-      );
+      await fs.writeFile(path.join(DATA_DIR, "chats", safe(userKey), "index.json"), "[]", "utf-8");
       return { migrated: true, chats: 0, messages: 0, reason: "no legacy blob" };
     }
 
@@ -91,11 +87,7 @@ export async function migrateUserChats(userKey: string): Promise<MigrationResult
     // Ensure an index exists even when the blob had zero chats.
     if (chats.length === 0) {
       await fs.mkdir(path.join(DATA_DIR, "chats", safe(userKey)), { recursive: true });
-      await fs.writeFile(
-        path.join(DATA_DIR, "chats", safe(userKey), "index.json"),
-        "[]",
-        "utf-8"
-      );
+      await fs.writeFile(path.join(DATA_DIR, "chats", safe(userKey), "index.json"), "[]", "utf-8");
     }
 
     console.log(

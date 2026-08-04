@@ -61,7 +61,10 @@ export function ServerFolderPicker({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4" onClick={onCancel}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+      onClick={onCancel}
+    >
       <div
         className="w-full max-w-2xl rounded-2xl border border-line bg-card p-5 shadow-xl"
         onClick={(e) => e.stopPropagation()}
@@ -105,7 +108,10 @@ export function ServerFolderPicker({
         <p className="mt-2 text-[11px] text-ink-faint font-mono truncate">Selected: {current}</p>
 
         <div className="flex justify-end gap-2 mt-4">
-          <button onClick={onCancel} className="flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm text-ink-soft hover:bg-parchment-dark">
+          <button
+            onClick={onCancel}
+            className="flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm text-ink-soft hover:bg-parchment-dark"
+          >
             <X size={14} /> Cancel
           </button>
           <button

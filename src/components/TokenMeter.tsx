@@ -23,7 +23,11 @@ interface Usage {
 }
 
 const fmt = (n: number) =>
-  n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
+  n >= 1_000_000
+    ? `${(n / 1_000_000).toFixed(1)}M`
+    : n >= 1000
+      ? `${(n / 1000).toFixed(1)}k`
+      : String(n);
 
 export function TokenMeter({ sessionId, refreshKey }: { sessionId: string; refreshKey?: unknown }) {
   const [u, setU] = useState<Usage | null>(null);
@@ -71,11 +75,15 @@ export function TokenMeter({ sessionId, refreshKey }: { sessionId: string; refre
     ["Uncached input (full price)", u.inputTokens.toLocaleString()],
     ["Cache read (≈10× cheaper)", `${u.cacheReadTokens.toLocaleString()} · ${cachedPct}% of input`],
     ["Cache write", u.cacheWriteTokens.toLocaleString()],
-    ...(u.reasoningTokens ? ([["Reasoning", u.reasoningTokens.toLocaleString()]] as [string, string][]) : []),
+    ...(u.reasoningTokens
+      ? ([["Reasoning", u.reasoningTokens.toLocaleString()]] as [string, string][])
+      : []),
     ["Output", u.outputTokens.toLocaleString()],
     ["Total sent + received", total.toLocaleString()],
     ["API calls in this session", String(u.apiCalls)],
-    ...(u.costUsd != null ? ([["Estimated cost", `$${u.costUsd.toFixed(4)}`]] as [string, string][]) : []),
+    ...(u.costUsd != null
+      ? ([["Estimated cost", `$${u.costUsd.toFixed(4)}`]] as [string, string][])
+      : []),
   ];
 
   const asText = rows.map(([k, v]) => `${k}: ${v}`).join("\n");

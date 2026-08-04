@@ -26,9 +26,7 @@ export async function extractDocumentText(
         const page = await doc.getPage(i);
         const tc = await page.getTextContent();
         text +=
-          tc.items
-            .map((it) => ("str" in it ? (it as { str: string }).str : ""))
-            .join(" ") + "\n";
+          tc.items.map((it) => ("str" in it ? (it as { str: string }).str : "")).join(" ") + "\n";
       }
       const trimmed = text.trim();
       return trimmed.length > 20 ? trimmed : null; // scanned PDFs yield ~nothing

@@ -43,9 +43,7 @@ const TOOL_LABELS: Record<string, string> = {
 
 function statusFor(toolName: string, phase: string): string {
   const key = toolName.toLowerCase();
-  const label =
-    TOOL_LABELS[key] ??
-    `Using ${toolName.replace(/_/g, " ")}`;
+  const label = TOOL_LABELS[key] ?? `Using ${toolName.replace(/_/g, " ")}`;
   return phase === "completed" || phase === "complete" || phase === "done"
     ? `${label} — done`
     : label + "…";
@@ -195,8 +193,7 @@ export async function hermesStream(
 
         // OpenAI chunk
         const choices = data.choices as
-          | { delta?: { content?: string; reasoning_content?: string } }[]
-          | undefined;
+          { delta?: { content?: string; reasoning_content?: string } }[] | undefined;
         const delta = choices?.[0]?.delta;
         if (delta?.reasoning_content) {
           reasoning += delta.reasoning_content;

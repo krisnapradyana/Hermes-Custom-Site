@@ -4,8 +4,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  Plus, FolderKanban, MessageSquare, HardDrive, Trash2, User, Search,
-  ChevronDown, ChevronRight, CornerDownRight,
+  Plus,
+  FolderKanban,
+  MessageSquare,
+  HardDrive,
+  Trash2,
+  User,
+  Search,
+  ChevronDown,
+  ChevronRight,
+  CornerDownRight,
 } from "lucide-react";
 import { useHermesStore } from "@/lib/store";
 import { timeAgo } from "@/lib/format";
@@ -73,7 +81,8 @@ export default function ProjectsPage() {
     const onKey = (e: KeyboardEvent) => {
       const el = document.activeElement;
       const typing =
-        el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement ||
+        el instanceof HTMLInputElement ||
+        el instanceof HTMLTextAreaElement ||
         (el instanceof HTMLElement && el.isContentEditable);
       if (e.key === "/" && !typing) {
         e.preventDefault();

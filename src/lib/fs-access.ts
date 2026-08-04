@@ -30,15 +30,15 @@ const isUnder = (p: string, base: string) => {
 };
 
 /** True if an absolute path is the mount base or inside it. */
-export function isUnderMount(p: string): boolean {
+function isUnderMount(p: string): boolean {
   return isUnder(p, MOUNT_BASE);
 }
 
-export function isAgentDataPath(p: string): boolean {
+function isAgentDataPath(p: string): boolean {
   return AGENT_DATA_DIRS.some((d) => isUnder(p, d));
 }
 
-export async function getAllowedRoots(): Promise<string[]> {
+async function getAllowedRoots(): Promise<string[]> {
   const projects = await readProjects();
   const roots: string[] = [];
   for (const p of projects) {

@@ -24,10 +24,10 @@ export function StatusBar() {
   const label = !health
     ? "Checking gateway…"
     : health.reachable
-    ? "Hermes online"
-    : health.configured
-    ? "Gateway unreachable"
-    : "Gateway not configured";
+      ? "Hermes online"
+      : health.configured
+        ? "Gateway unreachable"
+        : "Gateway not configured";
 
   return (
     <footer className="h-6 shrink-0 border-t border-line bg-sidebar flex items-center justify-between px-3 text-[10.5px] text-ink-faint select-none">
@@ -37,10 +37,10 @@ export function StatusBar() {
             !health
               ? "bg-line"
               : health.reachable
-              ? "bg-green-500"
-              : health.configured
-              ? "bg-red-500"
-              : "bg-amber-400"
+                ? "bg-green-500"
+                : health.configured
+                  ? "bg-red-500"
+                  : "bg-amber-400"
           }`}
         />
         <span className="truncate">{label}</span>

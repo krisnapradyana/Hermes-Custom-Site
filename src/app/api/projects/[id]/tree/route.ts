@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { promises as fs } from "fs";
 import path from "path";
-import { getUserKey } from "@/lib/user-key";
+import { requireUser } from "@/lib/user-key";
 import { readProjects } from "@/lib/projects-store";
 
 export const runtime = "nodejs";
@@ -41,11 +41,9 @@ async function walk(root: string, prefix: string, out: TreeFile[], depth: number
   }
 }
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  if (!(await getUserKey())) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const gate = await requireUser();
+  if (gate.denied) return gate.denied;
   const { id } = await params;
 
   const project = (await readProjects()).find((p) => p.id === id);

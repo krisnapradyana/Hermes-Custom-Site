@@ -54,12 +54,26 @@ body {
 
 /* PixelMark "breathe" thinking animation: diagonal pairs swell alternately. */
 @keyframes px-breathe-a {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(0.78); opacity: 0.5; }
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(0.78);
+    opacity: 0.5;
+  }
 }
 @keyframes px-breathe-b {
-  0%, 100% { transform: scale(0.78); opacity: 0.5; }
-  50% { transform: scale(1); opacity: 1; }
+  0%,
+  100% {
+    transform: scale(0.78);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 .pixelmark-thinking .px {
   transform-box: fill-box;

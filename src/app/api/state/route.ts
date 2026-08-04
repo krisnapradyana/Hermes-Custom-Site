@@ -1,20 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserKey } from "@/lib/user-key";
+import { requireUser } from "@/lib/user-key";
 import { loadBlob, saveBlob, deleteBlob } from "@/lib/server-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const key = await getUserKey();
-  if (!key) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const gate = await requireUser();
+  if (gate.denied) return gate.denied;
+  const key = gate.key;
   const blob = await loadBlob(key);
   return NextResponse.json({ blob });
 }
 
 export async function PUT(req: NextRequest) {
-  const key = await getUserKey();
-  if (!key) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const gate = await requireUser();
+  if (gate.denied) return gate.denied;
+  const key = gate.key;
   let body: { blob?: string };
   try {
     body = await req.json();
@@ -29,8 +31,9 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE() {
-  const key = await getUserKey();
-  if (!key) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const gate = await requireUser();
+  if (gate.denied) return gate.denied;
+  const key = gate.key;
   await deleteBlob(key);
   return NextResponse.json({ ok: true });
 }

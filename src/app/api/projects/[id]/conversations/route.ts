@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { getUserKey } from "@/lib/user-key";
+import { requireUser } from "@/lib/user-key";
 import { listByProject, createConversation } from "@/lib/conversations-store";
 
 export const runtime = "nodejs";
@@ -14,20 +14,16 @@ async function creator(): Promise<{ name: string; slackId?: string }> {
   return { name: "You" };
 }
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  if (!(await getUserKey())) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const gate = await requireUser();
+  if (gate.denied) return gate.denied;
   const { id } = await params;
   return NextResponse.json({ conversations: await listByProject(id) });
 }
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  if (!(await getUserKey())) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const gate = await requireUser();
+  if (gate.denied) return gate.denied;
   const { id } = await params;
   let body: { title?: string };
   try {

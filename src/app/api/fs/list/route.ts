@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { promises as fs } from "fs";
 import path from "path";
-import { getUserKey } from "@/lib/user-key";
+import { requireUser } from "@/lib/user-key";
 import { isAllowedRoot, resolveSafe } from "@/lib/fs-access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  const key = await getUserKey();
-  if (!key) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const gate = await requireUser();
+  if (gate.denied) return gate.denied;
+  const key = gate.key;
 
   let body: { root?: string; sub?: string };
   try {
@@ -39,9 +40,7 @@ export async function POST(req: NextRequest) {
       } catch {}
       entries.push({ name: d.name, isDir: d.isDirectory(), size, mtime });
     }
-    entries.sort((a, b) =>
-      a.isDir === b.isDir ? a.name.localeCompare(b.name) : a.isDir ? -1 : 1
-    );
+    entries.sort((a, b) => (a.isDir === b.isDir ? a.name.localeCompare(b.name) : a.isDir ? -1 : 1));
     return NextResponse.json({ entries });
   } catch {
     return NextResponse.json({ error: "Could not read folder" }, { status: 404 });

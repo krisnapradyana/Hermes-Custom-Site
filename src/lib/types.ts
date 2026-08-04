@@ -90,4 +90,3 @@ export interface Artifact {
   createdAt: string;
   updatedAt: string;
 }
-

@@ -22,6 +22,7 @@ import {
 import { useHermesStore } from "@/lib/store";
 import { timeAgo } from "@/lib/format";
 import { api } from "@/lib/api";
+import { IconButton } from "@/components/ui";
 import { Chat } from "@/lib/types";
 import { useResizableWidth, ResizeHandle } from "@/components/ResizeHandle";
 import { UserBadge } from "@/components/UserBadge";
@@ -95,29 +96,49 @@ export function Sidebar() {
   if (collapsed) {
     return (
       <aside className="w-13 shrink-0 border-r border-line bg-sidebar flex flex-col items-center py-3 gap-1.5">
-        <button
-          onClick={() => setCollapsed(false)}
-          className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
-          title="Expand sidebar"
-        >
+        <IconButton onClick={() => setCollapsed(false)} title="Expand sidebar">
           <ChevronRight size={16} />
-        </button>
-        <Link href="/" className="p-2 rounded-lg hover:bg-parchment-dark text-accent" title="New chat">
+        </IconButton>
+        <Link
+          href="/"
+          className="p-2 rounded-lg hover:bg-parchment-dark text-accent"
+          title="New chat"
+        >
           <PenSquare size={16} />
         </Link>
-        <Link href="/projects" className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft" title="Projects">
+        <Link
+          href="/projects"
+          className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
+          title="Projects"
+        >
           <FolderKanban size={16} />
         </Link>
-        <Link href="/artifacts" className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft" title="Artifacts">
+        <Link
+          href="/artifacts"
+          className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
+          title="Artifacts"
+        >
           <Package size={16} />
         </Link>
-        <Link href="/attachments" className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft" title="Attachments">
+        <Link
+          href="/attachments"
+          className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
+          title="Attachments"
+        >
           <Paperclip size={16} />
         </Link>
-        <Link href="/cron" className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft" title="Scheduler">
+        <Link
+          href="/cron"
+          className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
+          title="Scheduler"
+        >
           <Clock size={16} />
         </Link>
-        <Link href="/history" className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft" title="Agent history">
+        <Link
+          href="/history"
+          className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
+          title="Agent history"
+        >
           <History size={16} />
         </Link>
       </aside>
@@ -143,151 +164,148 @@ export function Sidebar() {
 
   return (
     <>
-    <aside
-      className="shrink-0 border-r border-line bg-sidebar flex flex-col"
-      style={{ width }}
-    >
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 pt-4 pb-2">
-        <Link href="/" className="min-w-0">
-          <BrandMark size={22} />
-        </Link>
-        <button
-          onClick={() => setCollapsed(true)}
-          className="p-1.5 rounded-lg hover:bg-parchment-dark text-ink-faint shrink-0"
-          title="Collapse sidebar"
-        >
-          <ChevronLeft size={15} />
-        </button>
-      </div>
-
-      {/* New chat + nav */}
-      <div className="mx-3 mb-2 rounded-xl bg-black/[0.04] dark:bg-white/[0.04] p-1.5 space-y-0.5">
-        <button
-          onClick={() => router.push("/")}
-          className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium text-accent hover:bg-accent-soft transition-colors"
-        >
-          <PenSquare size={15} />
-          New chat
-        </button>
-        {navItem("/projects", <FolderKanban size={15} />, "Projects")}
-        {navItem("/artifacts", <Package size={15} />, "Artifacts")}
-        {navItem("/attachments", <Paperclip size={15} />, "Attachments")}
-        {navItem("/cron", <Clock size={15} />, "Scheduler")}
-        {navItem("/history", <History size={15} />, "Agent history")}
-      </div>
-
-      {/* Search */}
-      <div className="mx-3 mb-1 relative">
-        <Search
-          size={13}
-          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-faint pointer-events-none"
-        />
-        <input
-          ref={searchRef}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") {
-              setQuery("");
-              e.currentTarget.blur();
-            }
-          }}
-          placeholder="Search chats…  (Ctrl+K)"
-          className="w-full rounded-lg border border-line bg-transparent pl-8 pr-7 py-1.5 text-[13px] outline-none focus:border-ink-faint placeholder:text-ink-faint"
-        />
-        {query && (
+      <aside className="shrink-0 border-r border-line bg-sidebar flex flex-col" style={{ width }}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 pt-4 pb-2">
+          <Link href="/" className="min-w-0">
+            <BrandMark size={22} />
+          </Link>
           <button
-            onClick={() => setQuery("")}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-faint hover:text-ink"
-            title="Clear"
+            onClick={() => setCollapsed(true)}
+            className="p-1.5 rounded-lg hover:bg-parchment-dark text-ink-faint shrink-0"
+            title="Collapse sidebar"
           >
-            <X size={13} />
+            <ChevronLeft size={15} />
           </button>
-        )}
-      </div>
-
-      {/* Chat lists */}
-      <div className="flex-1 overflow-y-auto px-3 pb-4">
-        {q ? (
-          <ChatSection title={`Results (${results.length})`} icon={<Search size={11} />}>
-            {results.map(({ chat: c, snippet }) => (
-              <ChatLink
-                key={c.id}
-                id={c.id}
-                title={c.title}
-                subtitle={snippet || timeAgo(c.updatedAt)}
-                active={pathname === `/chat/${c.id}`}
-                pinned={c.pinned}
-                onPin={() => togglePin(c.id)}
-                onDelete={() => {
-                  deleteChat(c.id);
-                  if (pathname === `/chat/${c.id}`) router.push("/");
-                }}
-              />
-            ))}
-            {results.length === 0 && (
-              <p className="px-2.5 py-1 text-xs text-ink-faint">
-                {searching ? "Searching…" : `No chats match “${query}”.`}
-              </p>
-            )}
-          </ChatSection>
-        ) : (
-        <>
-        {pinned.length > 0 && (
-          <ChatSection title="Pinned" icon={<Pin size={11} />}>
-            {pinned.map((c) => (
-              <ChatLink
-                key={c.id}
-                id={c.id}
-                title={c.title}
-                active={pathname === `/chat/${c.id}`}
-                pinned
-                onPin={() => togglePin(c.id)}
-                onDelete={() => {
-                  deleteChat(c.id);
-                  if (pathname === `/chat/${c.id}`) router.push("/");
-                }}
-              />
-            ))}
-          </ChatSection>
-        )}
-
-        <ChatSection title="Recents" icon={<MessageSquare size={11} />}>
-          {recents.map((c) => (
-            <ChatLink
-              key={c.id}
-              id={c.id}
-              title={c.title}
-              subtitle={timeAgo(c.updatedAt)}
-              active={pathname === `/chat/${c.id}`}
-              pinned={false}
-              onPin={() => togglePin(c.id)}
-              onDelete={() => {
-                deleteChat(c.id);
-                if (pathname === `/chat/${c.id}`) router.push("/");
-              }}
-            />
-          ))}
-          {hydrated && recents.length === 0 && pinned.length === 0 && (
-            <p className="px-2.5 py-1 text-xs text-ink-faint">
-              No conversations yet — start one above.
-            </p>
-          )}
-        </ChatSection>
-        </>
-        )}
-      </div>
-
-      {/* Footer: signed-in user + theme toggle */}
-      <div className="border-t border-line px-4 py-3 flex items-center justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <UserBadge />
         </div>
-        <ThemeToggle />
-      </div>
-    </aside>
-    <ResizeHandle onPointerDown={startResize} />
+
+        {/* New chat + nav */}
+        <div className="mx-3 mb-2 rounded-xl bg-black/[0.04] dark:bg-white/[0.04] p-1.5 space-y-0.5">
+          <button
+            onClick={() => router.push("/")}
+            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium text-accent hover:bg-accent-soft transition-colors"
+          >
+            <PenSquare size={15} />
+            New chat
+          </button>
+          {navItem("/projects", <FolderKanban size={15} />, "Projects")}
+          {navItem("/artifacts", <Package size={15} />, "Artifacts")}
+          {navItem("/attachments", <Paperclip size={15} />, "Attachments")}
+          {navItem("/cron", <Clock size={15} />, "Scheduler")}
+          {navItem("/history", <History size={15} />, "Agent history")}
+        </div>
+
+        {/* Search */}
+        <div className="mx-3 mb-1 relative">
+          <Search
+            size={13}
+            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-faint pointer-events-none"
+          />
+          <input
+            ref={searchRef}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                setQuery("");
+                e.currentTarget.blur();
+              }
+            }}
+            placeholder="Search chats…  (Ctrl+K)"
+            className="w-full rounded-lg border border-line bg-transparent pl-8 pr-7 py-1.5 text-[13px] outline-none focus:border-ink-faint placeholder:text-ink-faint"
+          />
+          {query && (
+            <button
+              onClick={() => setQuery("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-faint hover:text-ink"
+              title="Clear"
+            >
+              <X size={13} />
+            </button>
+          )}
+        </div>
+
+        {/* Chat lists */}
+        <div className="flex-1 overflow-y-auto px-3 pb-4">
+          {q ? (
+            <ChatSection title={`Results (${results.length})`} icon={<Search size={11} />}>
+              {results.map(({ chat: c, snippet }) => (
+                <ChatLink
+                  key={c.id}
+                  id={c.id}
+                  title={c.title}
+                  subtitle={snippet || timeAgo(c.updatedAt)}
+                  active={pathname === `/chat/${c.id}`}
+                  pinned={c.pinned}
+                  onPin={() => togglePin(c.id)}
+                  onDelete={() => {
+                    deleteChat(c.id);
+                    if (pathname === `/chat/${c.id}`) router.push("/");
+                  }}
+                />
+              ))}
+              {results.length === 0 && (
+                <p className="px-2.5 py-1 text-xs text-ink-faint">
+                  {searching ? "Searching…" : `No chats match “${query}”.`}
+                </p>
+              )}
+            </ChatSection>
+          ) : (
+            <>
+              {pinned.length > 0 && (
+                <ChatSection title="Pinned" icon={<Pin size={11} />}>
+                  {pinned.map((c) => (
+                    <ChatLink
+                      key={c.id}
+                      id={c.id}
+                      title={c.title}
+                      active={pathname === `/chat/${c.id}`}
+                      pinned
+                      onPin={() => togglePin(c.id)}
+                      onDelete={() => {
+                        deleteChat(c.id);
+                        if (pathname === `/chat/${c.id}`) router.push("/");
+                      }}
+                    />
+                  ))}
+                </ChatSection>
+              )}
+
+              <ChatSection title="Recents" icon={<MessageSquare size={11} />}>
+                {recents.map((c) => (
+                  <ChatLink
+                    key={c.id}
+                    id={c.id}
+                    title={c.title}
+                    subtitle={timeAgo(c.updatedAt)}
+                    active={pathname === `/chat/${c.id}`}
+                    pinned={false}
+                    onPin={() => togglePin(c.id)}
+                    onDelete={() => {
+                      deleteChat(c.id);
+                      if (pathname === `/chat/${c.id}`) router.push("/");
+                    }}
+                  />
+                ))}
+                {hydrated && recents.length === 0 && pinned.length === 0 && (
+                  <p className="px-2.5 py-1 text-xs text-ink-faint">
+                    No conversations yet — start one above.
+                  </p>
+                )}
+              </ChatSection>
+            </>
+          )}
+        </div>
+
+        {/* Footer: signed-in user + theme toggle */}
+        <div className="border-t border-line px-4 py-3 flex items-center justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <UserBadge />
+          </div>
+          <ThemeToggle />
+        </div>
+      </aside>
+      <ResizeHandle onPointerDown={startResize} />
     </>
   );
 }

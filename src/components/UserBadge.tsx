@@ -12,11 +12,7 @@ export function UserBadge() {
     <div className="flex items-center gap-2.5">
       {data.user.image ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={data.user.image}
-          alt=""
-          className="w-7 h-7 rounded-full shrink-0"
-        />
+        <img src={data.user.image} alt="" className="w-7 h-7 rounded-full shrink-0" />
       ) : (
         <div className="w-7 h-7 rounded-full bg-accent text-white flex items-center justify-center text-xs font-semibold shrink-0">
           {(data.user.name ?? "?").charAt(0).toUpperCase()}

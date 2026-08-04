@@ -40,13 +40,16 @@ export function validateEnv(): EnvReport {
   if (authEnabled) {
     if (!e.AUTH_SECRET) fatal.push("AUTH_SECRET is required when NEXT_PUBLIC_AUTH_ENABLED=true.");
     else if (e.AUTH_SECRET.length < 32)
-      warnings.push("AUTH_SECRET is shorter than 32 chars — generate one with `openssl rand -base64 33`.");
+      warnings.push(
+        "AUTH_SECRET is shorter than 32 chars — generate one with `openssl rand -base64 33`."
+      );
     if (!e.AUTH_SLACK_ID) fatal.push("AUTH_SLACK_ID is required when auth is enabled.");
     if (!e.AUTH_SLACK_SECRET) fatal.push("AUTH_SLACK_SECRET is required when auth is enabled.");
-    if (!e.AUTH_URL) warnings.push("AUTH_URL is not set — Slack OAuth redirects may use the wrong host.");
+    if (!e.AUTH_URL)
+      warnings.push("AUTH_URL is not set — Slack OAuth redirects may use the wrong host.");
   } else if (e.NODE_ENV === "production") {
     warnings.push(
-      "AUTH IS DISABLED in a production build (NEXT_PUBLIC_AUTH_ENABLED != \"true\"): " +
+      'AUTH IS DISABLED in a production build (NEXT_PUBLIC_AUTH_ENABLED != "true"): ' +
         "every visitor shares one identity and all API routes are open. " +
         "Only acceptable on a single-user machine that is not exposed."
     );
@@ -61,10 +64,15 @@ export function validateEnv(): EnvReport {
         `will show nothing. Is the rclone mount up (and typo-free)?`
     );
 
-  for (const d of (e.AGENT_DATA_DIRS ?? "/opt/data").split(",").map((s) => s.trim()).filter(Boolean)) {
+  for (const d of (e.AGENT_DATA_DIRS ?? "/opt/data")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)) {
     if (!isAbs(d)) fatal.push(`AGENT_DATA_DIRS entries must be absolute paths — got "${d}".`);
     else if (!existsSync(d))
-      warnings.push(`AGENT_DATA_DIRS "${d}" does not exist — agent-file downloads will 404 until it is mounted.`);
+      warnings.push(
+        `AGENT_DATA_DIRS "${d}" does not exist — agent-file downloads will 404 until it is mounted.`
+      );
   }
 
   const dataDir = e.DATA_DIR ?? path.join(process.cwd(), "data");

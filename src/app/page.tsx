@@ -29,8 +29,8 @@ function pickGreeting(): string {
     hour < 11
       ? "Good morning, Pixels ☀️"
       : hour < 17
-      ? "Good afternoon, Pixels!"
-      : "Good evening, Pixels 🌙";
+        ? "Good afternoon, Pixels!"
+        : "Good evening, Pixels 🌙";
   const pool = [...GREETINGS, timed, timed]; // time-aware one gets a double chance
   return pool[Math.floor(Math.random() * pool.length)];
 }
@@ -53,9 +53,7 @@ export default function Home() {
         <h1 className="font-serif-display text-4xl text-center mb-2 min-h-[1.2em] transition-opacity duration-300">
           {greeting || " "}
         </h1>
-        <p className="text-center text-ink-soft mb-8">
-          Ask anything — ideas, files, schedules.
-        </p>
+        <p className="text-center text-ink-soft mb-8">Ask anything — ideas, files, schedules.</p>
 
         <Composer onSend={start} autoFocus placeholder="Ask anything…" />
 

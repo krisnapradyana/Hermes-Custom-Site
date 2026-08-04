@@ -3,7 +3,7 @@ import { promises as fs, createReadStream } from "fs";
 import { Readable } from "stream";
 import path from "path";
 import crypto from "crypto";
-import { getUserKey } from "@/lib/user-key";
+import { requireUser } from "@/lib/user-key";
 import { isAllowedRoot, resolveSafe } from "@/lib/fs-access";
 
 export const runtime = "nodejs";
@@ -43,7 +43,8 @@ function streamFile(full: string, mime: string, size?: number) {
 }
 
 export async function GET(req: NextRequest) {
-  if (!(await getUserKey())) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const gate = await requireUser();
+  if (gate.denied) return gate.denied;
 
   const root = req.nextUrl.searchParams.get("root") ?? "";
   const sub = req.nextUrl.searchParams.get("sub") ?? "";
@@ -66,10 +67,7 @@ export async function GET(req: NextRequest) {
   }
 
   // Disk cache keyed by absolute path + mtime — a re-uploaded file re-thumbs.
-  const key = crypto
-    .createHash("sha1")
-    .update(`${full}|${stat.mtimeMs}|${WIDTH}`)
-    .digest("hex");
+  const key = crypto.createHash("sha1").update(`${full}|${stat.mtimeMs}|${WIDTH}`).digest("hex");
   const cached = path.join(THUMB_DIR, `${key}.jpg`);
 
   try {

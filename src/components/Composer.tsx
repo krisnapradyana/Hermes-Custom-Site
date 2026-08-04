@@ -162,7 +162,10 @@ export function Composer({
         ...prev,
         {
           name: f.name,
-          type: f.type === "image/png" || !f.type.startsWith("image/") ? f.type || "application/octet-stream" : "image/jpeg",
+          type:
+            f.type === "image/png" || !f.type.startsWith("image/")
+              ? f.type || "application/octet-stream"
+              : "image/jpeg",
           size,
           dataUrl,
         },
@@ -175,7 +178,7 @@ export function Composer({
     const text = value.trim();
     if ((!text && attachments.length === 0) || disabled) return;
     // Only keep mentions whose filename still appears in the text.
-    const kept = mentions.filter((p) => text.includes((p.split("/").pop() ?? p)));
+    const kept = mentions.filter((p) => text.includes(p.split("/").pop() ?? p));
     onSend(text || "(see attachment)", attachments, kept.length ? kept : undefined);
     setValue("");
     setAttachments([]);
@@ -193,7 +196,11 @@ export function Composer({
             <div key={i} className="relative group">
               {a.type.startsWith("image/") ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={a.dataUrl} alt={a.name} className="h-16 w-16 object-cover rounded-lg border border-line" />
+                <img
+                  src={a.dataUrl}
+                  alt={a.name}
+                  className="h-16 w-16 object-cover rounded-lg border border-line"
+                />
               ) : (
                 <div className="flex items-center gap-1.5 rounded-lg border border-line bg-parchment px-2.5 py-2 max-w-44">
                   <FileText size={13} className="text-accent shrink-0" />
@@ -314,8 +321,8 @@ export function Composer({
               (mentions.length
                 ? `${mentions.length} project file${mentions.length > 1 ? "s" : ""} referenced`
                 : projectId
-                ? "Type @ to reference a project file"
-                : "Assistant · powered by Hermes")}
+                  ? "Type @ to reference a project file"
+                  : "Assistant · powered by Hermes")}
           </span>
         </div>
         {disabled && onStop ? (

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserKey } from "@/lib/user-key";
+import { requireUser } from "@/lib/user-key";
 import {
   getChat,
   saveChatMessages,
@@ -15,8 +15,9 @@ const MAX_MESSAGES = 2000;
 
 /** Full chat including messages — loaded only when a chat is opened. */
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const key = await getUserKey();
-  if (!key) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const gate = await requireUser();
+  if (gate.denied) return gate.denied;
+  const key = gate.key;
   const { id } = await params;
   const chat = await getChat(key, id);
   if (!chat) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -25,8 +26,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
 /** Replace the messages of one chat (the streaming save path). */
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const key = await getUserKey();
-  if (!key) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const gate = await requireUser();
+  if (gate.denied) return gate.denied;
+  const key = gate.key;
   const { id } = await params;
 
   let body: { messages?: Message[]; title?: string; pinned?: boolean };
@@ -52,8 +54,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
 /** Metadata-only update (pin / rename) — does not rewrite messages. */
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const key = await getUserKey();
-  if (!key) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const gate = await requireUser();
+  if (gate.denied) return gate.denied;
+  const key = gate.key;
   const { id } = await params;
 
   let body: { title?: string; pinned?: boolean };
@@ -71,8 +74,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const key = await getUserKey();
-  if (!key) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const gate = await requireUser();
+  if (gate.denied) return gate.denied;
+  const key = gate.key;
   const { id } = await params;
   await removeChat(key, id);
   return NextResponse.json({ ok: true });

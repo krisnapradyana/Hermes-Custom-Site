@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { promises as fs, createReadStream } from "fs";
 import { Readable } from "stream";
 import path from "path";
-import { getUserKey } from "@/lib/user-key";
+import { requireUser } from "@/lib/user-key";
 import { isAllowedRoot, resolveSafe } from "@/lib/fs-access";
 
 export const runtime = "nodejs";
@@ -16,22 +16,38 @@ export const dynamic = "force-dynamic";
  */
 
 const MIME: Record<string, string> = {
-  ".html": "text/html", ".htm": "text/html", ".pdf": "application/pdf",
-  ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
-  ".gif": "image/gif", ".webp": "image/webp", ".svg": "image/svg+xml",
-  ".mp4": "video/mp4", ".webm": "video/webm", ".mov": "video/quicktime",
-  ".m4v": "video/mp4", ".mp3": "audio/mpeg", ".wav": "audio/wav",
-  ".m4a": "audio/mp4", ".flac": "audio/flac", ".ogg": "audio/ogg",
-  ".zip": "application/zip", ".json": "application/json", ".txt": "text/plain",
-  ".csv": "text/csv", ".md": "text/markdown",
+  ".html": "text/html",
+  ".htm": "text/html",
+  ".pdf": "application/pdf",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".svg": "image/svg+xml",
+  ".mp4": "video/mp4",
+  ".webm": "video/webm",
+  ".mov": "video/quicktime",
+  ".m4v": "video/mp4",
+  ".mp3": "audio/mpeg",
+  ".wav": "audio/wav",
+  ".m4a": "audio/mp4",
+  ".flac": "audio/flac",
+  ".ogg": "audio/ogg",
+  ".zip": "application/zip",
+  ".json": "application/json",
+  ".txt": "text/plain",
+  ".csv": "text/csv",
+  ".md": "text/markdown",
   ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 };
 
 export async function GET(req: NextRequest) {
-  const key = await getUserKey();
-  if (!key) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const gate = await requireUser();
+  if (gate.denied) return gate.denied;
+  const key = gate.key;
 
   const root = req.nextUrl.searchParams.get("root") ?? "";
   const sub = req.nextUrl.searchParams.get("sub") ?? "";
@@ -77,9 +93,7 @@ export async function GET(req: NextRequest) {
       if (start <= end && start < stat.size) {
         headers["Content-Range"] = `bytes ${start}-${end}/${stat.size}`;
         headers["Content-Length"] = String(end - start + 1);
-        const stream = Readable.toWeb(
-          createReadStream(full, { start, end })
-        ) as ReadableStream;
+        const stream = Readable.toWeb(createReadStream(full, { start, end })) as ReadableStream;
         return new Response(stream, { status: 206, headers });
       }
     }

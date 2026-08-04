@@ -11,10 +11,6 @@ COPY . .
 # NEXT_PUBLIC_* values are baked into the client bundle at BUILD time.
 ARG NEXT_PUBLIC_AUTH_ENABLED=true
 ENV NEXT_PUBLIC_AUTH_ENABLED=$NEXT_PUBLIC_AUTH_ENABLED
-ARG NEXT_PUBLIC_DRIVE_BASE=""
-ENV NEXT_PUBLIC_DRIVE_BASE=$NEXT_PUBLIC_DRIVE_BASE
-ARG NEXT_PUBLIC_DRIVE_MOUNT_BASE="/gdrive/"
-ENV NEXT_PUBLIC_DRIVE_MOUNT_BASE=$NEXT_PUBLIC_DRIVE_MOUNT_BASE
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
@@ -22,7 +18,6 @@ FROM node:22-alpine AS run
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-# wget for the healthcheck (alpine's busybox wget is fine).
 COPY --from=build --chown=node:node /app/.next/standalone ./
 COPY --from=build --chown=node:node /app/.next/static ./.next/static
 COPY --from=build --chown=node:node /app/public ./public

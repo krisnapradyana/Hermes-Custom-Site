@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { getUserKey } from "@/lib/user-key";
+import { requireUser } from "@/lib/user-key";
 import { readProjects, updateProjects } from "@/lib/projects-store";
 import { uid } from "@/lib/uid";
 import { Project } from "@/lib/types";
@@ -19,12 +19,14 @@ async function creator(): Promise<{ name: string; slackId?: string }> {
 }
 
 export async function GET() {
-  if (!(await getUserKey())) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const gate = await requireUser();
+  if (gate.denied) return gate.denied;
   return NextResponse.json({ projects: await readProjects() });
 }
 
 export async function POST(req: NextRequest) {
-  if (!(await getUserKey())) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const gate = await requireUser();
+  if (gate.denied) return gate.denied;
   let body: Partial<Project>;
   try {
     body = await req.json();

@@ -1,17 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { getUserKey } from "@/lib/user-key";
+import { requireUser } from "@/lib/user-key";
 import { getConversation, saveMessages, deleteConversation } from "@/lib/conversations-store";
 import { Message } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ cid: string }> }
-) {
-  if (!(await getUserKey())) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ cid: string }> }) {
+  const gate = await requireUser();
+  if (gate.denied) return gate.denied;
   const { cid } = await params;
   const conv = await getConversation(cid);
   if (!conv) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -29,14 +27,15 @@ async function isOwner(cid: string): Promise<boolean> {
   }
 }
 
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: Promise<{ cid: string }> }
-) {
-  if (!(await getUserKey())) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ cid: string }> }) {
+  const gate = await requireUser();
+  if (gate.denied) return gate.denied;
   const { cid } = await params;
   if (!(await isOwner(cid))) {
-    return NextResponse.json({ error: "Only the creator can edit this conversation" }, { status: 403 });
+    return NextResponse.json(
+      { error: "Only the creator can edit this conversation" },
+      { status: 403 }
+    );
   }
   let body: { messages?: Message[]; title?: string };
   try {
@@ -49,14 +48,15 @@ export async function PUT(
   return NextResponse.json({ conversation: conv });
 }
 
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: Promise<{ cid: string }> }
-) {
-  if (!(await getUserKey())) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ cid: string }> }) {
+  const gate = await requireUser();
+  if (gate.denied) return gate.denied;
   const { cid } = await params;
   if (!(await isOwner(cid))) {
-    return NextResponse.json({ error: "Only the creator can delete this conversation" }, { status: 403 });
+    return NextResponse.json(
+      { error: "Only the creator can delete this conversation" },
+      { status: 403 }
+    );
   }
   await deleteConversation(cid);
   return NextResponse.json({ ok: true });
