@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowUp, Paperclip, X, FileText, Folder, File as FileIcon, Square } from "lucide-react";
 import { Attachment } from "@/lib/types";
+import { ModelSelect } from "@/components/ModelSelect";
 
 const MAX_FILE_MB = 5;
 /**
@@ -309,6 +310,7 @@ export function Composer({
           >
             <Paperclip size={15} />
           </button>
+          <ModelSelect />
           <span className="text-[11px] text-ink-faint truncate">
             {warn ||
               (mentions.length

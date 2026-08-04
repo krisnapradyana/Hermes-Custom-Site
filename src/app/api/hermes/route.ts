@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUserKey } from "@/lib/user-key";
 import { extractDocumentText } from "@/lib/extract-server";
 import { readManifest } from "@/lib/projects-store";
+import { isAllowedModel } from "@/lib/model-choices";
 
 interface ManifestEntry {
   p: string;
@@ -155,6 +156,7 @@ export async function POST(req: NextRequest) {
     chatId?: string;
     context?: string;
     projectId?: string;
+    model?: string;
   };
   try {
     body = await req.json();
@@ -193,9 +195,16 @@ export async function POST(req: NextRequest) {
     ? [{ role: "system" as const, content: contextParts.join("\n\n") }]
     : [];
 
+  // User-selected model from the composer dropdown, validated against the
+  // configured allowlist; anything else falls back to the server default.
+  const chosenModel =
+    typeof body.model === "string" && isAllowedModel(body.model.trim())
+      ? body.model.trim()
+      : MODEL;
+
   const payload = isOpenAI
     ? {
-        model: MODEL,
+        model: chosenModel,
         messages: [
           ...contextMessages,
           ...(body.history ?? []).map((h) => ({ role: h.role, content: h.content })),

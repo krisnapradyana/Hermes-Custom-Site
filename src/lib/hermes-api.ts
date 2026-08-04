@@ -10,6 +10,7 @@
  */
 
 import { Message, Attachment } from "./types";
+import { getSelectedModel } from "./model-select";
 
 export interface StreamState {
   content: string;
@@ -106,6 +107,8 @@ export async function hermesStream(
         chatId,
         context,
         projectId,
+        // User-picked model (composer dropdown); null → server default.
+        model: getSelectedModel() ?? undefined,
       }),
     });
 
