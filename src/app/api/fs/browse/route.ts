@@ -21,16 +21,28 @@ export async function GET(req: NextRequest) {
 
   try {
     const dirents = await fs.readdir(full, { withFileTypes: true });
-    const folders = dirents
+    const names = dirents
       .filter((d) => d.isDirectory() && !d.name.startsWith("."))
       .map((d) => d.name)
       .sort((a, b) => a.localeCompare(b))
       .slice(0, 1000);
 
+    // Modification times so the picker can sort by date. Client re-sorts.
+    const folders = await Promise.all(
+      names.map(async (name) => {
+        try {
+          const st = await fs.stat(path.join(full, name));
+          return { name, mtime: st.mtime.toISOString() };
+        } catch {
+          return { name, mtime: undefined };
+        }
+      })
+    );
+
     // Prefetch: warm the rclone dir-cache for these sub-folders in the
     // background so the user's NEXT click is instant. Fire-and-forget,
     // capped so a huge folder doesn't flood the Drive API.
-    for (const name of folders.slice(0, 30)) {
+    for (const name of names.slice(0, 30)) {
       fs.readdir(path.join(full, name)).catch(() => {});
     }
 

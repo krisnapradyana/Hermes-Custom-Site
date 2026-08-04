@@ -16,6 +16,7 @@ import {
 import { Project } from "@/lib/types";
 import { renderMarkdown, parseChecklist, ChecklistProgress } from "@/lib/markdown";
 import { FolderNav } from "@/components/FolderNav";
+import { SortMenu, SortMode, loadSort, compareEntries } from "@/components/SortMenu";
 
 /**
  * Reads the project's working folder from the SERVER (the rclone Drive
@@ -27,6 +28,7 @@ interface Entry {
   name: string;
   isDir: boolean;
   size?: number;
+  mtime?: string;
 }
 interface FileData {
   kind: "image" | "markdown" | "code" | "text" | "html" | "pdf" | "video" | "audio" | "binary";
@@ -67,6 +69,10 @@ export function WorkspacePanel({ project }: { project: Project }) {
   const [showProgress, setShowProgress] = useState(false);
   const [selected, setSelected] = useState<{ sub: string; name: string } | null>(null);
   const [fileData, setFileData] = useState<FileData | null>(null);
+  const [sort, setSort] = useState<SortMode>("name-asc");
+  useEffect(() => {
+    setSort(loadSort("workspace"));
+  }, []);
 
   const rawUrl = useCallback(
     (sub: string, download = false) =>
@@ -266,20 +272,33 @@ export function WorkspacePanel({ project }: { project: Project }) {
         </div>
       ) : (
         <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">
-          <FolderNav
-            sub={cwd}
-            onNavigate={(s) => {
-              setCwd(s);
-              setEntries(null);
-            }}
-          />
+          {/* FolderNav carries its own bottom border; the sort button sits on
+              the same strip, matching its background so it reads as one bar. */}
+          <div className="flex items-stretch">
+            <div className="flex-1 min-w-0">
+              <FolderNav
+                sub={cwd}
+                onNavigate={(s) => {
+                  setCwd(s);
+                  setEntries(null);
+                }}
+              />
+            </div>
+            <div className="flex items-center px-1.5 border-b border-line bg-parchment-dark/40 shrink-0">
+              <SortMenu value={sort} onChange={setSort} storageKey="workspace" />
+            </div>
+          </div>
 
           {error && <p className="px-3 py-2 text-[12px] text-red-500">{error}</p>}
           {!error && !entries && <p className="px-3 py-2 text-[12px] text-ink-faint">Loading…</p>}
           {entries && entries.length === 0 && <p className="px-3 py-2 text-[12px] text-ink-faint">Empty folder.</p>}
 
           <div className="px-1.5 py-1">
-            {entries?.map((e) => (
+            {entries
+              ?.slice()
+              // Folders always group before files; the chosen sort applies inside each group.
+              .sort((a, b) => (a.isDir === b.isDir ? compareEntries(sort, a, b) : a.isDir ? -1 : 1))
+              .map((e) => (
               <button
                 key={e.name}
                 onClick={() =>
