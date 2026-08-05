@@ -8,15 +8,15 @@ import {
   FileImage,
   File as FileIcon,
   ArrowLeft,
+  ArrowUp,
   HardDrive,
+  Home,
   ListChecks,
-  RefreshCw,
   Download,
 } from "lucide-react";
 import { Project } from "@/lib/types";
 import { api } from "@/lib/api";
 import { renderMarkdown, parseChecklist, ChecklistProgress } from "@/lib/markdown";
-import { FolderNav } from "@/components/FolderNav";
 import { SortMenu, SortMode, loadSort, compareEntries } from "@/components/SortMenu";
 
 /**
@@ -166,55 +166,6 @@ export function WorkspacePanel({ project }: { project: Project }) {
 
   return (
     <div className="flex flex-col h-full text-sm">
-      {/* Header */}
-      <div className="px-3 pt-3 pb-2 border-b border-line flex items-center gap-2">
-        <HardDrive size={14} className="text-ink-faint shrink-0" />
-        <span className="text-[12px] text-ink-faint font-mono truncate flex-1" title={root}>
-          {root.split("/").filter(Boolean).pop() ?? root}
-        </span>
-        <button
-          onClick={() => {
-            progressSig.current = "";
-            list();
-          }}
-          className="p-1 rounded-md hover:bg-parchment-dark text-ink-faint"
-          title="Refresh"
-        >
-          <RefreshCw size={14} />
-        </button>
-      </div>
-
-      {/* Progress */}
-      {progress && !selected && (
-        <div className="px-3 py-2.5 border-b border-line">
-          <button
-            onClick={() => setShowProgress(!showProgress)}
-            className="w-full text-left"
-            title={`From ${progress.file}`}
-          >
-            <div className="flex items-center gap-1.5 mb-1.5 text-[13px]">
-              <ListChecks size={15} className="text-accent" />
-              <span className="font-medium">Progress</span>
-              <span className="ml-auto text-ink-faint">
-                {progress.done} of {progress.total}
-              </span>
-            </div>
-            <div className="h-1.5 rounded-full bg-parchment-dark overflow-hidden">
-              <div
-                className="h-full bg-accent transition-all"
-                style={{ width: `${(progress.done / progress.total) * 100}%` }}
-              />
-            </div>
-          </button>
-          {showProgress && (
-            <div
-              className="mt-2 max-h-48 overflow-y-auto text-[13px] leading-relaxed text-ink-soft md-body"
-              dangerouslySetInnerHTML={{ __html: renderMarkdown(progressMd) }}
-            />
-          )}
-        </div>
-      )}
-
       {selected ? (
         <div className="flex-1 min-h-0 flex flex-col">
           <div className="flex items-center gap-2 px-3 py-2 border-b border-line">
@@ -286,22 +237,94 @@ export function WorkspacePanel({ project }: { project: Project }) {
         </div>
       ) : (
         <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">
-          {/* FolderNav carries its own bottom border; the sort button sits on
-              the same strip, matching its background so it reads as one bar. */}
-          <div className="flex items-stretch">
-            <div className="flex-1 min-w-0">
-              <FolderNav
-                sub={cwd}
-                onNavigate={(s) => {
-                  setCwd(s);
+          {/* Toolbar — two floating pills: navigation (left), sort + refresh (right) */}
+          <div className="flex items-center justify-between gap-2 px-3 pt-3 pb-2">
+            <div
+              className="flex items-center rounded-full border border-line bg-parchment-dark/50 pl-1 pr-3 py-0.5 min-w-0"
+              title={cwd ? `${root}/${cwd}` : root}
+            >
+              <button
+                onClick={() => {
+                  setCwd("");
                   setEntries(null);
                 }}
-              />
+                disabled={cwd === ""}
+                title="Root"
+                className="p-1.5 rounded-full text-ink-soft hover:bg-parchment-dark hover:text-ink disabled:opacity-30 disabled:hover:bg-transparent"
+              >
+                <Home size={14} />
+              </button>
+              <button
+                onClick={() => {
+                  setCwd(cwd.split("/").filter(Boolean).slice(0, -1).join("/"));
+                  setEntries(null);
+                }}
+                disabled={cwd === ""}
+                title="Up one level"
+                className="p-1.5 rounded-full text-ink-soft hover:bg-parchment-dark hover:text-ink disabled:opacity-30 disabled:hover:bg-transparent"
+              >
+                <ArrowUp size={14} />
+              </button>
+              <span className="pl-1 text-[12.5px] font-medium truncate">
+                {cwd.split("/").filter(Boolean).pop() ?? "root"}
+              </span>
             </div>
-            <div className="flex items-center px-1.5 border-b border-line bg-parchment-dark/40 shrink-0">
+
+            <div className="flex items-center gap-0.5 rounded-full border border-line bg-parchment-dark/50 px-2 py-0.5 shrink-0">
               <SortMenu value={sort} onChange={setSort} storageKey="workspace" />
+              <span className="w-px h-3.5 bg-line mx-0.5" />
+              <button
+                onClick={() => {
+                  progressSig.current = "";
+                  list();
+                }}
+                className="px-1 py-1 text-[12px] text-ink-faint hover:text-ink transition-colors"
+                title="Reload this folder"
+              >
+                Refresh
+              </button>
             </div>
           </div>
+
+          {/* Project name, then a separator before the folder contents */}
+          <div className="flex items-center gap-2 px-4 pb-2 min-w-0">
+            <HardDrive size={14} className="text-ink-faint shrink-0" />
+            <span className="text-[13px] font-medium truncate" title={root}>
+              {project.name}
+            </span>
+          </div>
+          <div className="border-b border-line mx-3 mb-1" />
+
+          {/* Progress (root folder only) */}
+          {progress && (
+            <div className="px-3 py-2.5 border-b border-line">
+              <button
+                onClick={() => setShowProgress(!showProgress)}
+                className="w-full text-left"
+                title={`From ${progress.file}`}
+              >
+                <div className="flex items-center gap-1.5 mb-1.5 text-[13px]">
+                  <ListChecks size={15} className="text-accent" />
+                  <span className="font-medium">Progress</span>
+                  <span className="ml-auto text-ink-faint">
+                    {progress.done} of {progress.total}
+                  </span>
+                </div>
+                <div className="h-1.5 rounded-full bg-parchment-dark overflow-hidden">
+                  <div
+                    className="h-full bg-accent transition-all"
+                    style={{ width: `${(progress.done / progress.total) * 100}%` }}
+                  />
+                </div>
+              </button>
+              {showProgress && (
+                <div
+                  className="mt-2 max-h-48 overflow-y-auto text-[13px] leading-relaxed text-ink-soft md-body"
+                  dangerouslySetInnerHTML={{ __html: renderMarkdown(progressMd) }}
+                />
+              )}
+            </div>
+          )}
 
           {error && <p className="px-3 py-2 text-[13px] text-red-500">{error}</p>}
           {!error && !entries && <p className="px-3 py-2 text-[13px] text-ink-faint">Loading…</p>}
