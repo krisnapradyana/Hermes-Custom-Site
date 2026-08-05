@@ -54,9 +54,15 @@ export const ScreenHeader = ({ left, right }: { left: ReactNode; right?: ReactNo
   </header>
 );
 
-/** Left-bordered side panel column (workspace / artifact panes). */
+/**
+ * Floating side panel (workspace / artifact panes) — a detached card with
+ * rounded corners and a shadow, Claude-style, instead of a flush column.
+ * The outer div carries the resizable width; the inner card fills it.
+ */
 export const SidePanel = ({ width, children }: { width: number; children: ReactNode }) => (
-  <div className="shrink-0 border-l border-line bg-card flex flex-col" style={{ width }}>
-    {children}
+  <div className="shrink-0 py-3 pr-3" style={{ width }}>
+    <div className="h-full rounded-2xl border border-line bg-card shadow-lg flex flex-col overflow-hidden">
+      {children}
+    </div>
   </div>
 );

@@ -54,12 +54,12 @@ function fmtSize(n?: number) {
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 function iconFor(name: string, isDir: boolean) {
-  if (isDir) return <Folder size={14} className="text-accent shrink-0" />;
-  if (IMG.test(name)) return <FileImage size={14} className="text-ink-faint shrink-0" />;
-  if (CODE.test(name)) return <FileCode size={14} className="text-ink-faint shrink-0" />;
+  if (isDir) return <Folder size={16} className="text-accent shrink-0" />;
+  if (IMG.test(name)) return <FileImage size={16} className="text-ink-faint shrink-0" />;
+  if (CODE.test(name)) return <FileCode size={16} className="text-ink-faint shrink-0" />;
   if (/\.(md|txt|csv|log)$/i.test(name))
-    return <FileText size={14} className="text-ink-faint shrink-0" />;
-  return <FileIcon size={14} className="text-ink-faint shrink-0" />;
+    return <FileText size={16} className="text-ink-faint shrink-0" />;
+  return <FileIcon size={16} className="text-ink-faint shrink-0" />;
 }
 
 export function WorkspacePanel({ project }: { project: Project }) {
@@ -160,7 +160,7 @@ export function WorkspacePanel({ project }: { project: Project }) {
 
   if (!root) {
     return (
-      <div className="p-4 text-[12px] text-ink-faint">This project has no working folder set.</div>
+      <div className="p-4 text-[13px] text-ink-faint">This project has no working folder set.</div>
     );
   }
 
@@ -168,8 +168,8 @@ export function WorkspacePanel({ project }: { project: Project }) {
     <div className="flex flex-col h-full text-sm">
       {/* Header */}
       <div className="px-3 pt-3 pb-2 border-b border-line flex items-center gap-2">
-        <HardDrive size={12} className="text-ink-faint shrink-0" />
-        <span className="text-[11px] text-ink-faint font-mono truncate flex-1" title={root}>
+        <HardDrive size={14} className="text-ink-faint shrink-0" />
+        <span className="text-[12px] text-ink-faint font-mono truncate flex-1" title={root}>
           {root.split("/").filter(Boolean).pop() ?? root}
         </span>
         <button
@@ -180,7 +180,7 @@ export function WorkspacePanel({ project }: { project: Project }) {
           className="p-1 rounded-md hover:bg-parchment-dark text-ink-faint"
           title="Refresh"
         >
-          <RefreshCw size={12} />
+          <RefreshCw size={14} />
         </button>
       </div>
 
@@ -192,8 +192,8 @@ export function WorkspacePanel({ project }: { project: Project }) {
             className="w-full text-left"
             title={`From ${progress.file}`}
           >
-            <div className="flex items-center gap-1.5 mb-1.5 text-[12px]">
-              <ListChecks size={13} className="text-accent" />
+            <div className="flex items-center gap-1.5 mb-1.5 text-[13px]">
+              <ListChecks size={15} className="text-accent" />
               <span className="font-medium">Progress</span>
               <span className="ml-auto text-ink-faint">
                 {progress.done} of {progress.total}
@@ -208,7 +208,7 @@ export function WorkspacePanel({ project }: { project: Project }) {
           </button>
           {showProgress && (
             <div
-              className="mt-2 max-h-48 overflow-y-auto text-[12px] leading-relaxed text-ink-soft md-body"
+              className="mt-2 max-h-48 overflow-y-auto text-[13px] leading-relaxed text-ink-soft md-body"
               dangerouslySetInnerHTML={{ __html: renderMarkdown(progressMd) }}
             />
           )}
@@ -223,20 +223,20 @@ export function WorkspacePanel({ project }: { project: Project }) {
               className="p-1 rounded-md hover:bg-parchment-dark text-ink-soft"
               title="Back to files"
             >
-              <ArrowLeft size={13} />
+              <ArrowLeft size={15} />
             </button>
-            <p className="text-[12px] font-medium truncate flex-1">{selected.name}</p>
-            <span className="text-[10px] text-ink-faint shrink-0">{fmtSize(fileData?.size)}</span>
+            <p className="text-[13px] font-medium truncate flex-1">{selected.name}</p>
+            <span className="text-[11px] text-ink-faint shrink-0">{fmtSize(fileData?.size)}</span>
             <a
               href={rawUrl(selected.sub, true)}
               className="p-1 rounded-md hover:bg-parchment-dark text-ink-faint hover:text-ink"
               title="Download"
             >
-              <Download size={12} />
+              <Download size={14} />
             </a>
           </div>
           <div className="flex-1 overflow-auto">
-            {!fileData && <p className="p-3 text-[12px] text-ink-faint">Loading…</p>}
+            {!fileData && <p className="p-3 text-[13px] text-ink-faint">Loading…</p>}
             {fileData?.kind === "image" && (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={rawUrl(selected.sub)} alt={selected.name} className="max-w-full p-3" />
@@ -248,7 +248,7 @@ export function WorkspacePanel({ project }: { project: Project }) {
               />
             )}
             {(fileData?.kind === "code" || fileData?.kind === "text") && (
-              <pre className="p-3 text-[12px] leading-relaxed font-mono whitespace-pre-wrap">
+              <pre className="p-3 text-[13px] leading-relaxed font-mono whitespace-pre-wrap">
                 {fileData.content}
               </pre>
             )}
@@ -271,14 +271,14 @@ export function WorkspacePanel({ project }: { project: Project }) {
             )}
             {fileData?.kind === "binary" && (
               <div className="flex flex-col items-center justify-center gap-3 py-10 px-4 text-center">
-                <p className="text-[12px] text-ink-faint">
+                <p className="text-[13px] text-ink-faint">
                   This file type can&apos;t be previewed.
                 </p>
                 <a
                   href={rawUrl(selected.sub, true)}
-                  className="flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-[12px] text-white hover:bg-accent-hover"
+                  className="flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-[13px] text-white hover:bg-accent-hover"
                 >
-                  <Download size={13} /> Download
+                  <Download size={15} /> Download
                 </a>
               </div>
             )}
@@ -303,10 +303,10 @@ export function WorkspacePanel({ project }: { project: Project }) {
             </div>
           </div>
 
-          {error && <p className="px-3 py-2 text-[12px] text-red-500">{error}</p>}
-          {!error && !entries && <p className="px-3 py-2 text-[12px] text-ink-faint">Loading…</p>}
+          {error && <p className="px-3 py-2 text-[13px] text-red-500">{error}</p>}
+          {!error && !entries && <p className="px-3 py-2 text-[13px] text-ink-faint">Loading…</p>}
           {entries && entries.length === 0 && (
-            <p className="px-3 py-2 text-[12px] text-ink-faint">Empty folder.</p>
+            <p className="px-3 py-2 text-[13px] text-ink-faint">Empty folder.</p>
           )}
 
           <div className="px-1.5 py-1">
@@ -325,9 +325,9 @@ export function WorkspacePanel({ project }: { project: Project }) {
                   className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-parchment-dark text-left"
                 >
                   {iconFor(e.name, e.isDir)}
-                  <span className="text-[12.5px] truncate flex-1">{e.name}</span>
+                  <span className="text-[13.5px] truncate flex-1">{e.name}</span>
                   {!e.isDir && (
-                    <span className="text-[10px] text-ink-faint">{fmtSize(e.size)}</span>
+                    <span className="text-[11px] text-ink-faint">{fmtSize(e.size)}</span>
                   )}
                 </button>
               ))}
