@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { requireUser } from "@/lib/user-key";
 import { getConversation, saveMessages, deleteConversation } from "@/lib/conversations-store";
+import { scheduleTrackerUpdate } from "@/lib/tracker";
 import { Message } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -45,6 +46,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ cid:
   }
   const conv = await saveMessages(cid, body.messages ?? [], body.title);
   if (!conv) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  scheduleTrackerUpdate(); // keeps per-project activity in the tracker fresh
   return NextResponse.json({ conversation: conv });
 }
 

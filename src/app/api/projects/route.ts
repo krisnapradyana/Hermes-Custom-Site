@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { requireUser } from "@/lib/user-key";
 import { readProjects, updateProjects } from "@/lib/projects-store";
+import { scheduleTrackerUpdate } from "@/lib/tracker";
 import { uid } from "@/lib/uid";
 import { Project } from "@/lib/types";
 
@@ -50,5 +51,6 @@ export async function POST(req: NextRequest) {
     };
     return [...list, project];
   });
+  scheduleTrackerUpdate();
   return NextResponse.json({ project });
 }

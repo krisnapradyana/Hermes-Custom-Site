@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUserKey } from "@/lib/user-key";
 import { extractDocumentText } from "@/lib/extract-server";
 import { readManifest } from "@/lib/projects-store";
+import { trackerPath } from "@/lib/tracker";
 
 interface ManifestEntry {
   p: string;
@@ -186,6 +187,14 @@ export async function POST(req: NextRequest) {
   // Project context (working folder + folder structure manifest) rides as a
   // system message — Hermes layers it on top of its own system prompt.
   const contextParts: string[] = [];
+  // Constant on every call (cache-friendly): points the agent at the
+  // auto-generated project index instead of relying on its tiny memory.
+  contextParts.push(
+    `Company project index: ${trackerPath()} — when asked about past or other ` +
+      `SuperPixel projects, read/search that file with your file tools. Do NOT ` +
+      `store the full project list in persistent memory; keep memory for ` +
+      `preferences and currently-active work only.`
+  );
   if (body.context) contextParts.push(body.context.slice(0, 2000));
   if (body.projectId) {
     const fc = await folderContext(body.projectId);

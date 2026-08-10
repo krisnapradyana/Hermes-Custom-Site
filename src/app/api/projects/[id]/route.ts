@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/user-key";
 import { updateProjects } from "@/lib/projects-store";
+import { scheduleTrackerUpdate } from "@/lib/tracker";
 import { Project } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -40,6 +41,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return list.map((p, i) => (i === idx ? updated! : p));
   });
   if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  scheduleTrackerUpdate();
   return NextResponse.json({ project: updated });
 }
 
@@ -48,5 +50,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   if (gate.denied) return gate.denied;
   const { id } = await params;
   await updateProjects((list) => list.filter((p) => p.id !== id));
+  scheduleTrackerUpdate();
   return NextResponse.json({ ok: true });
 }
