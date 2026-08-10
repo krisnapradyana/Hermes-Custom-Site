@@ -190,10 +190,12 @@ export async function POST(req: NextRequest) {
   // Constant on every call (cache-friendly): points the agent at the
   // auto-generated project index instead of relying on its tiny memory.
   contextParts.push(
-    `Company project index: ${trackerPath()} — when asked about past or other ` +
-      `SuperPixel projects, read/search that file with your file tools. Do NOT ` +
-      `store the full project list in persistent memory; keep memory for ` +
-      `preferences and currently-active work only.`
+    `Project index: ${trackerPath()} — read it whenever a project (current or ` +
+      `past) is mentioned; it contains lookup/similarity instructions, all web ` +
+      `projects (auto-generated section — never edit it), and the preserved ` +
+      `"Past Projects Archive" section (you may update that section only). ` +
+      `Keep your own project learnings in /opt/data/project-notes.md, not in ` +
+      `persistent memory; memory is for preferences and currently-active work.`
   );
   if (body.context) contextParts.push(body.context.slice(0, 2000));
   if (body.projectId) {

@@ -127,13 +127,13 @@ export function Sidebar() {
         >
           <Paperclip size={16} />
         </Link>
-        <Link
-          href="/cron"
-          className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
-          title="Scheduler"
+        {/* Scheduler temporarily disabled — not ready for team use yet. */}
+        <span
+          className="p-2 rounded-lg text-ink-faint opacity-40 cursor-not-allowed"
+          title="Scheduler — this feature is under development"
         >
           <Clock size={16} />
-        </Link>
+        </span>
         <Link
           href="/history"
           className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
@@ -191,7 +191,15 @@ export function Sidebar() {
           {navItem("/projects", <FolderKanban size={15} />, "Projects")}
           {navItem("/artifacts", <Package size={15} />, "Artifacts")}
           {navItem("/attachments", <Paperclip size={15} />, "Attachments")}
-          {navItem("/cron", <Clock size={15} />, "Scheduler")}
+          {/* Scheduler temporarily disabled — not ready for team use yet. */}
+          <span
+            className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-sm text-ink-faint opacity-50 cursor-not-allowed select-none"
+            title="This feature is under development"
+          >
+            <Clock size={15} />
+            Scheduler
+            <span className="ml-auto text-[10px] uppercase tracking-wide">soon</span>
+          </span>
           {navItem("/history", <History size={15} />, "Agent history")}
         </div>
 

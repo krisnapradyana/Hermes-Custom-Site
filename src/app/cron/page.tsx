@@ -10,7 +10,28 @@ import { IconButton } from "@/components/ui";
  * Phase 4a: this page reflects the agent's REAL scheduled jobs via
  * Hermes' /api/jobs (proxied at /api/cron) — the same jobs `hermes cron`
  * manages, including ones created from Slack or the CLI.
+ *
+ * TEMPORARILY GATED: the feature isn't reliable enough for team use yet, so
+ * the page shows an under-development notice (sidebar entry is greyed out
+ * too). Flip SCHEDULER_ENABLED to true to restore it — nothing was removed.
  */
+const SCHEDULER_ENABLED = false;
+
+function UnderDevelopment() {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-3 text-center px-6">
+      <div className="w-12 h-12 rounded-2xl bg-accent-soft flex items-center justify-center">
+        <Clock size={22} className="text-accent" />
+      </div>
+      <h1 className="font-serif-display text-2xl">Scheduler</h1>
+      <p className="text-sm text-ink-soft max-w-sm">
+        This feature is under development — it will let you schedule recurring tasks for the
+        assistant (daily briefings, weekly reports) without writing any cron syntax.
+      </p>
+      <p className="text-[12px] text-ink-faint">Coming soon.</p>
+    </div>
+  );
+}
 
 interface JobView {
   id: string;
@@ -69,6 +90,7 @@ export default function CronPage() {
       : buildCron(freq, time, weekday, dayOfMonth);
 
   const refresh = useCallback(async () => {
+    if (!SCHEDULER_ENABLED) return;
     setError("");
     const res = await api.get<unknown>("/api/cron");
     if (!res.ok) {
@@ -83,6 +105,8 @@ export default function CronPage() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  if (!SCHEDULER_ENABLED) return <UnderDevelopment />;
 
   const act = async (id: string, doIt: () => Promise<ApiResult<unknown>>) => {
     setBusy(id);
