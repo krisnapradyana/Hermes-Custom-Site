@@ -85,12 +85,25 @@ export function renderMarkdown(md: string): string {
       out.push(`<li>${inline(oli[1])}</li>`);
       continue;
     }
-    closeList();
     if (line.trim() === "") {
+      // A blank line between items of the SAME list type is a "loose list"
+      // (very common in agent output, which also numbers every item "1.").
+      // Closing the list here made each item its own <ol> restarting at 1 —
+      // rendering as "1. 1. 1.". Keep the list open when the next non-empty
+      // line continues it; numbering then auto-increments correctly.
+      if (inList) {
+        const next = lines.slice(i + 1).find((l) => l.trim() !== "");
+        const continues =
+          next !== undefined &&
+          (inList === "ol" ? /^\s*\d+[.)]\s+/.test(next) : /^\s*[-*]\s+/.test(next));
+        if (continues) continue;
+      }
+      closeList();
       out.push("");
-    } else {
-      out.push(`<p class="md-p">${inline(line)}</p>`);
+      continue;
     }
+    closeList();
+    out.push(`<p class="md-p">${inline(line)}</p>`);
   }
   closeList();
 
