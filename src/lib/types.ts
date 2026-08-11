@@ -89,4 +89,10 @@ export interface Artifact {
   chatId?: string;
   createdAt: string;
   updatedAt: string;
+  /**
+   * For artifacts that are FILES the agent generated on the server (Drive or
+   * its output dir): the absolute server path. Preview/download then go
+   * through /api/fs, not `content`.
+   */
+  path?: string;
 }

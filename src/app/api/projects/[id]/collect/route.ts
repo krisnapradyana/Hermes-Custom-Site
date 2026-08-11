@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/user-key";
 import { listByProject, getConversation } from "@/lib/conversations-store";
 import { extractArtifacts } from "@/lib/extract";
+import { extractFilePaths, kindForPath } from "@/lib/file-paths";
 import { Artifact, Attachment } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -29,6 +30,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const metas = await listByProject(id);
   const attachments: AttachmentItem[] = [];
   const artifacts: (Artifact & { conversationId: string; by?: string })[] = [];
+  // Files the agent GENERATED and mentioned by path (same detection as the
+  // chat download chips). Keyed by path so re-mentions update, not duplicate.
+  const fileArtifacts = new Map<string, Artifact & { conversationId: string; by?: string }>();
   let counter = 0;
 
   for (const meta of metas.slice(0, 100)) {
@@ -55,10 +59,24 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         for (const f of found) {
           artifacts.push({ ...f, conversationId: conv.id, by: conv.createdBy?.name });
         }
+        for (const p of extractFilePaths(m.content)) {
+          fileArtifacts.set(p, {
+            id: `pf-${Buffer.from(p).toString("base64url").slice(0, 24)}`,
+            title: p.slice(p.lastIndexOf("/") + 1),
+            kind: kindForPath(p),
+            content: "",
+            path: p,
+            createdAt: m.createdAt,
+            updatedAt: m.createdAt,
+            conversationId: conv.id,
+            by: conv.createdBy?.name,
+          });
+        }
       }
     }
   }
 
+  artifacts.push(...fileArtifacts.values());
   attachments.sort((a, b) => b.at.localeCompare(a.at));
   artifacts.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   return NextResponse.json({ attachments, artifacts });

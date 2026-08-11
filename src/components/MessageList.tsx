@@ -16,30 +16,15 @@ import {
 import { Message, Attachment } from "@/lib/types";
 import { useHermesStore } from "@/lib/store";
 import { renderMarkdown } from "@/lib/markdown";
+import { extractFilePaths } from "@/lib/file-paths";
 import { PixelMark } from "@/components/PixelMark";
 
 /**
  * Server file paths the agent mentions in a reply (its Drive mount or its
  * own output dir) become download chips, so "the file is at /opt/data/x.docx"
- * is one click instead of a dead end. Path must look like a file (has an
- * extension) and start with a servable root.
+ * is one click instead of a dead end. Detection lives in lib/file-paths so
+ * the project Artifacts tab sees exactly the same files.
  */
-const FILE_PATH_RE =
-  /(?:^|[\s"'`(])((?:\/gdrive|\/opt\/data|\/workspace)\/[^\s"'`()<>]*\.[A-Za-z0-9]{1,8})/g;
-
-/** Hermes' own internals live in /opt/data — never offer those as downloads. */
-const INTERNAL_RE =
-  /^\/opt\/data\/(auth\.json|auth\.lock|custom-\.env|cache\/|audio_cache\/|bin\/|backups\/|memories\/|custom-config\.yaml)/;
-
-function extractFilePaths(text: string): string[] {
-  const found = new Set<string>();
-  for (const m of text.matchAll(FILE_PATH_RE)) {
-    // Trim trailing punctuation that's sentence, not path.
-    const p = m[1].replace(/[.,;:!?]+$/, "");
-    if (!INTERNAL_RE.test(p)) found.add(p);
-  }
-  return [...found].slice(0, 8);
-}
 
 function FileChips({ text }: { text: string }) {
   const paths = useMemo(() => extractFilePaths(text), [text]);
