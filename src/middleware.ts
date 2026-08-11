@@ -12,7 +12,11 @@ import { auth } from "@/auth";
  * outer wall, not a replacement for those.
  */
 
-const PUBLIC_API = [/^\/api\/auth(\/|$)/, /^\/api\/hermes\/health$/];
+const PUBLIC_API = [
+  /^\/api\/auth(\/|$)/,
+  /^\/api\/hermes\/health$/,
+  /^\/api\/server-status$/, // coarse load level for the status bar (pre-login too)
+];
 
 export default auth((req) => {
   // Single-user dev mode: no auth configured, nothing to enforce.
