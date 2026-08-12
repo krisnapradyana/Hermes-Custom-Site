@@ -29,7 +29,6 @@ interface Thumb {
 interface ProjectSummary {
   id: string;
   conversationCount: number;
-  latest: { id: string; title: string; updatedAt: string; by?: string } | null;
   lastActivityAt: string;
   activeNow: boolean;
   thumbs: Thumb[];
@@ -92,14 +91,6 @@ export async function GET() {
       return {
         id: p.id,
         conversationCount: convs.length,
-        latest: latest
-          ? {
-              id: latest.id,
-              title: latest.title,
-              updatedAt: latest.updatedAt,
-              by: latest.createdBy?.name,
-            }
-          : null,
         lastActivityAt,
         activeNow,
         thumbs,

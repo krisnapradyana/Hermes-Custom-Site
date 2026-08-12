@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   Plus,
   FolderKanban,
@@ -13,7 +12,8 @@ import {
   Search,
   ChevronDown,
   ChevronRight,
-  CornerDownRight,
+  ArrowUpDown,
+  Check,
 } from "lucide-react";
 import { useHermesStore } from "@/lib/store";
 import { timeAgo } from "@/lib/format";
@@ -28,7 +28,6 @@ interface Thumb {
 interface Summary {
   id: string;
   conversationCount: number;
-  latest: { id: string; title: string; updatedAt: string; by?: string } | null;
   lastActivityAt: string;
   activeNow: boolean;
   thumbs: Thumb[];
@@ -36,6 +35,24 @@ interface Summary {
 
 const GROUP_MIN = 8; // fewer projects than this → flat grid, no month headers
 const COLLAPSE_KEY = "hermes-proj-collapsed";
+const SORT_KEY = "hermes-proj-sort";
+
+type ProjSort =
+  | "created-desc"
+  | "created-asc"
+  | "name-asc"
+  | "name-desc"
+  | "edited-desc"
+  | "edited-asc";
+
+const SORT_OPTIONS: { id: ProjSort; label: string }[] = [
+  { id: "created-desc", label: "Created · newest" },
+  { id: "created-asc", label: "Created · oldest" },
+  { id: "edited-desc", label: "Edited · newest" },
+  { id: "edited-asc", label: "Edited · oldest" },
+  { id: "name-asc", label: "Name A–Z" },
+  { id: "name-desc", label: "Name Z–A" },
+];
 
 const monthKey = (iso: string) => iso.slice(0, 7); // "2026-07"
 function monthLabel(key: string): string {
@@ -45,7 +62,6 @@ function monthLabel(key: string): string {
 }
 
 export default function ProjectsPage() {
-  const router = useRouter();
   const projects = useHermesStore((s) => s.projects);
   const chats = useHermesStore((s) => s.chats);
   const createProject = useHermesStore((s) => s.createProject);
@@ -92,6 +108,19 @@ export default function ProjectsPage() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  // ---- sort (remembered) ----
+  const [sort, setSort] = useState<ProjSort>("created-desc");
+  useEffect(() => {
+    const saved = localStorage.getItem(SORT_KEY) as ProjSort | null;
+    if (saved && SORT_OPTIONS.some((o) => o.id === saved)) setSort(saved);
+  }, []);
+  const changeSort = (s: ProjSort) => {
+    setSort(s);
+    try {
+      localStorage.setItem(SORT_KEY, s);
+    } catch {}
+  };
 
   // ---- collapsed month groups (remembered) ----
   const [collapsed, setCollapsed] = useState<string[]>([]);
@@ -142,40 +171,54 @@ export default function ProjectsPage() {
 
   const { flat, groups } = useMemo(() => {
     const q = query.trim().toLowerCase();
-    let list = projects;
+
+    const compare = (a: Project, b: Project): number => {
+      switch (sort) {
+        case "name-asc":
+          return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+        case "name-desc":
+          return b.name.localeCompare(a.name, undefined, { sensitivity: "base" });
+        case "edited-desc":
+          return activity(b).localeCompare(activity(a));
+        case "edited-asc":
+          return activity(a).localeCompare(activity(b));
+        case "created-asc":
+          return a.createdAt.localeCompare(b.createdAt);
+        default:
+          return b.createdAt.localeCompare(a.createdAt);
+      }
+    };
+
     if (q) {
       const matches = (p: Project) =>
         p.name.toLowerCase().includes(q) ||
         p.description.toLowerCase().includes(q) ||
         (p.workingFolder ?? "").toLowerCase().includes(q) ||
         (p.createdBy?.name ?? "").toLowerCase().includes(q);
-      list = projects.filter(matches);
-      // Name hits first, then everything else; recent activity inside each band.
+      // Name hits first, then everything else; chosen sort inside each band.
       const band = (p: Project) => (p.name.toLowerCase().includes(q) ? 0 : 1);
-      const sorted = [...list].sort(
-        (a, b) => band(a) - band(b) || activity(b).localeCompare(activity(a))
-      );
+      const sorted = projects.filter(matches).sort((a, b) => band(a) - band(b) || compare(a, b));
       return { flat: sorted, groups: null };
     }
-    if (projects.length < GROUP_MIN) {
-      return {
-        flat: [...projects].sort((a, b) => activity(b).localeCompare(activity(a))),
-        groups: null,
-      };
+
+    // Month headers only make sense when ordering by creation date; name and
+    // edited sorts render one flat, fully sorted grid.
+    const grouped = sort.startsWith("created") && projects.length >= GROUP_MIN;
+    if (!grouped) {
+      return { flat: [...projects].sort(compare), groups: null };
     }
+
     const byMonth = new Map<string, Project[]>();
     for (const p of projects) {
       const key = monthKey(p.createdAt);
       byMonth.set(key, [...(byMonth.get(key) ?? []), p]);
     }
+    const dir = sort === "created-asc" ? 1 : -1;
     const groups = [...byMonth.entries()]
-      .sort((a, b) => b[0].localeCompare(a[0]))
-      .map(([key, items]) => ({
-        key,
-        items: items.sort((a, b) => activity(b).localeCompare(activity(a))),
-      }));
+      .sort((a, b) => dir * a[0].localeCompare(b[0]))
+      .map(([key, items]) => ({ key, items: items.sort(compare) }));
     return { flat: null, groups };
-  }, [projects, query, activity]);
+  }, [projects, query, activity, sort]);
 
   const renderCard = (p: Project) => {
     const s = summaries[p.id];
@@ -243,21 +286,6 @@ export default function ProjectsPage() {
               by {p.createdBy.name}
             </div>
           )}
-          {s?.latest && (
-            <span
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                router.push(`/conversation/${s.latest!.id}`);
-              }}
-              className="mt-2 flex items-center gap-1.5 text-[12px] text-accent hover:underline truncate"
-              title={`Continue: ${s.latest.title}`}
-            >
-              <CornerDownRight size={11} className="shrink-0" />
-              <span className="truncate">“{s.latest.title}”</span>
-              <span className="text-ink-faint shrink-0">· {timeAgo(s.latest.updatedAt)}</span>
-            </span>
-          )}
         </Link>
       </div>
     );
@@ -281,15 +309,18 @@ export default function ProjectsPage() {
         </button>
       </div>
 
-      <div className="relative mb-8">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint" />
-        <input
-          ref={searchRef}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search projects — name, folder, or who made it…  ( / )"
-          className="w-full rounded-lg border border-line bg-card pl-9 pr-3 py-2 text-sm outline-none focus:border-ink-faint"
-        />
+      <div className="flex items-center gap-2 mb-8">
+        <div className="relative flex-1">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint" />
+          <input
+            ref={searchRef}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search projects — name, folder, or who made it…  ( / )"
+            className="w-full rounded-lg border border-line bg-card pl-9 pr-3 py-2 text-sm outline-none focus:border-ink-faint"
+          />
+        </div>
+        <ProjectSortMenu value={sort} onChange={changeSort} />
       </div>
 
       {showForm && (
@@ -402,6 +433,62 @@ export default function ProjectsPage() {
           }}
           onCancel={() => setDeleteTarget(null)}
         />
+      )}
+    </div>
+  );
+}
+
+function ProjectSortMenu({
+  value,
+  onChange,
+}: {
+  value: ProjSort;
+  onChange: (s: ProjSort) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const boxRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  const current = SORT_OPTIONS.find((o) => o.id === value) ?? SORT_OPTIONS[0];
+
+  return (
+    <div ref={boxRef} className="relative shrink-0">
+      <button
+        onClick={() => setOpen(!open)}
+        className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition-colors ${
+          open
+            ? "border-ink-faint text-ink"
+            : "border-line text-ink-soft hover:border-ink-faint hover:text-ink"
+        }`}
+        title={`Sort: ${current.label}`}
+      >
+        <ArrowUpDown size={13} />
+        <span className="hidden sm:inline">{current.label}</span>
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-50 w-48 rounded-xl border border-line bg-card p-1.5 shadow-lg">
+          {SORT_OPTIONS.map((o) => (
+            <button
+              key={o.id}
+              onClick={() => {
+                onChange(o.id);
+                setOpen(false);
+              }}
+              className="w-full flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-[13px] text-left hover:bg-parchment-dark"
+            >
+              <span>{o.label}</span>
+              {o.id === value && <Check size={13} className="text-accent shrink-0" />}
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );
