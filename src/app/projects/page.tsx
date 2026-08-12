@@ -14,11 +14,13 @@ import {
   ChevronRight,
   ArrowUpDown,
   Check,
+  X,
 } from "lucide-react";
 import { useHermesStore } from "@/lib/store";
 import { timeAgo } from "@/lib/format";
 import { ConfirmDeleteModal } from "@/components/ConfirmDeleteModal";
 import { ServerFolderPicker } from "@/components/ServerFolderPicker";
+import { ProjectCalendar, localDateKey } from "@/components/ProjectCalendar";
 import { Project } from "@/lib/types";
 
 interface Thumb {
@@ -117,6 +119,17 @@ export default function ProjectsPage() {
     } catch {}
   };
 
+  // ---- calendar date filter (temporary — not persisted) ----
+  const [dateFilter, setDateFilter] = useState<string | null>(null);
+  const projectDates = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of projects) {
+      const key = localDateKey(p.createdAt);
+      map.set(key, (map.get(key) ?? 0) + 1);
+    }
+    return map;
+  }, [projects]);
+
   // ---- collapsed month groups (remembered) ----
   const [collapsed, setCollapsed] = useState<string[]>([]);
   useEffect(() => {
@@ -184,6 +197,11 @@ export default function ProjectsPage() {
       }
     };
 
+    // Calendar filter narrows everything else down to one creation day.
+    const base = dateFilter
+      ? projects.filter((p) => localDateKey(p.createdAt) === dateFilter)
+      : projects;
+
     if (q) {
       const matches = (p: Project) =>
         p.name.toLowerCase().includes(q) ||
@@ -192,19 +210,19 @@ export default function ProjectsPage() {
         (p.createdBy?.name ?? "").toLowerCase().includes(q);
       // Name hits first, then everything else; chosen sort inside each band.
       const band = (p: Project) => (p.name.toLowerCase().includes(q) ? 0 : 1);
-      const sorted = projects.filter(matches).sort((a, b) => band(a) - band(b) || compare(a, b));
+      const sorted = base.filter(matches).sort((a, b) => band(a) - band(b) || compare(a, b));
       return { flat: sorted, groups: null };
     }
 
     // Month headers only make sense when ordering by creation date; name and
-    // edited sorts render one flat, fully sorted grid.
-    const grouped = sort.startsWith("created") && projects.length >= GROUP_MIN;
+    // edited sorts (and a one-day filter) render one flat, fully sorted grid.
+    const grouped = !dateFilter && sort.startsWith("created") && base.length >= GROUP_MIN;
     if (!grouped) {
-      return { flat: [...projects].sort(compare), groups: null };
+      return { flat: [...base].sort(compare), groups: null };
     }
 
     const byMonth = new Map<string, Project[]>();
-    for (const p of projects) {
+    for (const p of base) {
       const key = monthKey(p.createdAt);
       byMonth.set(key, [...(byMonth.get(key) ?? []), p]);
     }
@@ -213,7 +231,7 @@ export default function ProjectsPage() {
       .sort((a, b) => dir * a[0].localeCompare(b[0]))
       .map(([key, items]) => ({ key, items: items.sort(compare) }));
     return { flat: null, groups };
-  }, [projects, query, activity, sort]);
+  }, [projects, query, activity, sort, dateFilter]);
 
   const renderCard = (p: Project) => {
     const s = summaries[p.id];
@@ -288,150 +306,182 @@ export default function ProjectsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl px-8 py-10">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="font-serif-display text-3xl mb-1">Projects</h1>
-          <p className="text-sm text-ink-soft">
-            Group conversations and artifacts around a shared context.
-          </p>
-        </div>
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-sm font-medium text-white hover:bg-accent-hover transition-colors"
-        >
-          <Plus size={15} />
-          New project
-        </button>
-      </div>
-
-      <div className="flex items-center gap-2 mb-8">
-        <div className="relative flex-1">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint" />
-          <input
-            ref={searchRef}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search projects — name, folder, or who made it…  ( / )"
-            className="w-full rounded-lg border border-line bg-card pl-9 pr-3 py-2 text-sm outline-none focus:border-ink-faint"
-          />
-        </div>
-        <ProjectSortMenu value={sort} onChange={changeSort} />
-      </div>
-
-      {showForm && (
-        <div className="mb-8 rounded-xl border border-line bg-card p-5 space-y-3">
-          <input
-            autoFocus
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Project name"
-            className="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:border-ink-faint"
-          />
-          <input
-            value={desc}
-            onChange={(e) => setDesc(e.target.value)}
-            placeholder="What is this project about?"
-            className="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:border-ink-faint"
-          />
-          <div>
-            <p className="text-sm font-medium mb-1.5">Working folder</p>
-            <div className="flex items-center gap-2">
-              <div className="flex-1 rounded-lg border border-line bg-transparent px-3 py-2 text-sm font-mono truncate text-ink-soft">
-                {workingFolder || <span className="text-ink-faint">No folder chosen</span>}
-              </div>
-              <button
-                onClick={() => setPicking(true)}
-                className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-sm text-ink-soft hover:border-ink-faint hover:text-ink shrink-0"
-              >
-                <HardDrive size={14} /> Browse
-              </button>
+    <div className="flex h-full">
+      <div className="flex-1 min-w-0 overflow-y-auto">
+        <div className="mx-auto max-w-4xl px-8 py-10">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="font-serif-display text-3xl mb-1">Projects</h1>
+              <p className="text-sm text-ink-soft">
+                Group conversations and artifacts around a shared context.
+              </p>
             </div>
-            <p className="mt-1 text-[11px] text-ink-faint">
-              Pick a folder from the shared Drive — the assistant reads and saves files there.
-            </p>
-          </div>
-          <div className="flex gap-2 pt-1">
             <button
-              onClick={handleCreate}
-              disabled={!canCreate || creating}
-              className="rounded-lg bg-accent px-3.5 py-1.5 text-sm text-white hover:bg-accent-hover disabled:opacity-40"
+              onClick={() => setShowForm(true)}
+              className="flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-sm font-medium text-white hover:bg-accent-hover transition-colors"
             >
-              {creating ? "Creating…" : "Create"}
-            </button>
-            <button
-              onClick={() => setShowForm(false)}
-              className="rounded-lg px-3.5 py-1.5 text-sm text-ink-soft hover:bg-parchment-dark"
-            >
-              Cancel
+              <Plus size={15} />
+              New project
             </button>
           </div>
-        </div>
-      )}
 
-      {picking && (
-        <ServerFolderPicker
-          onPick={(p) => {
-            setWorkingFolder(p);
-            setPicking(false);
-          }}
-          onCancel={() => setPicking(false)}
-        />
-      )}
-
-      {flat && flat.length === 0 && (
-        <p className="text-sm text-ink-faint text-center py-10">
-          {query ? "No projects match." : "No projects yet — create the first one."}
-        </p>
-      )}
-
-      {flat && flat.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">{flat.map(renderCard)}</div>
-      )}
-
-      {groups &&
-        groups.map(({ key, items }) => {
-          const isCollapsed = collapsed.includes(key);
-          return (
-            <section key={key} className="mb-6">
+          <div className="flex items-center gap-2 mb-8">
+            <div className="relative flex-1">
+              <Search
+                size={14}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint"
+              />
+              <input
+                ref={searchRef}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search projects — name, folder, or who made it…  ( / )"
+                className="w-full rounded-lg border border-line bg-card pl-9 pr-3 py-2 text-sm outline-none focus:border-ink-faint"
+              />
+            </div>
+            {dateFilter ? (
               <button
-                onClick={() => toggleGroup(key)}
-                className="sticky top-0 z-10 w-full flex items-center gap-2 bg-parchment/90 backdrop-blur py-2 text-left"
+                onClick={() => setDateFilter(null)}
+                className="flex items-center gap-1.5 rounded-lg border border-accent bg-accent-soft px-3 py-2 text-sm text-accent hover:bg-accent hover:text-white transition-colors shrink-0"
+                title="Show all projects again"
               >
-                {isCollapsed ? (
-                  <ChevronRight size={14} className="text-ink-faint" />
-                ) : (
-                  <ChevronDown size={14} className="text-ink-faint" />
-                )}
-                <span className="text-sm font-medium">{monthLabel(key)}</span>
-                <span className="text-[11px] text-ink-faint">
-                  {items.length} project{items.length === 1 ? "" : "s"}
-                </span>
+                <X size={13} />
+                Remove filter · {fmtDateFilter(dateFilter)}
               </button>
-              {!isCollapsed && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
-                  {items.map(renderCard)}
-                </div>
-              )}
-            </section>
-          );
-        })}
+            ) : (
+              <ProjectSortMenu value={sort} onChange={changeSort} />
+            )}
+          </div>
 
-      {deleteTarget && (
-        <ConfirmDeleteModal
-          title={`Delete "${deleteTarget.name}"?`}
-          description={`This permanently removes the project, its ${
-            chats.filter((c) => c.projectId === deleteTarget.id).length
-          } conversation(s), and their artifacts. Files in the working folder on disk are NOT touched.`}
-          onConfirm={() => {
-            deleteProject(deleteTarget.id);
-            setDeleteTarget(null);
-          }}
-          onCancel={() => setDeleteTarget(null)}
-        />
-      )}
+          {showForm && (
+            <div className="mb-8 rounded-xl border border-line bg-card p-5 space-y-3">
+              <input
+                autoFocus
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Project name"
+                className="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:border-ink-faint"
+              />
+              <input
+                value={desc}
+                onChange={(e) => setDesc(e.target.value)}
+                placeholder="What is this project about?"
+                className="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:border-ink-faint"
+              />
+              <div>
+                <p className="text-sm font-medium mb-1.5">Working folder</p>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 rounded-lg border border-line bg-transparent px-3 py-2 text-sm font-mono truncate text-ink-soft">
+                    {workingFolder || <span className="text-ink-faint">No folder chosen</span>}
+                  </div>
+                  <button
+                    onClick={() => setPicking(true)}
+                    className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-sm text-ink-soft hover:border-ink-faint hover:text-ink shrink-0"
+                  >
+                    <HardDrive size={14} /> Browse
+                  </button>
+                </div>
+                <p className="mt-1 text-[11px] text-ink-faint">
+                  Pick a folder from the shared Drive — the assistant reads and saves files there.
+                </p>
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={handleCreate}
+                  disabled={!canCreate || creating}
+                  className="rounded-lg bg-accent px-3.5 py-1.5 text-sm text-white hover:bg-accent-hover disabled:opacity-40"
+                >
+                  {creating ? "Creating…" : "Create"}
+                </button>
+                <button
+                  onClick={() => setShowForm(false)}
+                  className="rounded-lg px-3.5 py-1.5 text-sm text-ink-soft hover:bg-parchment-dark"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {picking && (
+            <ServerFolderPicker
+              onPick={(p) => {
+                setWorkingFolder(p);
+                setPicking(false);
+              }}
+              onCancel={() => setPicking(false)}
+            />
+          )}
+
+          {flat && flat.length === 0 && (
+            <p className="text-sm text-ink-faint text-center py-10">
+              {query ? "No projects match." : "No projects yet — create the first one."}
+            </p>
+          )}
+
+          {flat && flat.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">{flat.map(renderCard)}</div>
+          )}
+
+          {groups &&
+            groups.map(({ key, items }) => {
+              const isCollapsed = collapsed.includes(key);
+              return (
+                <section key={key} className="mb-6">
+                  <button
+                    onClick={() => toggleGroup(key)}
+                    className="sticky top-0 z-10 w-full flex items-center gap-2 bg-parchment/90 backdrop-blur py-2 text-left"
+                  >
+                    {isCollapsed ? (
+                      <ChevronRight size={14} className="text-ink-faint" />
+                    ) : (
+                      <ChevronDown size={14} className="text-ink-faint" />
+                    )}
+                    <span className="text-sm font-medium">{monthLabel(key)}</span>
+                    <span className="text-[11px] text-ink-faint">
+                      {items.length} project{items.length === 1 ? "" : "s"}
+                    </span>
+                  </button>
+                  {!isCollapsed && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
+                      {items.map(renderCard)}
+                    </div>
+                  )}
+                </section>
+              );
+            })}
+
+          {deleteTarget && (
+            <ConfirmDeleteModal
+              title={`Delete "${deleteTarget.name}"?`}
+              description={`This permanently removes the project, its ${
+                chats.filter((c) => c.projectId === deleteTarget.id).length
+              } conversation(s), and their artifacts. Files in the working folder on disk are NOT touched.`}
+              onConfirm={() => {
+                deleteProject(deleteTarget.id);
+                setDeleteTarget(null);
+              }}
+              onCancel={() => setDeleteTarget(null)}
+            />
+          )}
+        </div>
+      </div>
+      <aside className="hidden lg:block w-72 shrink-0 border-l border-line">
+        <ProjectCalendar dates={projectDates} selected={dateFilter} onSelect={setDateFilter} />
+      </aside>
     </div>
   );
+}
+
+/** "2026-08-30" → "Aug 30" (or "Aug 30, 2025" if not this year), local time. */
+function fmtDateFilter(key: string): string {
+  const [y, m, d] = key.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  const opts: Intl.DateTimeFormatOptions =
+    y === new Date().getFullYear()
+      ? { month: "short", day: "numeric" }
+      : { month: "short", day: "numeric", year: "numeric" };
+  return date.toLocaleDateString(undefined, opts);
 }
 
 function ProjectSortMenu({
