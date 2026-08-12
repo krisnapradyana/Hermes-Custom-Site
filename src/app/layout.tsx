@@ -3,6 +3,7 @@ import "./globals.css";
 import { Sidebar } from "@/components/Sidebar";
 import { Providers, AuthGate } from "@/components/Providers";
 import { StatusBar } from "@/components/StatusBar";
+import { UpdateGuard } from "@/components/UpdateGuard";
 
 export const metadata: Metadata = {
   title: "SuperPixel Assistant",
@@ -22,6 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="antialiased">
         <Providers>
+          <UpdateGuard />
           <AuthGate>
             <div className="flex flex-col h-screen overflow-hidden">
               <div className="flex flex-1 min-h-0">

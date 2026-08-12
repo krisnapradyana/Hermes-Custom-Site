@@ -16,6 +16,7 @@ const PUBLIC_API = [
   /^\/api\/auth(\/|$)/,
   /^\/api\/hermes\/health$/,
   /^\/api\/server-status$/, // coarse load level for the status bar (pre-login too)
+  /^\/api\/version$/, // deploy beacon — stale tabs must see it even with a dead session
 ];
 
 export default auth((req) => {

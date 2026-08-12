@@ -29,6 +29,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<ApiResult<T
       }
     }
     if (!res.ok) {
+      // Expired session: every call quietly 401s and pages sit on "Loading…"
+      // forever. Tell UpdateGuard so it can show the sign-in banner.
+      if (res.status === 401 && typeof window !== "undefined") {
+        window.dispatchEvent(new Event("spx:unauthorized"));
+      }
       const err =
         (parsed && typeof parsed === "object" && "error" in parsed
           ? String((parsed as { error?: unknown }).error)
