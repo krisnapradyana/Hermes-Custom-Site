@@ -129,6 +129,7 @@ function ArtifactsContent() {
               </IconButton>
               {open.chatId && (
                 <Link
+                  prefetch={false}
                   href={`/chat/${open.chatId}`}
                   className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
                   title="Open source conversation"

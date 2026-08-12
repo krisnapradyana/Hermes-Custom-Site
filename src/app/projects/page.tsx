@@ -38,12 +38,7 @@ const COLLAPSE_KEY = "hermes-proj-collapsed";
 const SORT_KEY = "hermes-proj-sort";
 
 type ProjSort =
-  | "created-desc"
-  | "created-asc"
-  | "name-asc"
-  | "name-desc"
-  | "edited-desc"
-  | "edited-asc";
+  "created-desc" | "created-asc" | "name-asc" | "name-desc" | "edited-desc" | "edited-asc";
 
 const SORT_OPTIONS: { id: ProjSort; label: string }[] = [
   { id: "created-desc", label: "Created · newest" },
@@ -233,6 +228,7 @@ export default function ProjectsPage() {
           <Trash2 size={15} />
         </button>
         <Link
+          prefetch={false}
           href={`/projects/${p.id}`}
           className="block rounded-xl border border-line bg-card p-5 hover:border-ink-faint transition-colors"
         >

@@ -171,6 +171,7 @@ export function MessageList({
                   </button>
                 ) : (
                   <Link
+                    prefetch={false}
                     href={`/artifacts?open=${artifact.id}`}
                     className="mt-3 flex items-center gap-3 rounded-xl border border-line bg-card px-3.5 py-2.5 hover:border-ink-faint transition-colors max-w-sm"
                   >

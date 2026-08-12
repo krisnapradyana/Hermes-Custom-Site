@@ -100,6 +100,7 @@ export function Sidebar() {
           <ChevronRight size={16} />
         </IconButton>
         <Link
+          prefetch={false}
           href="/"
           className="p-2 rounded-lg hover:bg-parchment-dark text-accent"
           title="New chat"
@@ -107,6 +108,7 @@ export function Sidebar() {
           <PenSquare size={16} />
         </Link>
         <Link
+          prefetch={false}
           href="/projects"
           className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
           title="Projects"
@@ -114,6 +116,7 @@ export function Sidebar() {
           <FolderKanban size={16} />
         </Link>
         <Link
+          prefetch={false}
           href="/artifacts"
           className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
           title="Artifacts"
@@ -121,6 +124,7 @@ export function Sidebar() {
           <Package size={16} />
         </Link>
         <Link
+          prefetch={false}
           href="/attachments"
           className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
           title="Attachments"
@@ -135,6 +139,7 @@ export function Sidebar() {
           <Clock size={16} />
         </span>
         <Link
+          prefetch={false}
           href="/history"
           className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
           title="Agent history"
@@ -149,6 +154,7 @@ export function Sidebar() {
     const active = pathname === href || (href !== "/" && pathname.startsWith(href));
     return (
       <Link
+        prefetch={false}
         href={href}
         className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-sm transition-colors ${
           active
@@ -167,7 +173,7 @@ export function Sidebar() {
       <aside className="shrink-0 border-r border-line bg-sidebar flex flex-col" style={{ width }}>
         {/* Header */}
         <div className="flex items-center justify-between px-4 pt-4 pb-2">
-          <Link href="/" className="min-w-0">
+          <Link prefetch={false} href="/" className="min-w-0">
             <BrandMark size={22} />
           </Link>
           <button
@@ -358,6 +364,7 @@ function ChatLink({
   return (
     <div className="relative group">
       <Link
+        prefetch={false}
         href={`/chat/${id}`}
         className={`block px-2.5 py-1.5 rounded-lg transition-colors ${
           active ? "bg-parchment-dark" : "hover:bg-parchment-dark"

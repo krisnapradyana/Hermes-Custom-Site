@@ -100,6 +100,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         <div className="mx-auto max-w-4xl px-8 py-10">
           <div className="flex items-center justify-between mb-6">
             <Link
+              prefetch={false}
               href="/projects"
               className="inline-flex items-center gap-1.5 text-sm text-ink-soft hover:text-ink"
             >
@@ -235,6 +236,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               <div className="space-y-2 mb-10">
                 {conversations.map((c) => (
                   <Link
+                    prefetch={false}
                     key={c.id}
                     href={`/conversation/${c.id}`}
                     className="block rounded-xl border border-line bg-card px-4 py-3 hover:border-ink-faint transition-colors"
@@ -278,6 +280,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               <p className="text-sm font-medium truncate">{openAtt.name}</p>
               <div className="flex items-center gap-1">
                 <Link
+                  prefetch={false}
                   href={`/conversation/${openAtt.conversationId}`}
                   className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
                   title="Open conversation"
@@ -309,6 +312,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               <p className="text-sm font-medium truncate">{openArt.title}</p>
               <div className="flex items-center gap-1">
                 <Link
+                  prefetch={false}
                   href={`/conversation/${openArt.conversationId}`}
                   className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
                   title="Open conversation"

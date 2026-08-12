@@ -81,6 +81,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
                 <h1 className="text-[15px] font-medium truncate">{chat.title}</h1>
                 {project && (
                   <Link
+                    prefetch={false}
                     href={`/projects/${project.id}`}
                     className="inline-flex items-center gap-1 text-[11px] text-ink-faint hover:text-ink-soft"
                   >

@@ -135,6 +135,7 @@ export default function AttachmentsPage() {
             </div>
             <div className="flex items-center gap-1">
               <Link
+                prefetch={false}
                 href={`/chat/${open.chatId}`}
                 className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
                 title="Open source conversation"
