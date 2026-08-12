@@ -3,6 +3,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import { requireUser } from "@/lib/user-key";
 import { isAllowedRoot, resolveSafe } from "@/lib/fs-access";
+import { mapLimit, withDriveTimeout, isDriveTimeout } from "@/lib/fs-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -52,12 +53,13 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const dirents = await fs.readdir(full, { withFileTypes: true });
-    const entries = await Promise.all(
-      dirents
-        .slice(0, 500)
-        .filter((d) => !d.name.startsWith("."))
-        .map(async (d): Promise<Entry> => {
+    // Concurrency-capped (a cold listing must never hog the whole libuv
+    // threadpool) and time-boxed (a dead mount answers 503, not a hang).
+    const entries = await withDriveTimeout(
+      (async () => {
+        const dirents = await fs.readdir(full, { withFileTypes: true });
+        const visible = dirents.slice(0, 500).filter((d) => !d.name.startsWith("."));
+        return mapLimit(visible, 8, async (d): Promise<Entry> => {
           let size: number | undefined;
           let mtime: string | undefined;
           try {
@@ -66,14 +68,21 @@ export async function POST(req: NextRequest) {
             mtime = st.mtime.toISOString();
           } catch {}
           return { name: d.name, isDir: d.isDirectory(), size, mtime };
-        })
+        });
+      })()
     );
     entries.sort((a, b) => (a.isDir === b.isDir ? a.name.localeCompare(b.name) : a.isDir ? -1 : 1));
 
     if (cache.size > 300) cache.clear(); // crude but sufficient bound
     cache.set(full, { at: Date.now(), entries });
     return NextResponse.json({ entries });
-  } catch {
+  } catch (err) {
+    if (isDriveTimeout(err)) {
+      return NextResponse.json(
+        { error: "Drive is responding slowly — try again in a moment" },
+        { status: 503 }
+      );
+    }
     return NextResponse.json({ error: "Could not read folder" }, { status: 404 });
   }
 }
