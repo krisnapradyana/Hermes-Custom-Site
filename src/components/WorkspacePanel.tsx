@@ -13,6 +13,7 @@ import {
   Home,
   ListChecks,
   Download,
+  Loader2,
 } from "lucide-react";
 import { Project } from "@/lib/types";
 import { api } from "@/lib/api";
@@ -84,13 +85,19 @@ export function WorkspacePanel({ project }: { project: Project }) {
   );
 
   const inFlight = useRef(false);
+  const [reconnecting, setReconnecting] = useState(false);
   const list = useCallback(
-    async (silent = false) => {
+    async (silent = false, fresh = false) => {
       if (!root || inFlight.current) return; // skip overlapping polls
       inFlight.current = true;
       if (!silent) setEntries(null);
       setError("");
-      const res = await api.post<{ entries: Entry[] }>("/api/fs/list", { root, sub: cwd });
+      // A silent refresh that takes noticeable time (cold Drive cache after
+      // the tab slept) gets a visible "reconnecting" overlay so slow ≠ broken.
+      const slowTimer = silent ? setTimeout(() => setReconnecting(true), 600) : undefined;
+      const res = await api.post<{ entries: Entry[] }>("/api/fs/list", { root, sub: cwd, fresh });
+      if (slowTimer) clearTimeout(slowTimer);
+      setReconnecting(false);
       if (!res.ok) setError(res.error);
       else setEntries(res.data.entries);
       inFlight.current = false;
@@ -276,7 +283,7 @@ export function WorkspacePanel({ project }: { project: Project }) {
               <button
                 onClick={() => {
                   progressSig.current = "";
-                  list();
+                  list(false, true);
                 }}
                 className="px-1 py-1 text-[12px] text-ink-faint hover:text-ink transition-colors"
                 title="Reload this folder"
@@ -332,7 +339,15 @@ export function WorkspacePanel({ project }: { project: Project }) {
             <p className="px-3 py-2 text-[13px] text-ink-faint">Empty folder.</p>
           )}
 
-          <div className="px-1.5 py-1">
+          {/* Stale list stays visible but dimmed while a slow wake-refresh runs. */}
+          {reconnecting && (
+            <div className="sticky top-0 z-10 mx-3 mb-1 flex items-center gap-2 rounded-lg border border-line bg-card/90 backdrop-blur px-3 py-1.5">
+              <Loader2 size={13} className="animate-spin text-accent shrink-0" />
+              <span className="text-[12px] text-ink-soft">Reconnecting to Drive…</span>
+            </div>
+          )}
+
+          <div className={`px-1.5 py-1 ${reconnecting ? "opacity-50 pointer-events-none" : ""}`}>
             {entries
               ?.slice()
               // Folders always group before files; the chosen sort applies inside each group.

@@ -79,9 +79,15 @@ rclone ls "gdrive:RND - PixelLab" | head
 sudo mkdir -p /gdrive && sudo chown $USER /gdrive
 rclone mount gdrive: /gdrive \
   --vfs-cache-mode full --vfs-cache-max-size 20G --vfs-cache-max-age 24h \
-  --dir-cache-time 10s --poll-interval 15s &
+  --dir-cache-time 720h --poll-interval 15s &
 ls /gdrive        # should list SUPERPIXEL, RND - PixelLab, etc.
 ```
+
+> `--dir-cache-time` is deliberately LONG. Freshness comes from
+> `--poll-interval 15s`: rclone subscribes to Drive change notifications and
+> invalidates exactly what changed, so listings stay warm forever yet reflect
+> teammates' edits within ~15s. A short dir-cache-time (we once shipped 10s
+> here) makes every folder go cold constantly and floods the Drive API.
 
 Make it permanent (systemd) and enable FUSE `allow_other` — same as before:
 ```bash
@@ -96,7 +102,7 @@ Type=notify
 User=krisnapradyana
 ExecStart=/usr/bin/rclone mount gdrive: /gdrive \
   --vfs-cache-mode full --vfs-cache-max-size 20G --vfs-cache-max-age 24h \
-  --dir-cache-time 10s --poll-interval 15s --allow-other
+  --dir-cache-time 720h --poll-interval 15s --allow-other
 ExecStop=/bin/fusermount -u /gdrive
 Restart=on-failure
 RestartSec=10
