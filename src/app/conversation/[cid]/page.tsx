@@ -14,6 +14,8 @@ import {
   turnErrorMessage,
   abortControllers,
   stopTurn,
+  extractChatTitle,
+  stripTitleForDisplay,
 } from "@/lib/send-turn";
 import { uid } from "@/lib/uid";
 import { api } from "@/lib/api";
@@ -141,8 +143,9 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
     persist([...messages, storedUser], messages.length === 0 ? content : undefined);
 
     // Shared context builder — "@" mentions become absolute paths the agent
-    // reads straight from the mounted Drive (nothing is uploaded).
-    const context = buildAgentContext(project, mentions);
+    // reads straight from the mounted Drive (nothing is uploaded). First turn
+    // also asks the agent to name the conversation (tag stripped on arrival).
+    const context = buildAgentContext(project, mentions, messages.length === 0);
 
     const controller = new AbortController();
     abortControllers.set(cid, controller);
@@ -164,7 +167,7 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
         cid,
         (st) =>
           patch({
-            content: st.content,
+            content: stripTitleForDisplay(st.content),
             thinking: st.thinking,
             status: st.status,
             idleMs: st.idleMs,
@@ -174,11 +177,14 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
         conv.projectId,
         controller.signal
       );
+      // First turn: lift the agent's trailing title tag into the
+      // conversation name; the visible reply never contains it.
+      const { content: cleanContent, title: agentTitle } = extractChatTitle(final.content);
       const done = withUser.map((m) =>
         m.id === asstId
           ? {
               ...m,
-              content: final.content,
+              content: cleanContent,
               thinking: final.thinking,
               status: undefined,
               idleMs: undefined,
@@ -187,7 +193,8 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
           : m
       );
       setMessages(done);
-      await persist(done);
+      await persist(done, agentTitle);
+      if (agentTitle) setConv((c) => (c ? { ...c, title: agentTitle } : c));
       endLive(cid, done);
     } catch (err) {
       const stopped = err instanceof StoppedError;

@@ -13,6 +13,8 @@ import {
   attachmentMeta,
   turnErrorMessage,
   abortControllers,
+  extractChatTitle,
+  stripTitleForDisplay,
 } from "./send-turn";
 
 /**
@@ -235,7 +237,7 @@ export const useHermesStore = create<HermesState>()(
         const project = chat?.projectId
           ? get().projects.find((p) => p.id === chat.projectId)
           : undefined;
-        const context = buildAgentContext(project);
+        const context = buildAgentContext(project, undefined, priorHistory.length === 0);
 
         // Register an abort handle so the UI can stop this turn.
         const controller = new AbortController();
@@ -248,7 +250,7 @@ export const useHermesStore = create<HermesState>()(
           chatId,
           (state) =>
             patchAsst({
-              content: state.content,
+              content: stripTitleForDisplay(state.content),
               thinking: state.thinking,
               status: state.status,
               idleMs: state.idleMs,
@@ -280,16 +282,19 @@ export const useHermesStore = create<HermesState>()(
           })
           .then((final) => {
             if (!final) return;
+            // First turn: the agent names the chat via a trailing tag (see
+            // send-turn.ts) — strip it from the reply, use it as the title.
+            const { content: cleanContent, title } = extractChatTitle(final.content);
             // Promote substantial code blocks in the reply to artifacts.
             const newArtifacts = extractArtifacts(
-              final.content,
+              cleanContent,
               chatId,
-              chat?.title ?? "Conversation",
+              title ?? chat?.title ?? "Conversation",
               () => uid("art")
             );
             const doneAt = new Date().toISOString();
             patchAsst({
-              content: final.content,
+              content: cleanContent,
               thinking: final.thinking,
               artifactId: newArtifacts[0]?.id,
               status: undefined,
@@ -301,6 +306,7 @@ export const useHermesStore = create<HermesState>()(
               artifacts: [...s.artifacts, ...newArtifacts],
               chats: s.chats.map((c) => (c.id === chatId ? { ...c, updatedAt: doneAt } : c)),
             }));
+            if (title) get().renameChat(chatId, title);
             saveThisChat();
           })
           .finally(() => abortControllers.delete(chatId));
