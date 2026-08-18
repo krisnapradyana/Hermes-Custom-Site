@@ -7,16 +7,16 @@
 ## ARCHITECTURE UPDATE (2026-08-18) — two apps
 
 The member surface is now a SEPARATE app: **Attendee UI** at
-`E:\Projects\Hermes-Custom-Attendee-UI`, served at `/clock` on the same domain
-(Caddy `handle /clock*` → its container; Next `basePath: "/clock"`).
+`E:\Projects\Hermes-Custom-Attendee-UI`, served on its OWN SUBDOMAIN
+(`clock.<domain>` — DuckDNS resolves sub-subdomains to the same IP; Caddy
+routes by hostname with its own cert). No basePath.
 
 - **Attendee UI owns the timeclock data and API** (its own volume). Our
   `withLock` mutex is in-process only, so exactly one app may write sessions —
   single-writer principle.
 - Same Slack OIDC app, extra redirect URI
-  `https://<domain>/clock/api/auth/callback/slack`; custom session cookie name
-  (`attendee.session-token`) so the two apps' cookies never collide on the
-  shared domain.
+  `https://clock.<domain>/api/auth/callback/slack`; cookies carry an
+  "attendee." prefix (host-scoped anyway on the subdomain).
 - The main app's "Team" tab reads sessions server-to-server from the Attendee
   UI container (internal Docker network + `INTERNAL_TOKEN` header).
 - The Attendee UI gets the project list from the main app via
