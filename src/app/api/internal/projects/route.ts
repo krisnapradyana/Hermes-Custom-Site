@@ -22,6 +22,8 @@ export async function GET(req: NextRequest) {
     id: p.id,
     name: p.name,
     color: p.color,
+    // Lets the clock app treat the creator's own projects as "assigned".
+    createdBy: p.createdBy?.slackId,
   }));
   return NextResponse.json({ projects });
 }
