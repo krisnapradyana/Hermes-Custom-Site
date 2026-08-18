@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Users, FolderKanban, Coffee } from "lucide-react";
+import { Users, FolderKanban, Coffee, ChevronDown, ChevronRight, ListChecks } from "lucide-react";
 import { api } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
 
@@ -12,6 +12,14 @@ import { timeAgo } from "@/lib/format";
  * relative-load bar. Data comes from the clock app via /api/team.
  */
 
+interface MemberTask {
+  id: string;
+  projectId: string;
+  title: string;
+  phase?: string;
+  status: "todo" | "doing" | "review" | "revision" | "done";
+}
+
 interface MemberPulse {
   userKey: string;
   name: string;
@@ -20,7 +28,16 @@ interface MemberPulse {
   weekMs: number;
   lastSeen: string | null;
   weekByProject: { projectId: string; ms: number }[];
+  tasks: MemberTask[];
 }
+
+const STATUS_CLS: Record<MemberTask["status"], string> = {
+  todo: "bg-parchment-dark text-ink-soft",
+  doing: "bg-accent-soft text-accent",
+  review: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+  revision: "bg-red-500/10 text-red-500",
+  done: "bg-green-500/15 text-green-600 dark:text-green-400",
+};
 
 interface TeamData {
   members: MemberPulse[];
@@ -40,6 +57,7 @@ const fmtSince = (iso: string): string =>
 export default function TeamPage() {
   const [data, setData] = useState<TeamData | null>(null);
   const [error, setError] = useState("");
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const res = await api.get<TeamData>("/api/team");
@@ -66,7 +84,11 @@ export default function TeamPage() {
 
   const row = (m: MemberPulse) => (
     <div key={m.userKey} className="rounded-xl border border-line bg-card px-4 py-3">
-      <div className="flex items-center gap-3">
+      <div
+        className="flex items-center gap-3 cursor-pointer select-none"
+        onClick={() => setExpanded(expanded === m.userKey ? null : m.userKey)}
+        title="Click for details"
+      >
         {/* status dot */}
         {m.active ? (
           <span className="relative flex h-2.5 w-2.5 shrink-0" title="Working now">
@@ -104,6 +126,11 @@ export default function TeamPage() {
           <p className="text-[13px] font-medium tabular-nums">{fmtH(m.todayMs)}</p>
           <p className="text-[11px] text-ink-faint tabular-nums">{fmtH(m.weekMs)} this week</p>
         </div>
+        {expanded === m.userKey ? (
+          <ChevronDown size={14} className="text-ink-faint shrink-0" />
+        ) : (
+          <ChevronRight size={14} className="text-ink-faint shrink-0" />
+        )}
       </div>
 
       {/* relative weekly load + per-project split */}
@@ -120,6 +147,60 @@ export default function TeamPage() {
                 }}
               />
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Expanded detail — what exactly is this person on. */}
+      {expanded === m.userKey && (
+        <div className="mt-3 pt-3 border-t border-line grid gap-4 sm:grid-cols-2">
+          <div>
+            <h4 className="text-[11px] font-medium uppercase tracking-wide text-ink-faint mb-1.5">
+              Hours this week
+            </h4>
+            {m.weekByProject.length === 0 && (
+              <p className="text-[12px] text-ink-faint">No tracked time this week.</p>
+            )}
+            <div className="space-y-1">
+              {[...m.weekByProject]
+                .sort((a, b) => b.ms - a.ms)
+                .map((w) => (
+                  <div key={w.projectId} className="flex items-center gap-2 text-[12.5px]">
+                    <span
+                      className="w-2 h-2 rounded-full shrink-0"
+                      style={{ backgroundColor: projectColor(w.projectId) }}
+                    />
+                    <span className="flex-1 min-w-0 truncate">{projectName(w.projectId)}</span>
+                    <span className="tabular-nums text-ink-soft shrink-0">{fmtH(w.ms)}</span>
+                  </div>
+                ))}
+            </div>
+          </div>
+          <div>
+            <h4 className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wide text-ink-faint mb-1.5">
+              <ListChecks size={11} />
+              Open tasks · {m.tasks.length}
+            </h4>
+            {m.tasks.length === 0 && (
+              <p className="text-[12px] text-ink-faint">Nothing assigned right now.</p>
+            )}
+            <div className="space-y-1">
+              {m.tasks.map((t) => (
+                <div key={t.id} className="flex items-center gap-2 text-[12.5px]">
+                  <span
+                    className={`rounded-full px-1.5 py-0.5 text-[10px] shrink-0 ${STATUS_CLS[t.status]}`}
+                  >
+                    {t.status}
+                  </span>
+                  <span className="flex-1 min-w-0 truncate" title={t.title}>
+                    {t.title}
+                  </span>
+                  <span className="text-[11px] text-ink-faint truncate max-w-[8rem] shrink-0">
+                    {projectName(t.projectId)}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}

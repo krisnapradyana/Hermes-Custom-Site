@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/user-key";
 import { readProjects } from "@/lib/projects-store";
+import { tasksForAssignee } from "@/lib/tasks-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -62,7 +63,21 @@ export async function GET() {
     projects.map((p) => [p.id, { name: p.name, color: p.color }])
   );
 
-  const body = { members, projects: projectInfo };
+  // Each member's open tasks — powers the expanded "what are they on" view.
+  const withTasks = await Promise.all(
+    members.map(async (m) => ({
+      ...m,
+      tasks: (await tasksForAssignee(m.userKey)).map((t) => ({
+        id: t.id,
+        projectId: t.projectId,
+        title: t.title,
+        phase: t.phase,
+        status: t.status,
+      })),
+    }))
+  );
+
+  const body = { members: withTasks, projects: projectInfo };
   cache = { at: Date.now(), body };
   return NextResponse.json(body);
 }
