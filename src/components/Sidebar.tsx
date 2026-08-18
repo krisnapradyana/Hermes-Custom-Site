@@ -18,6 +18,7 @@ import {
   ChevronRight,
   Search,
   X,
+  Users,
 } from "lucide-react";
 import { useHermesStore } from "@/lib/store";
 import { timeAgo } from "@/lib/format";
@@ -117,6 +118,14 @@ export function Sidebar() {
         </Link>
         <Link
           prefetch={false}
+          href="/team"
+          className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
+          title="Team"
+        >
+          <Users size={16} />
+        </Link>
+        <Link
+          prefetch={false}
           href="/artifacts"
           className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
           title="Artifacts"
@@ -195,6 +204,7 @@ export function Sidebar() {
             New chat
           </button>
           {navItem("/projects", <FolderKanban size={15} />, "Projects")}
+          {navItem("/team", <Users size={15} />, "Team")}
           {navItem("/artifacts", <Package size={15} />, "Artifacts")}
           {navItem("/attachments", <Paperclip size={15} />, "Attachments")}
           {/* Scheduler temporarily disabled — not ready for team use yet. */}

@@ -120,6 +120,31 @@ can see who is working on what right now and how loaded each person is, and
 - Lazy auto-close runs inside every read path (no cron dependency —
   Scheduler is disabled).
 
+## PHASE 2 (built 2026-08-18) — Team Pulse + Tasks
+
+Goal: the PM sees at a glance who is busy / who is not, and assigns tasks so
+iteration is smooth.
+
+- **Team Pulse** — main app `/team` (sidebar "Team"): working members first
+  (green pulse, project, since HH:MM), idle members with last-seen; hours
+  today + this week per person; per-project weekly load bar. Data:
+  `GET /api/timeclock/overview` on the Attendee UI (internal token), bridged
+  by main-app `GET /api/team` (5s cache; `TIMECLOCK_URL` env, default
+  `http://attendee-ui:3000`).
+- **Tasks** — owned by the MAIN app (`data/tasks/<projectId>.json`,
+  `lib/tasks-store.ts`). Lifecycle `todo → doing → review → revision → done`;
+  review→revision carries a feedback note stored on the task. Permissions:
+  anyone signed in creates/assigns; only assignee or creator changes status
+  or deletes. UI: "Tasks" tab in project detail (create + phase + assignee
+  picker fed by /api/team members).
+- **Clock app integration** — `/api/timeclock/me` also returns my open tasks
+  (via main-app internal API `GET /api/internal/tasks?assignee=` and
+  `POST /api/internal/tasks/status`). UI: "My tasks" list; Start = clock into
+  the task's project + mark doing (survives the switch-confirm flow);
+  "To review" hands it to the PM; revision feedback shows on the task.
+- Phases available on tasks: Styleframes, Storyboard, Animatic, Animation,
+  Render, Revisions, On-site, Other — the motion/immersive pipeline.
+
 ## Out of scope for v1 (note in code comments, don't build)
 
 - Per-role permissions / manager allowlist (project `createdBy` field exists

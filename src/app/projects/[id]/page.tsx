@@ -3,7 +3,15 @@
 import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, FolderKanban, HardDrive, PanelRight, User, MessageSquare } from "lucide-react";
+import {
+  ArrowLeft,
+  FolderKanban,
+  HardDrive,
+  PanelRight,
+  User,
+  MessageSquare,
+  ListChecks,
+} from "lucide-react";
 import { useHermesStore } from "@/lib/store";
 import { timeAgo } from "@/lib/format";
 import { api } from "@/lib/api";
@@ -15,8 +23,9 @@ import { ConversationMeta, Attachment, Artifact } from "@/lib/types";
 import { Paperclip, Package } from "lucide-react";
 import { AttachmentPreview, attachmentIconKind } from "@/components/AttachmentPreview";
 import { ArtifactPreview } from "@/components/ArtifactPreview";
+import { TaskBoard } from "@/components/TaskBoard";
 
-type Tab = "conversations" | "attachments" | "artifacts";
+type Tab = "conversations" | "tasks" | "attachments" | "artifacts";
 interface AttachmentItem extends Attachment {
   conversationId: string;
   conversationTitle: string;
@@ -152,6 +161,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             {(
               [
                 ["conversations", "Conversations", <MessageSquare key="c" size={13} />],
+                ["tasks", "Tasks", <ListChecks key="t" size={13} />],
                 ["attachments", "Attachments", <Paperclip key="p" size={13} />],
                 ["artifacts", "Artifacts", <Package key="a" size={13} />],
               ] as [Tab, string, React.ReactNode][]
@@ -176,6 +186,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               </button>
             ))}
           </div>
+
+          {tab === "tasks" && <TaskBoard projectId={project.id} />}
 
           {tab === "attachments" && (
             <div className="space-y-2 mb-10">

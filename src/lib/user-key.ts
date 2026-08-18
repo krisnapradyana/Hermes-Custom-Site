@@ -36,3 +36,21 @@ export async function requireUser(): Promise<
   }
   return { key };
 }
+
+/** Like requireUser, but also resolves the display name (for task authorship). */
+export async function requirePerson(): Promise<
+  | { person: { key: string; name: string }; denied?: undefined }
+  | { person?: undefined; denied: NextResponse }
+> {
+  if (process.env.NEXT_PUBLIC_AUTH_ENABLED !== "true") {
+    return { person: { key: "local", name: "Local User" } };
+  }
+  try {
+    const session = await auth();
+    const key = session?.user?.slackId;
+    if (!key) throw new Error("no session");
+    return { person: { key, name: session?.user?.name ?? "Member" } };
+  } catch {
+    return { denied: NextResponse.json({ error: "Not signed in" }, { status: 401 }) };
+  }
+}
