@@ -23,9 +23,8 @@ import { ConversationMeta, Attachment, Artifact } from "@/lib/types";
 import { Paperclip, Package } from "lucide-react";
 import { AttachmentPreview, attachmentIconKind } from "@/components/AttachmentPreview";
 import { ArtifactPreview } from "@/components/ArtifactPreview";
-import { TaskBoard } from "@/components/TaskBoard";
 
-type Tab = "conversations" | "tasks" | "attachments" | "artifacts";
+type Tab = "conversations" | "attachments" | "artifacts";
 interface AttachmentItem extends Attachment {
   conversationId: string;
   conversationTitle: string;
@@ -139,7 +138,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           <p className="text-ink-soft mb-5">{project.description}</p>
 
           {/* Working folder — fixed at creation, not editable */}
-          <div className="mb-8 rounded-xl border border-line bg-card px-4 py-3">
+          <div className="mb-3 rounded-xl border border-line bg-card px-4 py-3">
             <div className="flex items-center gap-1.5 text-[13px] font-mono truncate">
               <HardDrive size={13} className="text-accent shrink-0" />
               {project.workingFolder ?? (
@@ -147,6 +146,40 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               )}
             </div>
           </div>
+
+          {/* Task board lives on its own page — tasks are work, not chat. */}
+          <Link
+            prefetch={false}
+            href={`/projects/${encodeURIComponent(project.id)}/tasks`}
+            className="mb-8 flex items-center gap-3 rounded-xl border border-line bg-card px-4 py-3 hover:border-ink-faint transition-colors"
+          >
+            <div className="w-8 h-8 rounded-lg bg-accent-soft flex items-center justify-center shrink-0">
+              <ListChecks size={15} className="text-accent" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium">Task Board</p>
+              <p className="text-[12px] text-ink-faint">
+                Assign work and track iteration — opens its own page
+              </p>
+            </div>
+            {(project.startDate || project.deadline) && (
+              <span className="text-[12px] text-ink-faint shrink-0">
+                {project.startDate
+                  ? new Date(`${project.startDate}T00:00:00`).toLocaleDateString(undefined, {
+                      day: "numeric",
+                      month: "short",
+                    })
+                  : "…"}{" "}
+                →{" "}
+                {project.deadline
+                  ? new Date(`${project.deadline}T00:00:00`).toLocaleDateString(undefined, {
+                      day: "numeric",
+                      month: "short",
+                    })
+                  : "…"}
+              </span>
+            )}
+          </Link>
 
           <div className="mb-10">
             <Composer
@@ -161,7 +194,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             {(
               [
                 ["conversations", "Conversations", <MessageSquare key="c" size={13} />],
-                ["tasks", "Tasks", <ListChecks key="t" size={13} />],
                 ["attachments", "Attachments", <Paperclip key="p" size={13} />],
                 ["artifacts", "Artifacts", <Package key="a" size={13} />],
               ] as [Tab, string, React.ReactNode][]
@@ -186,8 +218,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               </button>
             ))}
           </div>
-
-          {tab === "tasks" && <TaskBoard projectId={project.id} />}
 
           {tab === "attachments" && (
             <div className="space-y-2 mb-10">

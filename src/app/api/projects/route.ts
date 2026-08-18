@@ -36,6 +36,9 @@ export async function POST(req: NextRequest) {
   }
   if (!body.name?.trim()) return NextResponse.json({ error: "Name required" }, { status: 400 });
 
+  // Schedule fields: plain ISO dates or nothing.
+  const isoDate = (v?: string) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined);
+
   const by = await creator();
   let project: Project | null = null;
   await updateProjects((list) => {
@@ -47,6 +50,8 @@ export async function POST(req: NextRequest) {
       createdAt: new Date().toISOString(),
       workingFolder: body.workingFolder?.trim() || undefined,
       driveFolder: body.driveFolder?.trim() || undefined,
+      startDate: isoDate(body.startDate),
+      deadline: isoDate(body.deadline),
       createdBy: by,
     };
     return [...list, project];

@@ -15,6 +15,7 @@ import {
   ArrowUpDown,
   Check,
   X,
+  CalendarClock,
 } from "lucide-react";
 import { useHermesStore } from "@/lib/store";
 import { timeAgo } from "@/lib/format";
@@ -152,6 +153,8 @@ export default function ProjectsPage() {
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
   const [workingFolder, setWorkingFolder] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [deadline, setDeadline] = useState("");
   const [picking, setPicking] = useState(false);
   const [creating, setCreating] = useState(false);
   const canCreate = name.trim() && workingFolder.trim();
@@ -160,10 +163,16 @@ export default function ProjectsPage() {
     if (!canCreate || creating) return;
     setCreating(true);
     try {
-      await createProject(name.trim(), desc.trim(), { workingFolder: workingFolder.trim() });
+      await createProject(name.trim(), desc.trim(), {
+        workingFolder: workingFolder.trim(),
+        startDate: startDate || undefined,
+        deadline: deadline || undefined,
+      });
       setName("");
       setDesc("");
       setWorkingFolder("");
+      setStartDate("");
+      setDeadline("");
       setShowForm(false);
       loadSummary();
     } finally {
@@ -300,6 +309,26 @@ export default function ProjectsPage() {
               by {p.createdBy.name}
             </div>
           )}
+          {p.deadline &&
+            (() => {
+              const due = new Date(`${p.deadline}T23:59:59`);
+              const days = Math.ceil((due.getTime() - Date.now()) / 86_400_000);
+              const label = due.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+              const cls =
+                days < 0
+                  ? "text-red-500"
+                  : days <= 7
+                    ? "text-amber-600 dark:text-amber-400"
+                    : "text-ink-faint";
+              return (
+                <div className={`flex items-center gap-1.5 text-[11px] mt-1 ${cls}`}>
+                  <CalendarClock size={11} />
+                  {days < 0
+                    ? `Overdue — was due ${label}`
+                    : `Due ${label}${days <= 7 ? ` · ${days}d left` : ""}`}
+                </div>
+              );
+            })()}
         </Link>
       </div>
     );
@@ -384,6 +413,27 @@ export default function ProjectsPage() {
                 <p className="mt-1 text-[11px] text-ink-faint">
                   Pick a folder from the shared Drive — the assistant reads and saves files there.
                 </p>
+              </div>
+              <div className="flex gap-3">
+                <label className="flex-1">
+                  <span className="block text-sm font-medium mb-1.5">Start date</span>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:border-ink-faint"
+                  />
+                </label>
+                <label className="flex-1">
+                  <span className="block text-sm font-medium mb-1.5">Deadline</span>
+                  <input
+                    type="date"
+                    value={deadline}
+                    min={startDate || undefined}
+                    onChange={(e) => setDeadline(e.target.value)}
+                    className="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:border-ink-faint"
+                  />
+                </label>
               </div>
               <div className="flex gap-2 pt-1">
                 <button

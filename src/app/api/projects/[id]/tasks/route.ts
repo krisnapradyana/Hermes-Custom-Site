@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePerson } from "@/lib/user-key";
 import { listTasks, createTask, Person } from "@/lib/tasks-store";
+import { readProjects } from "@/lib/projects-store";
+import { notifyTaskAssigned } from "@/lib/slack-notify";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,5 +36,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     phase: body.phase,
     assignee: body.assignee,
   });
+
+  // DM the assignee via the Hermes Slack bot (skip self-assignment).
+  if (task.assignee && task.assignee.key !== gate.person.key) {
+    const project = (await readProjects()).find((p) => p.id === id);
+    notifyTaskAssigned({
+      assigneeSlackId: task.assignee.key,
+      assigneeName: task.assignee.name,
+      taskTitle: task.title,
+      phase: task.phase,
+      projectId: id,
+      projectName: project?.name ?? id,
+      byName: gate.person.name,
+    });
+  }
+
   return NextResponse.json({ task });
 }

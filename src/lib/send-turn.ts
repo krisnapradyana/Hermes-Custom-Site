@@ -78,7 +78,10 @@ const atLineStart = (s: string, i: number) => /(?:^|\n)[ \t]*$/.test(s.slice(0, 
 export function extractChatTitle(content: string): { content: string; title?: string } {
   const m = content.match(TITLE_TAG_RE);
   if (!m || m.index == null) return { content: stripTitleForDisplay(content) };
-  const title = m[1].trim().replace(/^["'“”]+|["'“”]+$/g, "").slice(0, 60);
+  const title = m[1]
+    .trim()
+    .replace(/^["'“”]+|["'“”]+$/g, "")
+    .slice(0, 60);
   return { content: content.slice(0, m.index).trimEnd(), title: title || undefined };
 }
 

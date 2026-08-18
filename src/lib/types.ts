@@ -62,6 +62,9 @@ export interface Project {
   slackChannel?: string;
   /** Who created the project (shown in the shared list). */
   createdBy?: { name: string; slackId?: string };
+  /** Planned schedule (ISO dates, YYYY-MM-DD). */
+  startDate?: string;
+  deadline?: string;
 }
 
 /** Shared, project-scoped conversation (readable by all; only creator replies). */

@@ -98,7 +98,13 @@ interface HermesState {
   createProject: (
     name: string,
     description: string,
-    folders?: { workingFolder?: string; driveFolder?: string; slackChannel?: string }
+    folders?: {
+      workingFolder?: string;
+      driveFolder?: string;
+      slackChannel?: string;
+      startDate?: string;
+      deadline?: string;
+    }
   ) => Promise<Project | undefined>;
   updateProject: (id: string, patch: Partial<Project>) => Promise<void>;
   /** Removes the shared project; also drops the local user's chats/artifacts in it. */

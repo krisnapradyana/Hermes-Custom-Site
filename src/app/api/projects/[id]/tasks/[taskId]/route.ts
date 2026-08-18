@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePerson } from "@/lib/user-key";
 import { updateTask, deleteTask, Person, TaskStatus } from "@/lib/tasks-store";
+import { readProjects } from "@/lib/projects-store";
+import { notifyTaskAssigned } from "@/lib/slack-notify";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,6 +33,21 @@ export async function PATCH(
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.code });
   }
+
+  // Reassignment → DM the new assignee (skip assigning to yourself).
+  if (body.assignee && body.assignee.key !== gate.person.key) {
+    const project = (await readProjects()).find((p) => p.id === id);
+    notifyTaskAssigned({
+      assigneeSlackId: body.assignee.key,
+      assigneeName: body.assignee.name,
+      taskTitle: result.title,
+      phase: result.phase,
+      projectId: id,
+      projectName: project?.name ?? id,
+      byName: gate.person.name,
+    });
+  }
+
   return NextResponse.json({ task: result });
 }
 
