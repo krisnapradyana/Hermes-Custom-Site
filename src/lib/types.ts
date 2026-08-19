@@ -25,15 +25,6 @@ export interface Message {
   idleMs?: number;
   /** Delivery/completion state of an assistant turn. */
   state?: "working" | "done" | "failed";
-  /** Run id while streaming in runs mode — target for approval decisions. */
-  runId?: string;
-  /** Pending dangerous-command approval the user must resolve, if any. */
-  approval?: {
-    id?: string;
-    command?: string;
-    description?: string;
-    choices?: string[];
-  } | null;
   /** The user text to resend when retrying a failed turn. */
   retryOf?: string;
   /** Attachments to resend with a retry (stored server-side, fetched by id). */

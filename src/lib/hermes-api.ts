@@ -11,13 +11,6 @@
 
 import { Message, Attachment } from "./types";
 
-export interface ApprovalRequest {
-  id?: string;
-  command?: string;
-  description?: string;
-  choices?: string[];
-}
-
 export interface StreamState {
   content: string;
   thinking: string;
@@ -25,10 +18,6 @@ export interface StreamState {
   status?: string;
   /** ms since the last token/tool event — lets the UI flag a quiet stretch. */
   idleMs?: number;
-  /** Run id (runs mode) — where approval decisions are POSTed. */
-  runId?: string;
-  /** A pending dangerous-command approval waiting on the user, if any. */
-  approval?: ApprovalRequest | null;
 }
 
 /** Human-readable label for a tool the agent is running. */
@@ -148,15 +137,13 @@ export async function hermesStream(
     let lastEmit = 0;
     let status = "Thinking…"; // live one-line summary of current activity
     let lastActivity = Date.now();
-    let runId: string | undefined;
-    let approval: ApprovalRequest | null = null;
     const emit = (force = false) => {
       const now = Date.now();
       if (!force && now - lastEmit < 50) return;
       lastEmit = now;
       const { content, think } = splitThink(rawText);
       const thinking = [toolLines.join("\n"), reasoning, think].filter(Boolean).join("\n");
-      onUpdate({ content, thinking, status, idleMs: now - lastActivity, runId, approval });
+      onUpdate({ content, thinking, status, idleMs: now - lastActivity });
     };
 
     // Heartbeat: refresh the idle timer view even when nothing arrives, so the
@@ -195,82 +182,12 @@ export async function hermesStream(
           continue;
         }
 
-        // ── Runs-mode control events ─────────────────────────────────
-        if (eventName === "run.meta") {
-          if (typeof data.run_id === "string") runId = data.run_id;
-          continue;
-        }
-        if (eventName.includes("approval")) {
-          // Event names vary across agent versions (approval.request,
-          // approval.required, run.approval, …) — match broadly. Anything
-          // that looks like a resolution clears the card; anything else
-          // raises it.
-          const resolved =
-            /respond|resolv|approved|denied|expire/.test(eventName) ||
-            typeof data.choice === "string";
-          if (resolved) {
-            approval = null;
-            status = "Continuing…";
-          } else {
-            approval = {
-              id: (data.approval_id ?? data.id) as string | undefined,
-              command: (data.command ?? data.detail ?? data.cmd) as string | undefined,
-              description: (data.description ?? data.reason) as string | undefined,
-              choices: Array.isArray(data.choices) ? (data.choices as string[]) : undefined,
-            };
-            status = "Waiting for your approval…";
-          }
-          emit(true);
-          continue;
-        }
-        if (eventName.startsWith("run.")) {
-          // run.completed / run.failed / run.final / run.cancelled events.
-          if (eventName === "run.completed" || eventName === "run.final") {
-            sawDone = true;
-            approval = null;
-            // The final output is authoritative — replaces whatever streamed
-            // if it's longer (delta event shapes vary across agent versions).
-            const out = (data.output ?? data.text ?? data.content) as string | undefined;
-            if (typeof out === "string" && out.length > rawText.length) rawText = out;
-          } else if (eventName === "run.failed") {
-            throw new Error(
-              String(data.error ?? data.message ?? "The agent run failed.")
-            );
-          }
-          continue;
-        }
-        if (eventName === "message.complete") {
-          // Authoritative full text for the turn, if longer than what streamed.
-          const full = (data.text ?? data.content ?? data.output) as string | undefined;
-          if (typeof full === "string" && full.length > rawText.length) rawText = full;
-          emit(true);
-          continue;
-        }
-
         if (eventName.includes("tool")) {
           toolLines.push(toolLine(data));
           const name = (data.tool ?? data.name ?? data.tool_name ?? "tool") as string;
           const phase = String(data.status ?? data.phase ?? "");
           status = statusFor(name, phase);
           emit(true);
-          continue;
-        }
-
-        // Runs-mode token delta — event names and shapes vary across agent
-        // versions (message.delta, assistant.delta, response.output_text.delta).
-        if (eventName.endsWith(".delta") && !eventName.includes("reasoning")) {
-          const d = data.delta ?? data.text ?? data.content ?? data.output_text;
-          const text =
-            typeof d === "string"
-              ? d
-              : d && typeof (d as { text?: unknown }).text === "string"
-                ? (d as { text: string }).text
-                : "";
-          if (text) {
-            rawText += text;
-            status = "Writing the answer…";
-            emit();
-          }
           continue;
         }
 
