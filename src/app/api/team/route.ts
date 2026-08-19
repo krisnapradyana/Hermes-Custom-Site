@@ -73,6 +73,7 @@ export async function GET() {
         title: t.title,
         phase: t.phase,
         status: t.status,
+        dueDate: t.dueDate,
       })),
     }))
   );

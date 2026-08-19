@@ -20,7 +20,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (gate.denied) return gate.denied;
   const { id } = await params;
 
-  let body: { title?: string; note?: string; phase?: string; assignee?: Person };
+  let body: {
+    title?: string;
+    note?: string;
+    phase?: string;
+    assignee?: Person;
+    startDate?: string;
+    dueDate?: string;
+    kind?: "task" | "milestone";
+  };
   try {
     body = await req.json();
   } catch {
@@ -35,6 +43,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     note: body.note,
     phase: body.phase,
     assignee: body.assignee,
+    startDate: body.startDate,
+    dueDate: body.dueDate,
+    kind: body.kind,
   });
 
   // DM the assignee via the Hermes Slack bot (skip self-assignment).
@@ -45,6 +56,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       assigneeName: task.assignee.name,
       taskTitle: task.title,
       phase: task.phase,
+      dueDate: task.dueDate,
       projectId: id,
       projectName: project?.name ?? id,
       byName: gate.person.name,

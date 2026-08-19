@@ -1,16 +1,19 @@
 "use client";
 
-import { use, useEffect } from "react";
+import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ListChecks, CalendarRange } from "lucide-react";
 import { useHermesStore } from "@/lib/store";
-import { TaskBoard } from "@/components/TaskBoard";
+import { TaskBoard, Task } from "@/components/TaskBoard";
+import { ProjectTimeline } from "@/components/ProjectTimeline";
 
 /** Dedicated task board — its own page, deliberately separate from chats. */
 export default function ProjectTasksPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const project = useHermesStore((s) => s.projects.find((p) => p.id === id));
   const loadProjects = useHermesStore((s) => s.loadProjects);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const onTasks = useCallback((t: Task[]) => setTasks(t), []);
 
   useEffect(() => {
     loadProjects();
@@ -54,7 +57,13 @@ export default function ProjectTasksPage({ params }: { params: Promise<{ id: str
       )}
       {!project?.startDate && !project?.deadline && <div className="mb-6" />}
 
-      <TaskBoard projectId={id} />
+      <ProjectTimeline
+        tasks={tasks}
+        projectStart={project?.startDate}
+        projectDeadline={project?.deadline}
+      />
+
+      <TaskBoard projectId={id} onTasks={onTasks} />
     </div>
   );
 }

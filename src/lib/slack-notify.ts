@@ -62,6 +62,7 @@ export function notifyTaskAssigned(opts: {
   assigneeName: string;
   taskTitle: string;
   phase?: string;
+  dueDate?: string;
   projectId: string;
   projectName: string;
   byName: string;
@@ -69,8 +70,15 @@ export function notifyTaskAssigned(opts: {
   const origin = appOrigin();
   const link = origin ? `\n${origin}/projects/${opts.projectId}/tasks` : "";
   const phase = opts.phase ? ` (${opts.phase})` : "";
+  const due = opts.dueDate
+    ? `\n⏰ Due ${new Date(`${opts.dueDate}T00:00:00`).toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })}`
+    : "";
   const text =
     `📋 *${opts.byName}* assigned you a task in *${opts.projectName}*:\n` +
-    `• ${opts.taskTitle}${phase}${link}`;
+    `• ${opts.taskTitle}${phase}${due}${link}`;
   void slackDm(opts.assigneeSlackId, text);
 }

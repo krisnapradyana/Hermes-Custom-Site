@@ -22,6 +22,8 @@ export async function PATCH(
     assignee?: Person | null;
     status?: TaskStatus;
     statusNote?: string;
+    startDate?: string | null;
+    dueDate?: string | null;
   };
   try {
     body = await req.json();
@@ -42,6 +44,7 @@ export async function PATCH(
       assigneeName: body.assignee.name,
       taskTitle: result.title,
       phase: result.phase,
+      dueDate: result.dueDate,
       projectId: id,
       projectName: project?.name ?? id,
       byName: gate.person.name,

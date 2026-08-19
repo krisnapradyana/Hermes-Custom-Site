@@ -157,7 +157,8 @@ export default function ProjectsPage() {
   const [deadline, setDeadline] = useState("");
   const [picking, setPicking] = useState(false);
   const [creating, setCreating] = useState(false);
-  const canCreate = name.trim() && workingFolder.trim();
+  // Schedule is required — the timeline is only as good as its dates.
+  const canCreate = name.trim() && workingFolder.trim() && startDate && deadline;
 
   const handleCreate = async () => {
     if (!canCreate || creating) return;

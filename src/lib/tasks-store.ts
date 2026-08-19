@@ -27,16 +27,23 @@ export interface Person {
 export interface Task {
   id: string;
   projectId: string;
+  /** "task" (bar on the timeline) or "milestone" (diamond at one date). */
+  kind?: "task" | "milestone";
   title: string;
-  note?: string; // details / brief
+  note?: string; // description / brief
   phase?: string; // e.g. Styleframes, Animation, Render, On-site
   assignee?: Person;
   status: TaskStatus;
   statusNote?: string; // e.g. revision feedback
+  startDate?: string; // YYYY-MM-DD — when work should begin
+  dueDate?: string; // YYYY-MM-DD — the task's own deadline
   createdBy: Person;
   createdAt: string;
   updatedAt: string;
 }
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const isoDate = (v?: string) => (v && ISO_DATE.test(v) ? v : undefined);
 
 const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), "data");
 const DIR = path.join(DATA_DIR, "tasks");
@@ -72,7 +79,15 @@ export function listTasks(projectId: string): Promise<Task[]> {
 export function createTask(
   projectId: string,
   by: Person,
-  data: { title: string; note?: string; phase?: string; assignee?: Person }
+  data: {
+    title: string;
+    note?: string;
+    phase?: string;
+    assignee?: Person;
+    startDate?: string;
+    dueDate?: string;
+    kind?: "task" | "milestone";
+  }
 ): Promise<Task> {
   return withLock(LOCK, async () => {
     const tasks = await read(projectId);
@@ -80,11 +95,14 @@ export function createTask(
     const task: Task = {
       id: `task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       projectId,
+      kind: data.kind === "milestone" ? "milestone" : "task",
       title: data.title.slice(0, 200),
       note: data.note?.slice(0, 2000) || undefined,
       phase: data.phase || undefined,
       assignee: data.assignee,
       status: "todo",
+      startDate: isoDate(data.startDate),
+      dueDate: isoDate(data.dueDate),
       createdBy: by,
       createdAt: now,
       updatedAt: now,
@@ -109,6 +127,8 @@ export function updateTask(
     assignee?: Person | null;
     status?: TaskStatus;
     statusNote?: string;
+    startDate?: string | null;
+    dueDate?: string | null;
   }
 ): Promise<Task | { error: string; code: number }> {
   return withLock(LOCK, async () => {
@@ -127,6 +147,8 @@ export function updateTask(
     if (patch.assignee !== undefined) t.assignee = patch.assignee ?? undefined;
     if (patch.status) t.status = patch.status;
     if (patch.statusNote != null) t.statusNote = patch.statusNote.slice(0, 1000) || undefined;
+    if (patch.startDate !== undefined) t.startDate = isoDate(patch.startDate ?? undefined);
+    if (patch.dueDate !== undefined) t.dueDate = isoDate(patch.dueDate ?? undefined);
     t.updatedAt = new Date().toISOString();
     await write(projectId, tasks);
     return t;

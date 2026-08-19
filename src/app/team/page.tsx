@@ -18,6 +18,7 @@ interface MemberTask {
   title: string;
   phase?: string;
   status: "todo" | "doing" | "review" | "revision" | "done";
+  dueDate?: string;
 }
 
 interface MemberPulse {
@@ -197,6 +198,12 @@ export default function TeamPage() {
                   </span>
                   <span className="text-[11px] text-ink-faint truncate max-w-[8rem] shrink-0">
                     {projectName(t.projectId)}
+                    {t.dueDate
+                      ? ` · ${new Date(`${t.dueDate}T00:00:00`).toLocaleDateString(undefined, {
+                          day: "numeric",
+                          month: "short",
+                        })}`
+                      : ""}
                   </span>
                 </div>
               ))}

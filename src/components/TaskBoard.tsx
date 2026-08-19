@@ -20,15 +20,18 @@ interface Person {
   name: string;
 }
 
-interface Task {
+export interface Task {
   id: string;
   projectId: string;
+  kind?: "task" | "milestone";
   title: string;
   note?: string;
   phase?: string;
   assignee?: Person;
   status: TaskStatus;
   statusNote?: string;
+  startDate?: string;
+  dueDate?: string;
   createdBy: Person;
   createdAt: string;
   updatedAt: string;
@@ -53,7 +56,14 @@ const PHASES = [
   "Other",
 ];
 
-export function TaskBoard({ projectId }: { projectId: string }) {
+export function TaskBoard({
+  projectId,
+  onTasks,
+}: {
+  projectId: string;
+  /** Lets the page above (timeline) see the same task list. */
+  onTasks?: (tasks: Task[]) => void;
+}) {
   const { data: session } = useSession();
   const slackId = session?.user?.slackId;
   const sessionName = session?.user?.name;
@@ -73,9 +83,11 @@ export function TaskBoard({ projectId }: { projectId: string }) {
     const res = await api.get<{ tasks: Task[] }>(
       `/api/projects/${encodeURIComponent(projectId)}/tasks`
     );
-    if (res.ok) setTasks(res.data.tasks);
-    else setError(res.error);
-  }, [projectId]);
+    if (res.ok) {
+      setTasks(res.data.tasks);
+      onTasks?.(res.data.tasks);
+    } else setError(res.error);
+  }, [projectId, onTasks]);
 
   useEffect(() => {
     load();
@@ -102,21 +114,37 @@ export function TaskBoard({ projectId }: { projectId: string }) {
 
   // ---- create form ----
   const [title, setTitle] = useState("");
+  const [note, setNote] = useState("");
   const [phase, setPhase] = useState("");
   const [assigneeKey, setAssigneeKey] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [kind, setKind] = useState<"task" | "milestone">("task");
   const [creating, setCreating] = useState(false);
+  const canCreate = title.trim() && (kind === "task" || dueDate);
 
   const create = async () => {
-    if (!title.trim() || creating) return;
+    if (!canCreate || creating) return;
     setCreating(true);
     const assignee = people.find((p) => p.key === assigneeKey);
     const res = await api.post<{ task: Task }>(
       `/api/projects/${encodeURIComponent(projectId)}/tasks`,
-      { title: title.trim(), phase: phase || undefined, assignee }
+      {
+        title: title.trim(),
+        note: note.trim() || undefined,
+        phase: kind === "task" ? phase || undefined : undefined,
+        assignee: kind === "task" ? assignee : undefined,
+        startDate: kind === "task" ? startDate || undefined : undefined,
+        dueDate: dueDate || undefined,
+        kind,
+      }
     );
     if (res.ok) {
       setTitle("");
+      setNote("");
       setPhase("");
+      setStartDate("");
+      setDueDate("");
       load();
     } else setError(res.error);
     setCreating(false);
@@ -157,47 +185,98 @@ export function TaskBoard({ projectId }: { projectId: string }) {
         assignee or the creator can move a task.
       </p>
 
-      {/* New task */}
-      <div className="mb-5 rounded-xl border border-line bg-card p-3 flex flex-wrap items-center gap-2">
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && create()}
-          placeholder="New task — e.g. Styleframes v2 for scene 3"
-          className="flex-1 min-w-[12rem] rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:border-ink-faint"
-        />
-        <select
-          value={phase}
-          onChange={(e) => setPhase(e.target.value)}
-          className="rounded-lg border border-line bg-card px-2 py-2 text-[13px] text-ink-soft outline-none"
-        >
-          <option value="">Phase…</option>
-          {PHASES.map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
-          ))}
-        </select>
-        <select
-          value={assigneeKey}
-          onChange={(e) => setAssigneeKey(e.target.value)}
-          className="rounded-lg border border-line bg-card px-2 py-2 text-[13px] text-ink-soft outline-none max-w-[10rem]"
-        >
-          <option value="">Assign to…</option>
-          {people.map((p) => (
-            <option key={p.key} value={p.key}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-        <button
-          onClick={create}
-          disabled={!title.trim() || creating}
-          className="flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-sm text-white hover:bg-accent-hover disabled:opacity-40"
-        >
-          <Plus size={14} />
-          Add
-        </button>
+      {/* New task / milestone */}
+      <div className="mb-5 rounded-xl border border-line bg-card p-3 space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={kind}
+            onChange={(e) => setKind(e.target.value as "task" | "milestone")}
+            className="rounded-lg border border-line bg-card px-2 py-2 text-[13px] text-ink-soft outline-none"
+            title="A task is a bar on the timeline; a milestone is a single-date marker"
+          >
+            <option value="task">Task</option>
+            <option value="milestone">Milestone</option>
+          </select>
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && create()}
+            placeholder={
+              kind === "task"
+                ? "New task — e.g. Styleframes v2 for scene 3"
+                : "Milestone — e.g. Client review round 1"
+            }
+            className="flex-1 min-w-[12rem] rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:border-ink-faint"
+          />
+          {kind === "task" && (
+            <>
+              <select
+                value={phase}
+                onChange={(e) => setPhase(e.target.value)}
+                className="rounded-lg border border-line bg-card px-2 py-2 text-[13px] text-ink-soft outline-none"
+              >
+                <option value="">Phase…</option>
+                {PHASES.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={assigneeKey}
+                onChange={(e) => setAssigneeKey(e.target.value)}
+                className="rounded-lg border border-line bg-card px-2 py-2 text-[13px] text-ink-soft outline-none max-w-[10rem]"
+              >
+                <option value="">Assign to…</option>
+                {people.map((p) => (
+                  <option key={p.key} value={p.key}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Description — what exactly is needed? (optional)"
+            rows={2}
+            className="flex-1 min-w-[14rem] rounded-lg border border-line bg-transparent px-3 py-2 text-[13px] outline-none focus:border-ink-faint resize-y"
+          />
+          <div className="flex flex-col gap-1.5">
+            {kind === "task" && (
+              <label className="flex items-center gap-2 text-[11px] text-ink-faint">
+                Start
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="rounded-lg border border-line bg-card px-2 py-1 text-[12px] text-ink-soft outline-none"
+                />
+              </label>
+            )}
+            <label className="flex items-center gap-2 text-[11px] text-ink-faint">
+              {kind === "task" ? "Due" : "Date"}
+              <input
+                type="date"
+                value={dueDate}
+                min={startDate || undefined}
+                onChange={(e) => setDueDate(e.target.value)}
+                className="rounded-lg border border-line bg-card px-2 py-1 text-[12px] text-ink-soft outline-none"
+              />
+            </label>
+          </div>
+          <button
+            onClick={create}
+            disabled={!canCreate || creating}
+            className="flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-sm text-white hover:bg-accent-hover disabled:opacity-40 self-end"
+          >
+            <Plus size={14} />
+            Add
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -223,14 +302,42 @@ export function TaskBoard({ projectId }: { projectId: string }) {
                   <div key={t.id} className="rounded-xl border border-line bg-card px-4 py-3 group">
                     <div className="flex items-start gap-3">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium">{t.title}</p>
-                        <p className="text-[12px] text-ink-faint">
-                          {t.phase && <span className="mr-2">{t.phase}</span>}
-                          {t.assignee ? (
-                            <span className="mr-2">→ {t.assignee.name}</span>
-                          ) : (
-                            <span className="mr-2 italic">unassigned</span>
+                        <p className="text-sm font-medium">
+                          {t.kind === "milestone" && (
+                            <span className="mr-1.5 text-[10px] uppercase tracking-wide text-accent">
+                              ◆ milestone
+                            </span>
                           )}
+                          {t.title}
+                        </p>
+                        {t.note && (
+                          <p className="text-[12px] text-ink-soft mt-0.5 whitespace-pre-wrap">
+                            {t.note}
+                          </p>
+                        )}
+                        <p className="text-[12px] text-ink-faint mt-0.5">
+                          {t.phase && <span className="mr-2">{t.phase}</span>}
+                          {t.kind !== "milestone" &&
+                            (t.assignee ? (
+                              <span className="mr-2">→ {t.assignee.name}</span>
+                            ) : (
+                              <span className="mr-2 italic">unassigned</span>
+                            ))}
+                          {t.dueDate &&
+                            (() => {
+                              const overdue =
+                                t.status !== "done" &&
+                                t.dueDate < new Date().toISOString().slice(0, 10);
+                              return (
+                                <span className={`mr-2 ${overdue ? "text-red-500" : ""}`}>
+                                  {overdue ? "⚠ was due " : "due "}
+                                  {new Date(`${t.dueDate}T00:00:00`).toLocaleDateString(undefined, {
+                                    day: "numeric",
+                                    month: "short",
+                                  })}
+                                </span>
+                              );
+                            })()}
                           by {t.createdBy.name} · {timeAgo(t.updatedAt)}
                         </p>
                         {t.statusNote && (
