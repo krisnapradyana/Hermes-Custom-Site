@@ -293,12 +293,21 @@ export function WorkspacePanel({ project }: { project: Project }) {
             </div>
           </div>
 
-          {/* Project name, then a separator before the folder contents */}
-          <div className="flex items-center gap-2 px-4 pb-2 min-w-0">
-            <HardDrive size={14} className="text-ink-faint shrink-0" />
-            <span className="text-[13px] font-medium truncate" title={root}>
-              {project.name}
-            </span>
+          {/* Project name + current directory path (moved here from the
+              project header), then a separator before the folder contents */}
+          <div className="px-4 pb-2 min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <HardDrive size={14} className="text-ink-faint shrink-0" />
+              <span className="text-[13px] font-medium truncate" title={root}>
+                {project.name}
+              </span>
+            </div>
+            <p
+              className="mt-1 text-[11.5px] font-mono text-ink-faint truncate"
+              title={cwd ? `${root}/${cwd}` : root}
+            >
+              {cwd ? `${root}/${cwd}` : root}
+            </p>
           </div>
           <div className="border-b border-line mx-3 mb-1" />
 

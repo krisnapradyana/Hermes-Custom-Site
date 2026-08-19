@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   FolderKanban,
-  HardDrive,
   PanelRight,
   User,
   MessageSquare,
@@ -18,6 +17,7 @@ import { api } from "@/lib/api";
 import { IconButton } from "@/components/ui";
 import { Composer } from "@/components/Composer";
 import { WorkspacePanel } from "@/components/WorkspacePanel";
+import { ProjectTeam } from "@/components/ProjectTeam";
 import { useResizableWidth, ResizeHandle } from "@/components/ResizeHandle";
 import { ConversationMeta, Attachment, Artifact } from "@/lib/types";
 import { Paperclip, Package } from "lucide-react";
@@ -104,8 +104,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="flex h-full">
-      <div className="flex-1 min-w-0 overflow-y-auto">
-        <div className="mx-auto max-w-4xl px-8 py-10">
+      <div className="flex-1 min-w-0 flex flex-col">
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <div className="mx-auto max-w-4xl px-8 pt-10 pb-6">
           <div className="flex items-center justify-between mb-6">
             <Link
               prefetch={false}
@@ -137,21 +138,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           </div>
           <p className="text-ink-soft mb-5">{project.description}</p>
 
-          {/* Working folder — fixed at creation, not editable */}
-          <div className="mb-3 rounded-xl border border-line bg-card px-4 py-3">
-            <div className="flex items-center gap-1.5 text-[13px] font-mono truncate">
-              <HardDrive size={13} className="text-accent shrink-0" />
-              {project.workingFolder ?? (
-                <span className="text-ink-faint font-sans">No working folder</span>
-              )}
-            </div>
-          </div>
-
           {/* Task board lives on its own page — tasks are work, not chat. */}
           <Link
             prefetch={false}
             href={`/projects/${encodeURIComponent(project.id)}/tasks`}
-            className="mb-8 flex items-center gap-3 rounded-xl border border-line bg-card px-4 py-3 hover:border-ink-faint transition-colors"
+            className="mb-3 flex items-center gap-3 rounded-xl border border-line bg-card px-4 py-3 hover:border-ink-faint transition-colors"
           >
             <div className="w-8 h-8 rounded-lg bg-accent-soft flex items-center justify-center shrink-0">
               <ListChecks size={15} className="text-accent" />
@@ -181,13 +172,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             )}
           </Link>
 
-          <div className="mb-10">
-            <Composer
-              placeholder={`New conversation in ${project.name}…`}
-              onSend={(t) => startConversation(t)}
-              projectId={project.id}
-            />
-          </div>
+          {/* Who is on this project — scoped Team Pulse with jump-links. */}
+          <ProjectTeam projectId={project.id} />
 
           {/* Tabs */}
           <div className="flex items-center gap-1 mb-4 border-b border-line">
@@ -305,6 +291,18 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               </div>
             </>
           )}
+          </div>
+        </div>
+
+        {/* Composer pinned at the bottom — same feel as a normal chat. */}
+        <div className="shrink-0 border-t border-line px-8 py-4">
+          <div className="mx-auto max-w-4xl">
+            <Composer
+              placeholder={`New conversation in ${project.name}…`}
+              onSend={(t) => startConversation(t)}
+              projectId={project.id}
+            />
+          </div>
         </div>
       </div>
 
