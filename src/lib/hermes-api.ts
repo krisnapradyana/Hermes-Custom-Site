@@ -218,11 +218,14 @@ export async function hermesStream(
           continue;
         }
         if (eventName.startsWith("run.")) {
-          // run.completed / run.failed / run.cancelled lifecycle events.
-          if (eventName === "run.completed") {
+          // run.completed / run.failed / run.final / run.cancelled events.
+          if (eventName === "run.completed" || eventName === "run.final") {
             sawDone = true;
             approval = null;
-            if (!rawText && typeof data.output === "string") rawText = data.output;
+            // The final output is authoritative — replaces whatever streamed
+            // if it's longer (delta event shapes vary across agent versions).
+            const out = (data.output ?? data.text ?? data.content) as string | undefined;
+            if (typeof out === "string" && out.length > rawText.length) rawText = out;
           } else if (eventName === "run.failed") {
             throw new Error(
               String(data.error ?? data.message ?? "The agent run failed.")
@@ -247,8 +250,9 @@ export async function hermesStream(
           continue;
         }
 
-        // Runs-mode token delta (message.delta) — shapes vary across versions.
-        if (eventName === "message.delta") {
+        // Runs-mode token delta — event names and shapes vary across agent
+        // versions (message.delta, assistant.delta, response.output_text.delta).
+        if (eventName.endsWith(".delta") && !eventName.includes("reasoning")) {
           const d = data.delta ?? data.text ?? data.content ?? data.output_text;
           const text =
             typeof d === "string"

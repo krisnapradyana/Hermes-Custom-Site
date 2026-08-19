@@ -297,6 +297,27 @@ export async function POST(req: NextRequest) {
         async pull(controller) {
           const { done, value } = await reader.read();
           if (done) {
+            // Safety net: event names/shapes for text deltas vary across
+            // agent versions. The run status endpoint carries the final
+            // output — send it so the client always has the full answer
+            // even if it recognized none of the streamed delta events.
+            try {
+              const st = await fetch(`${API_URL}/v1/runs/${encodeURIComponent(runId)}`, {
+                headers,
+                cache: "no-store",
+                signal: AbortSignal.timeout(15_000),
+              });
+              if (st.ok) {
+                const j = (await st.json()) as { output?: unknown; status?: string };
+                if (typeof j.output === "string" && j.output) {
+                  controller.enqueue(
+                    enc.encode(`event: run.final\ndata: ${JSON.stringify({ output: j.output })}\n\n`)
+                  );
+                }
+              }
+            } catch {
+              // stream content is all we have — proceed
+            }
             controller.enqueue(enc.encode("data: [DONE]\n\n"));
             controller.close();
             return;
