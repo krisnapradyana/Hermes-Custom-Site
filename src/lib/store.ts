@@ -260,6 +260,8 @@ export const useHermesStore = create<HermesState>()(
               thinking: state.thinking,
               status: state.status,
               idleMs: state.idleMs,
+              runId: state.runId,
+              approval: state.approval,
               state: "working",
             }),
           context,
@@ -278,6 +280,8 @@ export const useHermesStore = create<HermesState>()(
               state: stopped ? "done" : "failed",
               status: undefined,
               idleMs: undefined,
+              runId: undefined,
+              approval: undefined,
               retryOf: stopped ? undefined : content,
               retryAttachments: stopped ? undefined : storedUser?.attachments,
               content: stopped ? "⏹ Stopped." : turnErrorMessage(err),
@@ -305,6 +309,8 @@ export const useHermesStore = create<HermesState>()(
               artifactId: newArtifacts[0]?.id,
               status: undefined,
               idleMs: undefined,
+              runId: undefined,
+              approval: undefined,
               state: "done",
             });
             set((s) => ({

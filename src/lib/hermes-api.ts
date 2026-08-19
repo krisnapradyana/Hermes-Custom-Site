@@ -11,6 +11,13 @@
 
 import { Message, Attachment } from "./types";
 
+export interface ApprovalRequest {
+  id?: string;
+  command?: string;
+  description?: string;
+  choices?: string[];
+}
+
 export interface StreamState {
   content: string;
   thinking: string;
@@ -18,6 +25,10 @@ export interface StreamState {
   status?: string;
   /** ms since the last token/tool event — lets the UI flag a quiet stretch. */
   idleMs?: number;
+  /** Run id (runs mode) — where approval decisions are POSTed. */
+  runId?: string;
+  /** A pending dangerous-command approval waiting on the user, if any. */
+  approval?: ApprovalRequest | null;
 }
 
 /** Human-readable label for a tool the agent is running. */
@@ -137,13 +148,15 @@ export async function hermesStream(
     let lastEmit = 0;
     let status = "Thinking…"; // live one-line summary of current activity
     let lastActivity = Date.now();
+    let runId: string | undefined;
+    let approval: ApprovalRequest | null = null;
     const emit = (force = false) => {
       const now = Date.now();
       if (!force && now - lastEmit < 50) return;
       lastEmit = now;
       const { content, think } = splitThink(rawText);
       const thinking = [toolLines.join("\n"), reasoning, think].filter(Boolean).join("\n");
-      onUpdate({ content, thinking, status, idleMs: now - lastActivity });
+      onUpdate({ content, thinking, status, idleMs: now - lastActivity, runId, approval });
     };
 
     // Heartbeat: refresh the idle timer view even when nothing arrives, so the
@@ -182,12 +195,72 @@ export async function hermesStream(
           continue;
         }
 
+        // ── Runs-mode control events ─────────────────────────────────
+        if (eventName === "run.meta") {
+          if (typeof data.run_id === "string") runId = data.run_id;
+          continue;
+        }
+        if (eventName === "approval.request") {
+          approval = {
+            id: (data.approval_id ?? data.id) as string | undefined,
+            command: (data.command ?? data.detail) as string | undefined,
+            description: data.description as string | undefined,
+            choices: Array.isArray(data.choices) ? (data.choices as string[]) : undefined,
+          };
+          status = "Waiting for your approval…";
+          emit(true);
+          continue;
+        }
+        if (eventName === "approval.responded" || eventName === "approval.resolved") {
+          approval = null;
+          status = "Continuing…";
+          emit(true);
+          continue;
+        }
+        if (eventName.startsWith("run.")) {
+          // run.completed / run.failed / run.cancelled lifecycle events.
+          if (eventName === "run.completed") {
+            sawDone = true;
+            approval = null;
+            if (!rawText && typeof data.output === "string") rawText = data.output;
+          } else if (eventName === "run.failed") {
+            throw new Error(
+              String(data.error ?? data.message ?? "The agent run failed.")
+            );
+          }
+          continue;
+        }
+        if (eventName === "message.complete") {
+          // Authoritative full text for the turn, if longer than what streamed.
+          const full = (data.text ?? data.content ?? data.output) as string | undefined;
+          if (typeof full === "string" && full.length > rawText.length) rawText = full;
+          emit(true);
+          continue;
+        }
+
         if (eventName.includes("tool")) {
           toolLines.push(toolLine(data));
           const name = (data.tool ?? data.name ?? data.tool_name ?? "tool") as string;
           const phase = String(data.status ?? data.phase ?? "");
           status = statusFor(name, phase);
           emit(true);
+          continue;
+        }
+
+        // Runs-mode token delta (message.delta) — shapes vary across versions.
+        if (eventName === "message.delta") {
+          const d = data.delta ?? data.text ?? data.content ?? data.output_text;
+          const text =
+            typeof d === "string"
+              ? d
+              : d && typeof (d as { text?: unknown }).text === "string"
+                ? (d as { text: string }).text
+                : "";
+          if (text) {
+            rawText += text;
+            status = "Writing the answer…";
+            emit();
+          }
           continue;
         }
 

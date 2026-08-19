@@ -171,6 +171,8 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
             thinking: st.thinking,
             status: st.status,
             idleMs: st.idleMs,
+            runId: st.runId,
+            approval: st.approval,
             state: "working",
           }),
         context,
@@ -188,6 +190,8 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
               thinking: final.thinking,
               status: undefined,
               idleMs: undefined,
+              runId: undefined,
+              approval: undefined,
               state: "done" as const,
             }
           : m
@@ -205,6 +209,8 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
               content: stopped ? "⏹ Stopped." : turnErrorMessage(err),
               status: undefined,
               idleMs: undefined,
+              runId: undefined,
+              approval: undefined,
               state: (stopped ? "done" : "failed") as "done" | "failed",
               retryOf: stopped ? undefined : content,
               retryAttachments: stopped || !refs.length ? undefined : refs,
