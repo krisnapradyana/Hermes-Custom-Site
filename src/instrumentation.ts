@@ -11,5 +11,10 @@ export async function register() {
     // changes made while the app was down. Non-fatal by design.
     const { updateTracker } = await import("./lib/tracker");
     updateTracker();
+    // Team status digest for the agent: refresh on boot and every 5 minutes
+    // so clock-ins/outs surface without any task mutation. Non-fatal.
+    const { updateTeamStatus } = await import("./lib/team-status");
+    updateTeamStatus();
+    setInterval(() => updateTeamStatus(), 5 * 60_000).unref?.();
   }
 }

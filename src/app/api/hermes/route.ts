@@ -3,6 +3,7 @@ import { getUserKey } from "@/lib/user-key";
 import { extractDocumentText } from "@/lib/extract-server";
 import { readManifest } from "@/lib/projects-store";
 import { trackerPath } from "@/lib/tracker";
+import { teamStatusPath } from "@/lib/team-status";
 
 interface ManifestEntry {
   p: string;
@@ -196,6 +197,16 @@ export async function POST(req: NextRequest) {
       `"Past Projects Archive" section (you may update that section only). ` +
       `Keep your own project learnings in /opt/data/project-notes.md, not in ` +
       `persistent memory; memory is for preferences and currently-active work.`
+  );
+  contextParts.push(
+    `Team status: ${teamStatusPath()} — auto-regenerated every few minutes; ` +
+      `read it whenever asked WHO is working on something, who is standby/free ` +
+      `to take work, what someone is assigned to, or about task/milestone ` +
+      `deadlines and project schedules. It lists who is clocked in right now ` +
+      `(and on which project), who is standby, each member's open tasks, and ` +
+      `per-project schedules with unassigned tasks (good suggestions for ` +
+      `standby people). Never edit this file; never copy it into memory — ` +
+      `it goes stale in minutes.`
   );
   if (body.context) contextParts.push(body.context.slice(0, 2000));
   if (body.projectId) {

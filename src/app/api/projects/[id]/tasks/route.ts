@@ -3,6 +3,7 @@ import { requirePerson } from "@/lib/user-key";
 import { listTasks, createTask, Person } from "@/lib/tasks-store";
 import { readProjects } from "@/lib/projects-store";
 import { notifyTaskAssigned } from "@/lib/slack-notify";
+import { scheduleTeamStatusUpdate } from "@/lib/team-status";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -63,5 +64,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
   }
 
+  scheduleTeamStatusUpdate();
   return NextResponse.json({ task });
 }

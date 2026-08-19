@@ -3,6 +3,7 @@ import { requirePerson } from "@/lib/user-key";
 import { updateTask, deleteTask, Person, TaskStatus } from "@/lib/tasks-store";
 import { readProjects } from "@/lib/projects-store";
 import { notifyTaskAssigned } from "@/lib/slack-notify";
+import { scheduleTeamStatusUpdate } from "@/lib/team-status";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,6 +52,7 @@ export async function PATCH(
     });
   }
 
+  scheduleTeamStatusUpdate();
   return NextResponse.json({ task: result });
 }
 
@@ -66,5 +68,6 @@ export async function DELETE(
   if (typeof result === "object" && "error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.code });
   }
+  scheduleTeamStatusUpdate();
   return NextResponse.json({ ok: true });
 }
