@@ -22,7 +22,9 @@ export async function loadBlob(key: string): Promise<string | null> {
 
 export async function saveBlob(key: string, blob: string): Promise<void> {
   await fs.mkdir(DATA_DIR, { recursive: true });
-  const tmp = fileFor(key) + ".tmp";
+  // Unique temp name per write: concurrent saves with a SHARED temp name
+  // race — the first rename steals the file and the second throws ENOENT.
+  const tmp = `${fileFor(key)}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
   await fs.writeFile(tmp, blob, "utf-8");
   await fs.rename(tmp, fileFor(key));
 }

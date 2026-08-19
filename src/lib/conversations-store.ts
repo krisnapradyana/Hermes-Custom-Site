@@ -26,7 +26,7 @@ async function readIndex(): Promise<ConversationMeta[]> {
 }
 async function writeIndex(list: ConversationMeta[]): Promise<void> {
   await fs.mkdir(DIR, { recursive: true });
-  const tmp = INDEX + ".tmp";
+  const tmp = `${INDEX}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
   await fs.writeFile(tmp, JSON.stringify(list, null, 2), "utf-8");
   await fs.rename(tmp, INDEX);
 }
@@ -36,7 +36,7 @@ async function writeIndex(list: ConversationMeta[]): Promise<void> {
  *  getConversation would then return null forever). */
 async function writeConv(conv: Conversation): Promise<void> {
   await fs.mkdir(DIR, { recursive: true });
-  const tmp = file(conv.id) + ".tmp";
+  const tmp = `${file(conv.id)}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
   await fs.writeFile(tmp, JSON.stringify(conv, null, 2), "utf-8");
   await fs.rename(tmp, file(conv.id));
 }

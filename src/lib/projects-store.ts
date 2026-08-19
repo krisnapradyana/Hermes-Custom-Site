@@ -24,7 +24,7 @@ export async function readProjects(): Promise<Project[]> {
 
 async function writeProjects(list: Project[]): Promise<void> {
   await fs.mkdir(DATA_DIR, { recursive: true });
-  const tmp = FILE + ".tmp";
+  const tmp = `${FILE}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
   await fs.writeFile(tmp, JSON.stringify(list, null, 2), "utf-8");
   await fs.rename(tmp, FILE);
 }
