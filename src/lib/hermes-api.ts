@@ -200,20 +200,26 @@ export async function hermesStream(
           if (typeof data.run_id === "string") runId = data.run_id;
           continue;
         }
-        if (eventName === "approval.request") {
-          approval = {
-            id: (data.approval_id ?? data.id) as string | undefined,
-            command: (data.command ?? data.detail) as string | undefined,
-            description: data.description as string | undefined,
-            choices: Array.isArray(data.choices) ? (data.choices as string[]) : undefined,
-          };
-          status = "Waiting for your approval…";
-          emit(true);
-          continue;
-        }
-        if (eventName === "approval.responded" || eventName === "approval.resolved") {
-          approval = null;
-          status = "Continuing…";
+        if (eventName.includes("approval")) {
+          // Event names vary across agent versions (approval.request,
+          // approval.required, run.approval, …) — match broadly. Anything
+          // that looks like a resolution clears the card; anything else
+          // raises it.
+          const resolved =
+            /respond|resolv|approved|denied|expire/.test(eventName) ||
+            typeof data.choice === "string";
+          if (resolved) {
+            approval = null;
+            status = "Continuing…";
+          } else {
+            approval = {
+              id: (data.approval_id ?? data.id) as string | undefined,
+              command: (data.command ?? data.detail ?? data.cmd) as string | undefined,
+              description: (data.description ?? data.reason) as string | undefined,
+              choices: Array.isArray(data.choices) ? (data.choices as string[]) : undefined,
+            };
+            status = "Waiting for your approval…";
+          }
           emit(true);
           continue;
         }

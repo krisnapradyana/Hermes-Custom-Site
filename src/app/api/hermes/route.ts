@@ -288,6 +288,20 @@ export async function POST(req: NextRequest) {
 
       const enc = new TextEncoder();
       const reader = upstream.body.getReader();
+      // Diagnostic: log each distinct event name once per run, so
+      // `docker logs assistant-web` shows exactly what the agent emits
+      // (event names vary across hermes-agent versions).
+      const seenEvents = new Set<string>();
+      const sniffer = new TextDecoder();
+      const sniff = (chunk: Uint8Array) => {
+        for (const m of sniffer.decode(chunk, { stream: true }).matchAll(/^event: (.+)$/gm)) {
+          const name = m[1].trim();
+          if (!seenEvents.has(name)) {
+            seenEvents.add(name);
+            console.log(`[hermes] run ${runId} event: ${name}`);
+          }
+        }
+      };
       const stream = new ReadableStream<Uint8Array>({
         start(controller) {
           // First frame: tell the client which run this is, so the approval
@@ -322,6 +336,7 @@ export async function POST(req: NextRequest) {
             controller.close();
             return;
           }
+          sniff(value);
           controller.enqueue(value);
         },
         cancel() {
