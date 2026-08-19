@@ -75,9 +75,14 @@ const MODEL = process.env.HERMES_MODEL ?? "hermes-agent";
  * POST /v1/runs/{id}/approval. We feature-detect via /v1/capabilities and
  * prefer runs mode when the agent supports it; older agent images fall back
  * to the plain chat-completions path automatically.
- * Override: HERMES_RUNS_MODE=off forces the legacy path.
+ *
+ * DEFAULT OFF for now: the deployed agent's run event stream turned out to
+ * carry neither tool-progress nor recognizable delta/approval events, which
+ * silenced the thinking/tool UI. The chat-completions path streams all of
+ * that richly. Set HERMES_RUNS_MODE=auto to re-enable runs mode once the
+ * agent image emits the full event set.
  */
-const RUNS_MODE = process.env.HERMES_RUNS_MODE ?? "auto";
+const RUNS_MODE = process.env.HERMES_RUNS_MODE ?? "off";
 
 let capCache: { at: number; runs: boolean } | null = null;
 async function runsSupported(headers: Record<string, string>): Promise<boolean> {
