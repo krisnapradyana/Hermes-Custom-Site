@@ -143,8 +143,12 @@ export function ProjectTimeline({
               {milestones.map((m) => (
                 <div
                   key={m.id}
-                  className="absolute top-0 -translate-x-1/2 flex items-center gap-1"
-                  style={{ left: `${pct(dayOf(m.dueDate!))}%` }}
+                  // Anchor the DIAMOND on the date (shift by half its 12px
+                  // width) and let the label flow right — centering the whole
+                  // diamond+label group dragged the diamond off its date by
+                  // half the label width.
+                  className="absolute top-0 flex items-center gap-1"
+                  style={{ left: `${pct(dayOf(m.dueDate!))}%`, transform: "translateX(-6px)" }}
                   title={`${m.title} — ${m.dueDate}`}
                 >
                   <Diamond
