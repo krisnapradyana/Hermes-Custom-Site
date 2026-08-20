@@ -2,7 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import { Plus, Trash2, CornerDownRight } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  CornerDownRight,
+  Search,
+  X,
+  Archive,
+  ChevronDown,
+  ChevronRight,
+  RotateCcw,
+} from "lucide-react";
 import { api } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
 
@@ -173,10 +183,64 @@ export function TaskBoard({
     else setError((res as { error: string }).error);
   };
 
+  // ---- filters: search + Mine + Overdue + phase ----
+  const [q, setQ] = useState("");
+  const [mineOnly, setMineOnly] = useState(false);
+  const [overdueOnly, setOverdueOnly] = useState(false);
+  const [phaseFilter, setPhaseFilter] = useState("");
+  const anyFilter = !!(q.trim() || mineOnly || overdueOnly || phaseFilter);
+  const today = new Date().toISOString().slice(0, 10);
+  const matches = (t: Task) => {
+    if (mineOnly && t.assignee?.key !== me.key) return false;
+    if (overdueOnly && !(t.status !== "done" && t.dueDate && t.dueDate < today)) return false;
+    if (phaseFilter && (t.phase ?? "") !== phaseFilter) return false;
+    const s = q.trim().toLowerCase();
+    if (s) {
+      return (
+        t.title.toLowerCase().includes(s) ||
+        (t.note ?? "").toLowerCase().includes(s) ||
+        (t.assignee?.name ?? "").toLowerCase().includes(s)
+      );
+    }
+    return true;
+  };
+
+  // ---- archive (swept done-tasks) — lazy-loaded, searchable, restorable ----
+  const [archived, setArchived] = useState<Task[] | null>(null);
+  const [showArchive, setShowArchive] = useState(false);
+  const [restoring, setRestoring] = useState<string | null>(null);
+
+  const toggleArchive = async () => {
+    setShowArchive((v) => !v);
+    if (!archived) {
+      const res = await api.get<{ tasks: Task[] }>(
+        `/api/projects/${encodeURIComponent(projectId)}/tasks/archive`
+      );
+      if (res.ok) setArchived(res.data.tasks);
+      else setError(res.error);
+    }
+  };
+
+  const restore = async (t: Task) => {
+    if (restoring) return;
+    setRestoring(t.id);
+    const res = await api.post(
+      `/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(t.id)}/restore`,
+      {}
+    );
+    if (res.ok) {
+      setArchived((a) => a?.filter((x) => x.id !== t.id) ?? null);
+      load();
+    } else setError((res as { error: string }).error);
+    setRestoring(null);
+  };
+
   const grouped = STATUSES.map((s) => ({
     ...s,
-    items: (tasks ?? []).filter((t) => t.status === s.id),
+    items: (tasks ?? []).filter((t) => t.status === s.id && matches(t)),
   }));
+  const visibleCount = grouped.reduce((n, g) => n + g.items.length, 0);
+  const archivedShown = (archived ?? []).filter(matches);
 
   return (
     <div className="mb-10">
@@ -279,6 +343,75 @@ export function TaskBoard({
         </div>
       </div>
 
+      {/* Filters — keep a months-old board one search away from small. */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[11rem]">
+          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-faint" />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search tasks — title, description, assignee…"
+            className="w-full rounded-lg border border-line bg-card pl-8 pr-8 py-1.5 text-[13px] outline-none focus:border-ink-faint placeholder:text-ink-faint"
+          />
+          {q && (
+            <button
+              onClick={() => setQ("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-ink-faint hover:text-ink"
+              title="Clear search"
+            >
+              <X size={12} />
+            </button>
+          )}
+        </div>
+        <button
+          onClick={() => setMineOnly((v) => !v)}
+          className={`rounded-full border px-3 py-1 text-[12px] transition-colors ${
+            mineOnly
+              ? "border-accent bg-accent-soft text-accent font-medium"
+              : "border-line text-ink-soft hover:border-ink-faint"
+          }`}
+        >
+          Mine
+        </button>
+        <button
+          onClick={() => setOverdueOnly((v) => !v)}
+          className={`rounded-full border px-3 py-1 text-[12px] transition-colors ${
+            overdueOnly
+              ? "border-red-500/60 bg-red-500/10 text-red-500 font-medium"
+              : "border-line text-ink-soft hover:border-ink-faint"
+          }`}
+        >
+          Overdue
+        </button>
+        <select
+          value={phaseFilter}
+          onChange={(e) => setPhaseFilter(e.target.value)}
+          className={`rounded-full border px-2.5 py-1 text-[12px] outline-none ${
+            phaseFilter ? "border-accent bg-accent-soft text-accent" : "border-line bg-card text-ink-soft"
+          }`}
+        >
+          <option value="">All phases</option>
+          {PHASES.map((p) => (
+            <option key={p} value={p}>
+              {p}
+            </option>
+          ))}
+        </select>
+        {anyFilter && (
+          <button
+            onClick={() => {
+              setQ("");
+              setMineOnly(false);
+              setOverdueOnly(false);
+              setPhaseFilter("");
+            }}
+            className="text-[12px] text-ink-faint hover:text-ink"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
       {error && (
         <p className="mb-3 rounded-lg border border-red-500/40 bg-red-500/5 px-3 py-2 text-[13px] text-red-500">
           {error}
@@ -287,6 +420,11 @@ export function TaskBoard({
       {!tasks && !error && <p className="text-sm text-ink-faint">Loading…</p>}
       {tasks && tasks.length === 0 && (
         <p className="text-sm text-ink-faint">No tasks yet — add the first one above.</p>
+      )}
+      {tasks && tasks.length > 0 && anyFilter && visibleCount === 0 && (
+        <p className="text-sm text-ink-faint">
+          No open tasks match — check the archive below or clear the filters.
+        </p>
       )}
 
       {grouped.map(
@@ -416,6 +554,62 @@ export function TaskBoard({
             </section>
           )
       )}
+
+      {/* Archive — completed work leaves the board by itself, never gets lost. */}
+      <section className="mt-6 border-t border-line pt-3">
+        <button
+          onClick={toggleArchive}
+          className="flex items-center gap-2 text-[12.5px] text-ink-faint hover:text-ink transition-colors"
+        >
+          {showArchive ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+          <Archive size={13} />
+          Archive{archived ? ` · ${archived.length}` : ""}
+          <span className="text-[11px]">
+            — done tasks move here after 14 days (milestones stay on the board)
+          </span>
+        </button>
+
+        {showArchive && (
+          <div className="mt-3 space-y-1.5">
+            {!archived && <p className="text-[13px] text-ink-faint">Loading…</p>}
+            {archived && archived.length === 0 && (
+              <p className="text-[13px] text-ink-faint">Nothing archived yet.</p>
+            )}
+            {archived && archived.length > 0 && archivedShown.length === 0 && (
+              <p className="text-[13px] text-ink-faint">No archived tasks match the filters.</p>
+            )}
+            {archivedShown.map((t) => (
+              <div
+                key={t.id}
+                className="flex items-center gap-3 rounded-lg border border-line bg-card/60 px-3 py-2"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] truncate">{t.title}</p>
+                  <p className="text-[11px] text-ink-faint truncate">
+                    {t.phase ? `${t.phase} · ` : ""}
+                    {t.assignee?.name ?? "unassigned"} · done {t.updatedAt.slice(0, 10)}
+                  </p>
+                </div>
+                <button
+                  onClick={() => restore(t)}
+                  disabled={restoring === t.id}
+                  className="flex items-center gap-1 rounded-lg border border-line px-2.5 py-1 text-[11.5px] text-ink-soft hover:border-ink-faint hover:text-ink disabled:opacity-50 shrink-0"
+                  title="Bring back onto the board"
+                >
+                  <RotateCcw size={11} />
+                  Restore
+                </button>
+              </div>
+            ))}
+            {archived && archived.length > 0 && (
+              <p className="pt-1 text-[11px] text-ink-faint">
+                Also documented in TASK-HISTORY.md inside the project folder — grouped by month,
+                readable by the whole team and the agent.
+              </p>
+            )}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

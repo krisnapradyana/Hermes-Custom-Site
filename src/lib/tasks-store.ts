@@ -40,6 +40,8 @@ export interface Task {
   createdBy: Person;
   createdAt: string;
   updatedAt: string;
+  /** Set when the task is swept into the project archive. */
+  archivedAt?: string;
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -49,30 +51,89 @@ const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), "data");
 const DIR = path.join(DATA_DIR, "tasks");
 const LOCK = "tasks";
 
-const file = (projectId: string) => path.join(DIR, `${projectId.replace(/[^\w.-]+/g, "_")}.json`);
+const sanitize = (projectId: string) => projectId.replace(/[^\w.-]+/g, "_");
+const file = (projectId: string) => path.join(DIR, `${sanitize(projectId)}.json`);
+const archiveFile = (projectId: string) => path.join(DIR, `${sanitize(projectId)}.archive.json`);
 
-async function read(projectId: string): Promise<Task[]> {
+async function readFileTasks(f: string): Promise<Task[]> {
   try {
-    return JSON.parse(await fs.readFile(file(projectId), "utf-8")) as Task[];
+    return JSON.parse(await fs.readFile(f, "utf-8")) as Task[];
   } catch {
     return [];
   }
 }
+const read = (projectId: string) => readFileTasks(file(projectId));
 
-async function write(projectId: string, tasks: Task[]): Promise<void> {
+async function writeFileTasks(f: string, tasks: Task[]): Promise<void> {
   await fs.mkdir(DIR, { recursive: true });
-  const f = file(projectId);
   const tmp = `${f}.tmp-${process.pid}-${Date.now()}`;
   await fs.writeFile(tmp, JSON.stringify(tasks, null, 2), "utf-8");
   await fs.rename(tmp, f);
 }
+const write = (projectId: string, tasks: Task[]) => writeFileTasks(file(projectId), tasks);
+
+/**
+ * ARCHIVE SWEEP — the board shows work in motion, not history.
+ * Tasks that have been DONE for 14+ days move to <project>.archive.json:
+ * off the board, still searchable, restorable, and documented in the
+ * project's TASK-HISTORY.md. Milestones are exempt — a handful per project,
+ * and they are the skeleton of the timeline for its whole life.
+ * The clock starts at completion (updatedAt of the done transition), so
+ * long-running tasks are never at risk.
+ */
+const ARCHIVE_AFTER_MS = 14 * 86_400_000;
+
+async function sweepProject(projectId: string, tasks: Task[]): Promise<Task[]> {
+  const cutoff = Date.now() - ARCHIVE_AFTER_MS;
+  const move = tasks.filter(
+    (t) => t.status === "done" && t.kind !== "milestone" && Date.parse(t.updatedAt) < cutoff
+  );
+  if (move.length === 0) return tasks;
+  const keep = tasks.filter((t) => !move.includes(t));
+  const now = new Date().toISOString();
+  const archived = [...(await readFileTasks(archiveFile(projectId)))];
+  for (const t of move) archived.push({ ...t, archivedAt: now });
+  await writeFileTasks(archiveFile(projectId), archived);
+  await write(projectId, keep);
+  // Regenerate the project's TASK-HISTORY.md (dynamic import: no static cycle).
+  import("./task-history").then((m) => m.scheduleTaskHistoryUpdate(projectId)).catch(() => {});
+  return keep;
+}
 
 export function listTasks(projectId: string): Promise<Task[]> {
   return withLock(LOCK, async () => {
-    const tasks = await read(projectId);
+    const tasks = await sweepProject(projectId, await read(projectId));
     // Open work first (by status order), then most recently touched.
     const order = (t: Task) => TASK_STATUSES.indexOf(t.status);
     return tasks.sort((a, b) => order(a) - order(b) || b.updatedAt.localeCompare(a.updatedAt));
+  });
+}
+
+/** Archived (swept) tasks, newest first. */
+export function listArchived(projectId: string): Promise<Task[]> {
+  return withLock(LOCK, async () => {
+    const tasks = await readFileTasks(archiveFile(projectId));
+    return tasks.sort((a, b) => (b.archivedAt ?? "").localeCompare(a.archivedAt ?? ""));
+  });
+}
+
+/** Bring a swept task back onto the board (safety net — anyone signed in). */
+export function restoreTask(projectId: string, taskId: string): Promise<Task | null> {
+  return withLock(LOCK, async () => {
+    const archived = await readFileTasks(archiveFile(projectId));
+    const t = archived.find((x) => x.id === taskId);
+    if (!t) return null;
+    await writeFileTasks(
+      archiveFile(projectId),
+      archived.filter((x) => x.id !== taskId)
+    );
+    const tasks = await read(projectId);
+    delete t.archivedAt;
+    t.updatedAt = new Date().toISOString(); // restart the 14-day clock
+    tasks.push(t);
+    await write(projectId, tasks);
+    import("./task-history").then((m) => m.scheduleTaskHistoryUpdate(projectId)).catch(() => {});
+    return t;
   });
 }
 
@@ -180,7 +241,9 @@ export function tasksForAssignee(userKey: string): Promise<Task[]> {
   return withLock(LOCK, async () => {
     let files: string[] = [];
     try {
-      files = (await fs.readdir(DIR)).filter((f) => f.endsWith(".json"));
+      files = (await fs.readdir(DIR)).filter(
+        (f) => f.endsWith(".json") && !f.endsWith(".archive.json")
+      );
     } catch {}
     const mine: Task[] = [];
     for (const f of files) {

@@ -224,7 +224,9 @@ export async function POST(req: NextRequest) {
       `(and on which project), who is standby, each member's open tasks, and ` +
       `per-project schedules with unassigned tasks (good suggestions for ` +
       `standby people). Never edit this file; never copy it into memory — ` +
-      `it goes stale in minutes.`
+      `it goes stale in minutes. A project's working folder may also contain ` +
+      `TASK-HISTORY.md (auto-generated): its completed tasks by month, with ` +
+      `assignees and feedback — read it for "what was delivered/when" questions.`
   );
   if (body.context) contextParts.push(body.context.slice(0, 2000));
   if (body.projectId) {
