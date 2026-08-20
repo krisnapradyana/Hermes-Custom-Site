@@ -3,6 +3,7 @@
 import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   ArrowLeft,
   FolderKanban,
@@ -38,6 +39,8 @@ type ArtifactItem = Artifact & { conversationId: string; by?: string };
 export default function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const { data: session } = useSession();
+  const mySlackId = session?.user?.slackId;
   const project = useHermesStore((s) => s.projects.find((p) => p.id === id));
   const loadProjects = useHermesStore((s) => s.loadProjects);
   const updateProject = useHermesStore((s) => s.updateProject);
@@ -292,29 +295,42 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 Shared with everyone on the team — only the person who started each can reply.
               </p>
               <div className="space-y-2 mb-10">
-                {conversations.map((c) => (
-                  <Link
-                    prefetch={false}
-                    key={c.id}
-                    href={`/conversation/${c.id}`}
-                    className="block rounded-xl border border-line bg-card px-4 py-3 hover:border-ink-faint transition-colors"
-                  >
-                    <p className="text-sm font-medium">{c.title}</p>
-                    <p className="flex items-center gap-2 text-[12px] text-ink-faint">
-                      <span className="inline-flex items-center gap-1">
-                        <MessageSquare size={11} />
-                        {c.messageCount}
-                      </span>
-                      {c.createdBy?.name && (
+                {conversations.map((c) => {
+                  // My own conversations pop out — accent edge + "You".
+                  const mine =
+                    !!c.createdBy?.slackId && c.createdBy.slackId === mySlackId;
+                  return (
+                    <Link
+                      prefetch={false}
+                      key={c.id}
+                      href={`/conversation/${c.id}`}
+                      className={`block rounded-xl border px-4 py-3 transition-colors ${
+                        mine
+                          ? "border-accent/50 border-l-[3px] border-l-accent bg-accent-soft/30 hover:border-accent"
+                          : "border-line bg-card hover:border-ink-faint"
+                      }`}
+                    >
+                      <p className="text-sm font-medium">{c.title}</p>
+                      <p className="flex items-center gap-2 text-[12px] text-ink-faint">
                         <span className="inline-flex items-center gap-1">
-                          <User size={11} />
-                          {c.createdBy.name}
+                          <MessageSquare size={11} />
+                          {c.messageCount}
                         </span>
-                      )}
-                      <span>· updated {timeAgo(c.updatedAt)}</span>
-                    </p>
-                  </Link>
-                ))}
+                        {c.createdBy?.name && (
+                          <span
+                            className={`inline-flex items-center gap-1 ${
+                              mine ? "text-accent font-medium" : ""
+                            }`}
+                          >
+                            <User size={11} />
+                            {mine ? "You" : c.createdBy.name}
+                          </span>
+                        )}
+                        <span>· updated {timeAgo(c.updatedAt)}</span>
+                      </p>
+                    </Link>
+                  );
+                })}
                 {conversations.length === 0 && (
                   <p className="text-sm text-ink-faint">No conversations in this project yet.</p>
                 )}
