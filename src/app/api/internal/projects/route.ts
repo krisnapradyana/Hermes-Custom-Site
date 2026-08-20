@@ -18,12 +18,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const projects = (await readProjects()).map((p) => ({
+  // Archived projects disappear from the clock-in menu.
+  const projects = (await readProjects())
+    .filter((p) => !p.archived)
+    .map((p) => ({
     id: p.id,
     name: p.name,
     color: p.color,
-    // Lets the clock app treat the creator's own projects as "assigned".
-    createdBy: p.createdBy?.slackId,
-  }));
+      // Lets the clock app treat the creator's own projects as "assigned".
+      createdBy: p.createdBy?.slackId,
+    }));
   return NextResponse.json({ projects });
 }

@@ -22,6 +22,7 @@ import { timeAgo } from "@/lib/format";
 import { ConfirmDeleteModal } from "@/components/ConfirmDeleteModal";
 import { ServerFolderPicker } from "@/components/ServerFolderPicker";
 import { ProjectCalendar, localDateKey } from "@/components/ProjectCalendar";
+import { useFocusRefresh } from "@/lib/use-focus-refresh";
 import { Project } from "@/lib/types";
 
 interface Thumb {
@@ -88,6 +89,14 @@ export default function ProjectsPage() {
     return () => clearInterval(t);
   }, [loadSummary]);
 
+  // Coming back to the tab → instant refresh of both lists.
+  useFocusRefresh(
+    useCallback(() => {
+      loadProjects();
+      loadSummary();
+    }, [loadProjects, loadSummary])
+  );
+
   // ---- search ----
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
@@ -122,6 +131,7 @@ export default function ProjectsPage() {
 
   // ---- calendar date filter (temporary — not persisted) ----
   const [dateFilter, setDateFilter] = useState<string | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
   const projectDates = useMemo(() => {
     const map = new Map<string, number>();
     for (const p of projects) {
@@ -207,10 +217,12 @@ export default function ProjectsPage() {
       }
     };
 
+    // Archived projects hide from the default grid (searches still find them).
+    const pool = showArchived || q ? projects : projects.filter((p) => !p.archived);
     // Calendar filter narrows everything else down to one creation day.
     const base = dateFilter
-      ? projects.filter((p) => localDateKey(p.createdAt) === dateFilter)
-      : projects;
+      ? pool.filter((p) => localDateKey(p.createdAt) === dateFilter)
+      : pool;
 
     if (q) {
       const matches = (p: Project) =>
@@ -241,7 +253,7 @@ export default function ProjectsPage() {
       .sort((a, b) => dir * a[0].localeCompare(b[0]))
       .map(([key, items]) => ({ key, items: items.sort(compare) }));
     return { flat: null, groups };
-  }, [projects, query, activity, sort, dateFilter]);
+  }, [projects, query, activity, sort, dateFilter, showArchived]);
 
   const renderCard = (p: Project) => {
     const s = summaries[p.id];
@@ -268,6 +280,11 @@ export default function ProjectsPage() {
               <FolderKanban size={15} style={{ color: p.color }} />
             </div>
             <h2 className="font-medium">{p.name}</h2>
+            {p.archived && (
+              <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] text-amber-600 dark:text-amber-400 shrink-0">
+                Archived
+              </span>
+            )}
             {s?.activeNow && (
               <span className="relative flex h-2 w-2 shrink-0" title="Someone is working here now">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-60" />
@@ -501,6 +518,18 @@ export default function ProjectsPage() {
                 </section>
               );
             })}
+
+          {/* Archived live here, out of the way but never lost. */}
+          {!query && projects.some((p) => p.archived) && (
+            <button
+              onClick={() => setShowArchived((v) => !v)}
+              className="w-full text-center text-[12px] text-ink-faint hover:text-ink py-3 transition-colors"
+            >
+              {showArchived
+                ? "Hide archived projects"
+                : `Show archived projects · ${projects.filter((p) => p.archived).length}`}
+            </button>
+          )}
 
           {deleteTarget && (
             <ConfirmDeleteModal

@@ -24,7 +24,7 @@ interface MemberTask {
 interface MemberPulse {
   userKey: string;
   name: string;
-  active: { projectId: string; inAt: string } | null;
+  active: { projectId: string; inAt: string; breakAt?: string } | null;
   todayMs: number;
   weekMs: number;
   lastSeen: string | null;
@@ -73,11 +73,23 @@ export default function TeamPage() {
     const t = setInterval(() => {
       if (document.visibilityState === "visible") load();
     }, 15_000);
-    return () => clearInterval(t);
+    // Instant refresh the moment the tab regains focus.
+    const onFocus = () => load();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") load();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [load]);
 
   const maxWeek = Math.max(1, ...(data?.members.map((m) => m.weekMs) ?? [1]));
-  const working = data?.members.filter((m) => m.active) ?? [];
+  const working = data?.members.filter((m) => m.active && !m.active.breakAt) ?? [];
+  const onBreak = data?.members.filter((m) => m.active?.breakAt) ?? [];
   const idle = data?.members.filter((m) => !m.active) ?? [];
 
   const projectName = (id: string) => data?.projects[id]?.name ?? id;
@@ -91,7 +103,12 @@ export default function TeamPage() {
         title="Click for details"
       >
         {/* status dot */}
-        {m.active ? (
+        {m.active?.breakAt ? (
+          <span
+            className="inline-flex h-2.5 w-2.5 rounded-full bg-amber-500 shrink-0"
+            title="On break"
+          />
+        ) : m.active ? (
           <span className="relative flex h-2.5 w-2.5 shrink-0" title="Working now">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-60" />
             <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
@@ -113,7 +130,11 @@ export default function TeamPage() {
                 style={{ color: projectColor(m.active.projectId) }}
               />
               {projectName(m.active.projectId)}
-              <span className="text-ink-faint"> · since {fmtSince(m.active.inAt)}</span>
+              <span className="text-ink-faint">
+                {m.active.breakAt
+                  ? ` · on break since ${fmtSince(m.active.breakAt)}`
+                  : ` · since ${fmtSince(m.active.inAt)}`}
+              </span>
             </p>
           ) : (
             <p className="text-[12px] text-ink-faint truncate">
@@ -247,6 +268,15 @@ export default function TeamPage() {
             Working now · {working.length}
           </h2>
           <div className="space-y-2.5">{working.map(row)}</div>
+        </section>
+      )}
+
+      {onBreak.length > 0 && (
+        <section className="mb-8">
+          <h2 className="text-[12px] font-medium uppercase tracking-wide text-ink-faint mb-2.5">
+            On break · {onBreak.length}
+          </h2>
+          <div className="space-y-2.5">{onBreak.map(row)}</div>
         </section>
       )}
 

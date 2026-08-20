@@ -13,6 +13,7 @@ const EDITABLE: (keyof Project)[] = [
   "workingFolder",
   "driveFolder",
   "slackChannel",
+  "archived",
 ];
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

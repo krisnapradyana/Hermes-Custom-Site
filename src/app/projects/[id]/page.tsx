@@ -10,6 +10,7 @@ import {
   User,
   MessageSquare,
   ListChecks,
+  Archive,
 } from "lucide-react";
 import { useHermesStore } from "@/lib/store";
 import { timeAgo } from "@/lib/format";
@@ -18,6 +19,7 @@ import { IconButton } from "@/components/ui";
 import { Composer } from "@/components/Composer";
 import { WorkspacePanel } from "@/components/WorkspacePanel";
 import { ProjectTeam } from "@/components/ProjectTeam";
+import { useFocusRefresh } from "@/lib/use-focus-refresh";
 import { useResizableWidth, ResizeHandle } from "@/components/ResizeHandle";
 import { ConversationMeta, Attachment, Artifact } from "@/lib/types";
 import { Paperclip, Package } from "lucide-react";
@@ -38,6 +40,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const router = useRouter();
   const project = useHermesStore((s) => s.projects.find((p) => p.id === id));
   const loadProjects = useHermesStore((s) => s.loadProjects);
+  const updateProject = useHermesStore((s) => s.updateProject);
 
   const [conversations, setConversations] = useState<ConversationMeta[]>([]);
   const loadConversations = useCallback(async () => {
@@ -52,6 +55,14 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     loadProjects();
     loadConversations();
   }, [loadProjects, loadConversations]);
+
+  // Coming back to the tab → instant refresh.
+  useFocusRefresh(
+    useCallback(() => {
+      loadProjects();
+      loadConversations();
+    }, [loadProjects, loadConversations])
+  );
 
   const startConversation = async (text: string) => {
     const res = await api.post<{ conversation: ConversationMeta }>(
@@ -116,15 +127,34 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               <ArrowLeft size={14} />
               All projects
             </Link>
-            {hasPanel && (
-              <IconButton
-                onClick={() => setShowPanel((v) => !v)}
-                title={showPanel ? "Hide workspace panel" : "Show workspace panel"}
-                active={showPanel}
+            <div className="flex items-center gap-1.5">
+              {/* Archive: hides the project from the clock-in menu (reversible). */}
+              <button
+                onClick={() => updateProject(project.id, { archived: !project.archived })}
+                title={
+                  project.archived
+                    ? "Unarchive — show in the clock-in menu again"
+                    : "Archive — hide from the clock-in menu"
+                }
+                className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] transition-colors ${
+                  project.archived
+                    ? "border-amber-500/50 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20"
+                    : "border-line text-ink-soft hover:border-ink-faint hover:text-ink"
+                }`}
               >
-                <PanelRight size={15} />
-              </IconButton>
-            )}
+                <Archive size={13} />
+                {project.archived ? "Archived — unarchive" : "Archive"}
+              </button>
+              {hasPanel && (
+                <IconButton
+                  onClick={() => setShowPanel((v) => !v)}
+                  title={showPanel ? "Hide workspace panel" : "Show workspace panel"}
+                  active={showPanel}
+                >
+                  <PanelRight size={15} />
+                </IconButton>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-3 mb-2">

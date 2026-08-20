@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Users, Coffee, ArrowUpRight } from "lucide-react";
 import { api } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
+import { useFocusRefresh } from "@/lib/use-focus-refresh";
 
 /**
  * Who is (or was) on THIS project — a project-scoped slice of Team Pulse.
@@ -23,7 +24,7 @@ interface MemberTask {
 interface MemberPulse {
   userKey: string;
   name: string;
-  active: { projectId: string; inAt: string } | null;
+  active: { projectId: string; inAt: string; breakAt?: string } | null;
   todayMs: number;
   weekMs: number;
   lastSeen: string | null;
@@ -65,6 +66,7 @@ export function ProjectTeam({ projectId }: { projectId: string }) {
     }, 30_000);
     return () => clearInterval(t);
   }, [load]);
+  useFocusRefresh(load);
 
   if (error) return null; // clock app not configured/reachable — stay out of the way
 
@@ -129,7 +131,9 @@ export function ProjectTeam({ projectId }: { projectId: string }) {
                 <p className="text-[14px] font-medium truncate">{m.name}</p>
                 {here ? (
                   <p className="text-[12px] text-ink-soft truncate">
-                    Working on this now · since {fmtSince(m.active!.inAt)}
+                    {m.active!.breakAt
+                      ? `On break · since ${fmtSince(m.active!.breakAt)}`
+                      : `Working on this now · since ${fmtSince(m.active!.inAt)}`}
                   </p>
                 ) : elsewhere ? (
                   <Link

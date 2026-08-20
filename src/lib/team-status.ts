@@ -28,7 +28,7 @@ export function teamStatusPath(): string {
 interface MemberPulse {
   userKey: string;
   name: string;
-  active: { projectId: string; inAt: string } | null;
+  active: { projectId: string; inAt: string; breakAt?: string } | null;
   todayMs: number;
   weekMs: number;
   lastSeen: string | null;
@@ -103,7 +103,7 @@ export async function updateTeamStatus(): Promise<void> {
           lines.push(
             `- ${m.name} — ${pname(m.active!.projectId)} (since ${studioTime(m.active!.inAt)}, ${fmtH(
               m.todayMs
-            )} today)`
+            )} today)${m.active!.breakAt ? ` — ON BREAK since ${studioTime(m.active!.breakAt)}` : ""}`
           );
         }
         lines.push("", "### Standby (not clocked in)");
@@ -140,9 +140,9 @@ export async function updateTeamStatus(): Promise<void> {
         lines.push("");
       }
 
-      // Per-project schedule + milestones + unassigned work.
+      // Per-project schedule + milestones + unassigned work (skip archived).
       lines.push("## Projects", "");
-      for (const p of projects) {
+      for (const p of projects.filter((x) => !x.archived)) {
         const tasks = tasksByProject.get(p.id) ?? [];
         const open = tasks.filter((t) => t.status !== "done" && t.kind !== "milestone");
         const milestones = tasks.filter((t) => t.kind === "milestone");

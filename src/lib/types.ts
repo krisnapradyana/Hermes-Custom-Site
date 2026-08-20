@@ -65,6 +65,8 @@ export interface Project {
   /** Planned schedule (ISO dates, YYYY-MM-DD). */
   startDate?: string;
   deadline?: string;
+  /** Archived: hidden from the clock-in menu and default project list. */
+  archived?: boolean;
 }
 
 /** Shared, project-scoped conversation (readable by all; only creator replies). */
