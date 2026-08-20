@@ -24,6 +24,10 @@ ENV UV_THREADPOOL_SIZE=32
 COPY --from=build --chown=node:node /app/.next/standalone ./
 COPY --from=build --chown=node:node /app/.next/static ./.next/static
 COPY --from=build --chown=node:node /app/public ./public
+# pdfjs loads its worker via a dynamic import Next's file tracing can't see,
+# so pdf.worker.mjs was missing from the standalone output — which silently
+# broke ALL PDF extraction (text and page-images). Ship the whole package.
+COPY --from=build --chown=node:node /app/node_modules/pdfjs-dist ./node_modules/pdfjs-dist
 # Server state lives here — MUST be a mounted volume or it dies with the container.
 ENV DATA_DIR=/app/data
 RUN mkdir -p /app/data && chown node:node /app/data
