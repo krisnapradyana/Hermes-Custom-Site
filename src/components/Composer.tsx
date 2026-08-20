@@ -4,7 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowUp, Paperclip, X, FileText, Folder, File as FileIcon, Square } from "lucide-react";
 import { Attachment } from "@/lib/types";
 
-const MAX_FILE_MB = 5;
+// Documents (PDF/Word/Excel) are converted to text/page-images server-side,
+// so they can be larger; images are downscaled client-side before sending.
+const MAX_DOC_MB = 15;
+const MAX_IMAGE_OUT_MB = 5; // after downscaling
 /**
  * Downscale images before sending: LLM providers cap image dimensions (~1568px
  * on the long edge), and oversized images make the agent shrink-and-retry in a
@@ -83,6 +86,11 @@ export function Composer({
   const ref = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Drag & drop files anywhere onto the composer. Counter (not boolean)
+  // because dragenter/dragleave fire on every child element crossed.
+  const [dragging, setDragging] = useState(false);
+  const dragDepth = useRef(0);
+
   // --- "@file" mentions (Antigravity-style: reference by path, no upload) ---
   const [tree, setTree] = useState<TreeFile[]>([]);
   const [mentions, setMentions] = useState<string[]>([]); // relative paths
@@ -151,12 +159,19 @@ export function Composer({
     if (!files) return;
     setWarn("");
     Array.from(files).forEach(async (f) => {
-      if (f.size > MAX_FILE_MB * 1024 * 1024) {
-        setWarn(`"${f.name}" is over ${MAX_FILE_MB}MB — skipped.`);
+      const isImage = f.type.startsWith("image/");
+      // Documents: hard cap before reading. Images: no pre-cap — they get
+      // downscaled below; only the RESULT is size-checked.
+      if (!isImage && f.size > MAX_DOC_MB * 1024 * 1024) {
+        setWarn(`"${f.name}" is over ${MAX_DOC_MB}MB — skipped.`);
         return;
       }
       const { dataUrl, size } = await toDataUrl(f);
-      const shrank = f.type.startsWith("image/") && size < f.size * 0.95;
+      if (isImage && size > MAX_IMAGE_OUT_MB * 1024 * 1024) {
+        setWarn(`"${f.name}" is still over ${MAX_IMAGE_OUT_MB}MB after resizing — skipped.`);
+        return;
+      }
+      const shrank = isImage && size < f.size * 0.95;
       if (shrank) setWarn(`"${f.name}" resized for faster processing.`);
       setAttachments((prev) => [
         ...prev,
@@ -189,7 +204,41 @@ export function Composer({
   };
 
   return (
-    <div className="rounded-2xl border border-line bg-card shadow-sm focus-within:border-ink-faint transition-colors">
+    <div
+      className={`relative rounded-2xl border bg-card shadow-sm transition-colors ${
+        dragging ? "border-accent border-dashed" : "border-line focus-within:border-ink-faint"
+      }`}
+      onDragEnter={(e) => {
+        if (!e.dataTransfer.types.includes("Files")) return;
+        e.preventDefault();
+        dragDepth.current += 1;
+        setDragging(true);
+      }}
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes("Files")) return;
+        e.preventDefault();
+      }}
+      onDragLeave={(e) => {
+        if (!e.dataTransfer.types.includes("Files")) return;
+        dragDepth.current = Math.max(0, dragDepth.current - 1);
+        if (dragDepth.current === 0) setDragging(false);
+      }}
+      onDrop={(e) => {
+        if (!e.dataTransfer.files.length) return;
+        e.preventDefault();
+        dragDepth.current = 0;
+        setDragging(false);
+        addFiles(e.dataTransfer.files);
+      }}
+    >
+      {dragging && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-accent-soft/80 backdrop-blur-[1px] pointer-events-none">
+          <p className="flex items-center gap-2 text-sm font-medium text-accent">
+            <Paperclip size={15} />
+            Drop files to attach
+          </p>
+        </div>
+      )}
       {attachments.length > 0 && (
         <div className="flex flex-wrap gap-2 px-3 pt-3">
           {attachments.map((a, i) => (

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserKey } from "@/lib/user-key";
-import { extractDocumentText } from "@/lib/extract-server";
+import { extractDocumentText, pdfPagesToImages } from "@/lib/extract-server";
 import { readManifest } from "@/lib/projects-store";
 import { trackerPath } from "@/lib/tracker";
 import { teamStatusPath } from "@/lib/team-status";
@@ -113,6 +113,7 @@ async function buildUserContent(
   const others = attachments.filter((a) => !a.type.startsWith("image/"));
 
   let text = message;
+  const pageImages: ContentPart[] = [];
   for (const f of others) {
     if (isTextFile(f)) {
       const body = decodeDataUrl(f.dataUrl).slice(0, 100_000); // cap inlined size
@@ -121,20 +122,37 @@ async function buildUserContent(
     }
 
     // Binary documents (PDF / Word / Excel): extract text server-side.
-    const extracted = await extractDocumentText(f.name, f.type, dataUrlToBuffer(f.dataUrl));
+    const buf = dataUrlToBuffer(f.dataUrl);
+    const extracted = await extractDocumentText(f.name, f.type, buf);
     if (extracted) {
       const clipped = extracted.slice(0, DOC_CAP);
       const note = extracted.length > DOC_CAP ? "\n[…document truncated…]" : "";
       text += `\n\n[Attached document: ${f.name} — extracted text]\n\`\`\`\n${clipped}${note}\n\`\`\``;
-    } else {
-      text += `\n\n[Attachment "${f.name}" (${f.type}) has no extractable text — it may be a scanned/image-only document or an unsupported format. Supported: images, text files, PDF, .docx, .xlsx.]`;
+      continue;
     }
+
+    // PDF with no text layer (scanned / flattened design deck) → render the
+    // first pages as images so the agent can SEE the document.
+    const isPdf = f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
+    if (isPdf) {
+      const pages = await pdfPagesToImages(buf);
+      if (pages.length > 0) {
+        text += `\n\n[Attached PDF "${f.name}" has no text layer — its first ${pages.length} page(s) are attached as images. Read them visually.]`;
+        pageImages.push(
+          ...pages.map((url) => ({ type: "image_url" as const, image_url: { url } }))
+        );
+        continue;
+      }
+    }
+
+    text += `\n\n[Attachment "${f.name}" (${f.type}) has no extractable text — it may be an unsupported format. Supported: images, text files, PDF, .docx, .xlsx.]`;
   }
 
-  if (images.length === 0) return text;
+  if (images.length === 0 && pageImages.length === 0) return text;
   return [
     { type: "text", text },
     ...images.map((img) => ({ type: "image_url" as const, image_url: { url: img.dataUrl } })),
+    ...pageImages,
   ];
 }
 

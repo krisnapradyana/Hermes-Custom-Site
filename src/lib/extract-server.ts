@@ -59,3 +59,48 @@ export async function extractDocumentText(
   }
   return null;
 }
+
+/**
+ * Fallback for PDFs with no text layer (scanned docs, design decks exported
+ * as flattened images): render the first pages to JPEG data URLs so the
+ * agent's vision can read them instead of getting "no extractable text".
+ */
+const PDF_IMG_MAX_PAGES = 8;
+const PDF_IMG_EDGE = 1536; // match the provider's image-dimension sweet spot
+
+export async function pdfPagesToImages(
+  buf: Buffer,
+  maxPages = PDF_IMG_MAX_PAGES
+): Promise<string[]> {
+  try {
+    const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    const { createCanvas } = await import("@napi-rs/canvas");
+    const doc = await pdfjs.getDocument({ data: new Uint8Array(buf), useSystemFonts: true })
+      .promise;
+    const out: string[] = [];
+    const pages = Math.min(doc.numPages, maxPages);
+    for (let i = 1; i <= pages; i++) {
+      const page = await doc.getPage(i);
+      const base = page.getViewport({ scale: 1 });
+      const scale = Math.min(2, PDF_IMG_EDGE / Math.max(base.width, base.height));
+      const viewport = page.getViewport({ scale });
+      const canvas = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
+      const ctx = canvas.getContext("2d");
+      // PDFs assume white paper; without this, transparent areas turn black in JPEG.
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      await page.render({
+        canvasContext: ctx as unknown as CanvasRenderingContext2D,
+        viewport,
+      }).promise;
+      const jpeg = canvas.toBuffer("image/jpeg", 80);
+      out.push(`data:image/jpeg;base64,${jpeg.toString("base64")}`);
+    }
+    return out;
+  } catch (err) {
+    console.warn(
+      `[extract] pdf→images fallback failed: ${err instanceof Error ? err.message : err}`
+    );
+    return [];
+  }
+}

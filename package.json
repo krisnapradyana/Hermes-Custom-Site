@@ -13,15 +13,16 @@
     "format:check": "prettier --check src"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^1.0.7",
     "lucide-react": "^0.469.0",
     "mammoth": "^1.8.0",
-    "pdfjs-dist": "^4.10.38",
-    "xlsx": "^0.18.5",
     "next": "^15.1.0",
     "next-auth": "^5.0.0-beta.25",
+    "pdfjs-dist": "^4.10.38",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "sharp": "^0.33.5",
+    "xlsx": "^0.18.5",
     "zustand": "^5.0.2"
   },
   "devDependencies": {
