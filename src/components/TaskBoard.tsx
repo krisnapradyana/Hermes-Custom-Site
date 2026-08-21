@@ -12,6 +12,7 @@ import {
   ChevronDown,
   ChevronRight,
   RotateCcw,
+  Diamond,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
@@ -235,15 +236,81 @@ export function TaskBoard({
     setRestoring(null);
   };
 
+  // Milestones live in their own chronological strip (the project skeleton),
+  // never inside the status sections — those are for work in motion.
+  const milestones = (tasks ?? [])
+    .filter((t) => t.kind === "milestone")
+    .sort((a, b) => (a.dueDate ?? "9999").localeCompare(b.dueDate ?? "9999"));
+
   const grouped = STATUSES.map((s) => ({
     ...s,
-    items: (tasks ?? []).filter((t) => t.status === s.id && matches(t)),
+    items: (tasks ?? []).filter(
+      (t) => t.kind !== "milestone" && t.status === s.id && matches(t)
+    ),
   }));
   const visibleCount = grouped.reduce((n, g) => n + g.items.length, 0);
   const archivedShown = (archived ?? []).filter(matches);
 
   return (
     <div className="mb-10">
+      {/* Milestones strip — the project's skeleton, chronological, at a glance. */}
+      {milestones.length > 0 && (
+        <div className="mb-4 rounded-xl border border-line bg-card px-4 py-3">
+          <h3 className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-ink-faint mb-2">
+            <Diamond size={11} className="text-accent" fill="currentColor" />
+            Milestones · {milestones.length}
+          </h3>
+          <div className="space-y-1">
+            {milestones.map((m) => {
+              const overdue = m.status !== "done" && !!m.dueDate && m.dueDate < today;
+              const done = m.status === "done";
+              return (
+                <div key={m.id} className="flex items-center gap-2.5 group py-0.5">
+                  <button
+                    onClick={() => setStatus(m, done ? "todo" : "done")}
+                    title={done ? "Mark as not done" : "Mark as done"}
+                    className="shrink-0 p-0.5"
+                  >
+                    <Diamond
+                      size={13}
+                      className={done ? "text-green-500" : "text-accent"}
+                      fill={done ? "currentColor" : "none"}
+                    />
+                  </button>
+                  <span
+                    className={`flex-1 min-w-0 text-[13.5px] truncate ${
+                      done ? "line-through text-ink-faint" : ""
+                    }`}
+                  >
+                    {m.title}
+                  </span>
+                  <span
+                    className={`text-[12px] tabular-nums shrink-0 ${
+                      overdue ? "text-red-500 font-medium" : "text-ink-faint"
+                    }`}
+                  >
+                    {overdue ? "⚠ " : ""}
+                    {m.dueDate
+                      ? new Date(`${m.dueDate}T00:00:00`).toLocaleDateString(undefined, {
+                          day: "numeric",
+                          month: "short",
+                        })
+                      : "no date"}
+                  </span>
+                  <button
+                    onClick={() => remove(m)}
+                    className="p-1 rounded text-ink-faint hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                    title="Delete milestone"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <p className="text-[12px] text-ink-faint mb-3">
         Assign work and track iteration — to do → doing → review → revision → done. Only the
         assignee or the creator can move a task.
@@ -418,7 +485,7 @@ export function TaskBoard({
         </p>
       )}
       {!tasks && !error && <p className="text-sm text-ink-faint">Loading…</p>}
-      {tasks && tasks.length === 0 && (
+      {tasks && tasks.filter((t) => t.kind !== "milestone").length === 0 && (
         <p className="text-sm text-ink-faint">No tasks yet — add the first one above.</p>
       )}
       {tasks && tasks.length > 0 && anyFilter && visibleCount === 0 && (
