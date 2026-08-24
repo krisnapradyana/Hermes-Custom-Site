@@ -167,25 +167,47 @@ export default function ProjectsPage() {
   const [deadline, setDeadline] = useState("");
   const [picking, setPicking] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState("");
+  // Two ways in: BRAND NEW creates the folder + standard template inside a
+  // chosen location; EXISTING points at a folder that's already on the Drive.
+  const [mode, setMode] = useState<"new" | "existing">("new");
+  const [folderName, setFolderName] = useState("");
+  const [parentFolder, setParentFolder] = useState("");
   // Schedule is required — the timeline is only as good as its dates.
-  const canCreate = name.trim() && workingFolder.trim() && startDate && deadline;
+  const canCreate =
+    name.trim() &&
+    startDate &&
+    deadline &&
+    (mode === "new" ? folderName.trim() && parentFolder.trim() : workingFolder.trim());
+
+  const resetForm = () => {
+    setName("");
+    setDesc("");
+    setWorkingFolder("");
+    setFolderName("");
+    setParentFolder("");
+    setStartDate("");
+    setDeadline("");
+    setCreateError("");
+  };
 
   const handleCreate = async () => {
     if (!canCreate || creating) return;
     setCreating(true);
+    setCreateError("");
     try {
       await createProject(name.trim(), desc.trim(), {
-        workingFolder: workingFolder.trim(),
+        ...(mode === "new"
+          ? { newFolder: { parent: parentFolder.trim(), name: folderName.trim() } }
+          : { workingFolder: workingFolder.trim() }),
         startDate: startDate || undefined,
         deadline: deadline || undefined,
       });
-      setName("");
-      setDesc("");
-      setWorkingFolder("");
-      setStartDate("");
-      setDeadline("");
+      resetForm();
       setShowForm(false);
       loadSummary();
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : "Could not create the project.");
     } finally {
       setCreating(false);
     }
@@ -415,23 +437,88 @@ export default function ProjectsPage() {
                 placeholder="What is this project about?"
                 className="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:border-ink-faint"
               />
-              <div>
-                <p className="text-sm font-medium mb-1.5">Working folder</p>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 rounded-lg border border-line bg-transparent px-3 py-2 text-sm font-mono truncate text-ink-soft">
-                    {workingFolder || <span className="text-ink-faint">No folder chosen</span>}
-                  </div>
+              {/* Mode: brand-new (creates folder + template) vs existing folder */}
+              <div className="flex rounded-lg border border-line overflow-hidden w-fit">
+                {(
+                  [
+                    ["new", "Brand new project"],
+                    ["existing", "Existing project"],
+                  ] as const
+                ).map(([m, label]) => (
                   <button
-                    onClick={() => setPicking(true)}
-                    className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-sm text-ink-soft hover:border-ink-faint hover:text-ink shrink-0"
+                    key={m}
+                    onClick={() => setMode(m)}
+                    className={`px-3.5 py-1.5 text-[13px] transition-colors ${
+                      mode === m
+                        ? "bg-accent text-white font-medium"
+                        : "text-ink-soft hover:bg-parchment-dark"
+                    }`}
                   >
-                    <HardDrive size={14} /> Browse
+                    {label}
                   </button>
-                </div>
-                <p className="mt-1 text-[11px] text-ink-faint">
-                  Pick a folder from the shared Drive — the assistant reads and saves files there.
-                </p>
+                ))}
               </div>
+
+              {mode === "new" ? (
+                <>
+                  <div>
+                    <p className="text-sm font-medium mb-1.5">Folder name</p>
+                    <input
+                      value={folderName}
+                      onChange={(e) => setFolderName(e.target.value)}
+                      placeholder="e.g. 2026011_CLIENT_Project Name"
+                      className="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm font-mono outline-none focus:border-ink-faint"
+                    />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium mb-1.5">Location</p>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 rounded-lg border border-line bg-transparent px-3 py-2 text-sm font-mono truncate text-ink-soft">
+                        {parentFolder || (
+                          <span className="text-ink-faint">
+                            Where to create it — e.g. /gdrive/SUPERPIXEL/2026 PROJECTS
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => setPicking(true)}
+                        className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-sm text-ink-soft hover:border-ink-faint hover:text-ink shrink-0"
+                      >
+                        <HardDrive size={14} /> Browse
+                      </button>
+                    </div>
+                    {parentFolder && folderName.trim() && (
+                      <p className="mt-1.5 text-[12px] font-mono text-accent truncate">
+                        → {parentFolder}/{folderName.trim()}
+                      </p>
+                    )}
+                    <p className="mt-1 text-[11px] text-ink-faint">
+                      The folder is created with the standard template inside: Assets, Audio,
+                      Comments, FINAL OUTPUT, From Client, INPUT, Preview, Project Brief, REF,
+                      Timeline, Working file.
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <div>
+                  <p className="text-sm font-medium mb-1.5">Working folder</p>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 rounded-lg border border-line bg-transparent px-3 py-2 text-sm font-mono truncate text-ink-soft">
+                      {workingFolder || <span className="text-ink-faint">No folder chosen</span>}
+                    </div>
+                    <button
+                      onClick={() => setPicking(true)}
+                      className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-sm text-ink-soft hover:border-ink-faint hover:text-ink shrink-0"
+                    >
+                      <HardDrive size={14} /> Browse
+                    </button>
+                  </div>
+                  <p className="mt-1 text-[11px] text-ink-faint">
+                    Pick a folder that already exists on the shared Drive — no template folders are
+                    created.
+                  </p>
+                </div>
+              )}
               <div className="flex gap-3">
                 <label className="flex-1">
                   <span className="block text-sm font-medium mb-1.5">Start date</span>
@@ -453,16 +540,36 @@ export default function ProjectsPage() {
                   />
                 </label>
               </div>
+              {/* Permanence warning — the folder choice is forever. */}
+              <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-[12.5px] text-amber-600 dark:text-amber-400">
+                ⚠ The working folder is permanent. Once the project is created it cannot be moved
+                or re-pointed — double-check the {mode === "new" ? "name and location" : "folder"}{" "}
+                before creating.
+              </div>
+
+              {createError && (
+                <p className="rounded-lg border border-red-500/40 bg-red-500/5 px-3 py-2 text-[13px] text-red-500">
+                  {createError}
+                </p>
+              )}
+
               <div className="flex gap-2 pt-1">
                 <button
                   onClick={handleCreate}
                   disabled={!canCreate || creating}
                   className="rounded-lg bg-accent px-3.5 py-1.5 text-sm text-white hover:bg-accent-hover disabled:opacity-40"
                 >
-                  {creating ? "Creating…" : "Create"}
+                  {creating
+                    ? mode === "new"
+                      ? "Creating folders…"
+                      : "Creating…"
+                    : "Create"}
                 </button>
                 <button
-                  onClick={() => setShowForm(false)}
+                  onClick={() => {
+                    setShowForm(false);
+                    setCreateError("");
+                  }}
                   className="rounded-lg px-3.5 py-1.5 text-sm text-ink-soft hover:bg-parchment-dark"
                 >
                   Cancel
@@ -474,7 +581,9 @@ export default function ProjectsPage() {
           {picking && (
             <ServerFolderPicker
               onPick={(p) => {
-                setWorkingFolder(p);
+                // New mode picks the LOCATION (parent); existing picks the folder itself.
+                if (mode === "new") setParentFolder(p);
+                else setWorkingFolder(p);
                 setPicking(false);
               }}
               onCancel={() => setPicking(false)}

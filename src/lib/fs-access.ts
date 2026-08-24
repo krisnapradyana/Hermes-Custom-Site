@@ -30,7 +30,7 @@ const isUnder = (p: string, base: string) => {
 };
 
 /** True if an absolute path is the mount base or inside it. */
-function isUnderMount(p: string): boolean {
+export function isUnderMount(p: string): boolean {
   return isUnder(p, MOUNT_BASE);
 }
 

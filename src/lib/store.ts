@@ -104,6 +104,8 @@ interface HermesState {
       slackChannel?: string;
       startDate?: string;
       deadline?: string;
+      /** Brand-new mode: create <parent>/<name> + the standard template. */
+      newFolder?: { parent: string; name: string };
     }
   ) => Promise<Project | undefined>;
   updateProject: (id: string, patch: Partial<Project>) => Promise<void>;
@@ -357,8 +359,9 @@ export const useHermesStore = create<HermesState>()(
           ...folders,
         });
         if (!res.ok) {
-          console.warn(`[projects] create failed: ${res.error}`);
-          return undefined;
+          // Surface the server's reason (folder exists, bad location, Drive
+          // write failure) — the create form shows it to the user.
+          throw new Error(res.error);
         }
         set((s) => ({ projects: [...s.projects, res.data.project] }));
         return res.data.project;
