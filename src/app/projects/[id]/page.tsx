@@ -152,6 +152,21 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               All projects
             </Link>
             <div className="flex items-center gap-1.5">
+              {/* Edit name / description / schedule — always visible. */}
+              <button
+                onClick={() => {
+                  setEditName(project.name);
+                  setEditDesc(project.description);
+                  setEditStart(project.startDate ?? "");
+                  setEditEnd(project.deadline ?? "");
+                  setEditing(true);
+                }}
+                className="flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-[12px] text-ink-soft hover:border-ink-faint hover:text-ink transition-colors"
+                title="Edit name, description and schedule"
+              >
+                <Pencil size={13} />
+                Edit
+              </button>
               {/* Archive: hides the project from the clock-in menu (reversible). */}
               <button
                 onClick={() => updateProject(project.id, { archived: !project.archived })}
@@ -242,7 +257,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             </div>
           ) : (
             <>
-              <div className="flex items-center gap-3 mb-2 group">
+              <div className="flex items-center gap-3 mb-2">
                 <div
                   className="w-10 h-10 rounded-xl flex items-center justify-center"
                   style={{ backgroundColor: `${project.color}22` }}
@@ -250,19 +265,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                   <FolderKanban size={18} style={{ color: project.color }} />
                 </div>
                 <h1 className="font-serif-display text-3xl">{project.name}</h1>
-                <button
-                  onClick={() => {
-                    setEditName(project.name);
-                    setEditDesc(project.description);
-                    setEditStart(project.startDate ?? "");
-                    setEditEnd(project.deadline ?? "");
-                    setEditing(true);
-                  }}
-                  className="p-2 rounded-lg text-ink-faint hover:text-ink hover:bg-parchment-dark opacity-0 group-hover:opacity-100 transition-opacity"
-                  title="Edit name & description"
-                >
-                  <Pencil size={15} />
-                </button>
               </div>
               <p className="text-ink-soft mb-5">{project.description}</p>
             </>
