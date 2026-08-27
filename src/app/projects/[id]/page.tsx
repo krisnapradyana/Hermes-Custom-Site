@@ -12,6 +12,7 @@ import {
   MessageSquare,
   ListChecks,
   Archive,
+  Pencil,
 } from "lucide-react";
 import { useHermesStore } from "@/lib/store";
 import { timeAgo } from "@/lib/format";
@@ -85,6 +86,19 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
   const [showPanel, setShowPanel] = useState(true);
   const ws = useResizableWidth("hermes-workspace-w", 320, 240, 640, true);
+
+  // Inline edit of name & description (folder stays immutable — see API).
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editDesc, setEditDesc] = useState("");
+  const [saving, setSaving] = useState(false);
+  const saveEdit = async () => {
+    if (!editName.trim() || saving) return;
+    setSaving(true);
+    await updateProject(id, { name: editName.trim(), description: editDesc.trim() });
+    setSaving(false);
+    setEditing(false);
+  };
 
   // Project-wide Attachments / Artifacts, gathered from shared conversations.
   const [tab, setTab] = useState<Tab>("conversations");
@@ -160,16 +174,66 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             </div>
           </div>
 
-          <div className="flex items-center gap-3 mb-2">
-            <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center"
-              style={{ backgroundColor: `${project.color}22` }}
-            >
-              <FolderKanban size={18} style={{ color: project.color }} />
+          {editing ? (
+            <div className="mb-5 rounded-xl border border-line bg-card p-4 space-y-2.5">
+              <input
+                autoFocus
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="Project name"
+                className="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-lg font-medium outline-none focus:border-ink-faint"
+              />
+              <input
+                value={editDesc}
+                onChange={(e) => setEditDesc(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && saveEdit()}
+                placeholder="What is this project about?"
+                className="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:border-ink-faint"
+              />
+              <p className="text-[11px] text-ink-faint">
+                The working folder can&apos;t be changed — only the name and description.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={saveEdit}
+                  disabled={!editName.trim() || saving}
+                  className="rounded-lg bg-accent px-3.5 py-1.5 text-[13px] text-white hover:bg-accent-hover disabled:opacity-40"
+                >
+                  {saving ? "Saving…" : "Save"}
+                </button>
+                <button
+                  onClick={() => setEditing(false)}
+                  className="rounded-lg px-3 py-1.5 text-[13px] text-ink-soft hover:bg-parchment-dark"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
-            <h1 className="font-serif-display text-3xl">{project.name}</h1>
-          </div>
-          <p className="text-ink-soft mb-5">{project.description}</p>
+          ) : (
+            <>
+              <div className="flex items-center gap-3 mb-2 group">
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center"
+                  style={{ backgroundColor: `${project.color}22` }}
+                >
+                  <FolderKanban size={18} style={{ color: project.color }} />
+                </div>
+                <h1 className="font-serif-display text-3xl">{project.name}</h1>
+                <button
+                  onClick={() => {
+                    setEditName(project.name);
+                    setEditDesc(project.description);
+                    setEditing(true);
+                  }}
+                  className="p-2 rounded-lg text-ink-faint hover:text-ink hover:bg-parchment-dark opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="Edit name & description"
+                >
+                  <Pencil size={15} />
+                </button>
+              </div>
+              <p className="text-ink-soft mb-5">{project.description}</p>
+            </>
+          )}
 
           {/* Task board lives on its own page — tasks are work, not chat. */}
           <Link

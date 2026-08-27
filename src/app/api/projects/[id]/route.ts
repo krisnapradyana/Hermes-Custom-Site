@@ -7,14 +7,11 @@ import { Project } from "@/lib/types";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const EDITABLE: (keyof Project)[] = [
-  "name",
-  "description",
-  "workingFolder",
-  "driveFolder",
-  "slackChannel",
-  "archived",
-];
+// The working folder is deliberately NOT editable: the agent's files, the
+// folder manifest, thumbnails and TASK-HISTORY all live there — re-pointing
+// it after creation would orphan them. Name/description are safe to change:
+// every link (chats, tasks, artifacts, clock sessions) uses the project id.
+const EDITABLE: (keyof Project)[] = ["name", "description", "slackChannel", "archived"];
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const gate = await requireUser();
