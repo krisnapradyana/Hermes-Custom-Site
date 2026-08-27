@@ -91,11 +91,18 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState("");
   const [editDesc, setEditDesc] = useState("");
+  const [editStart, setEditStart] = useState("");
+  const [editEnd, setEditEnd] = useState("");
   const [saving, setSaving] = useState(false);
   const saveEdit = async () => {
-    if (!editName.trim() || saving) return;
+    if (!editName.trim() || !editStart || !editEnd || saving) return;
     setSaving(true);
-    await updateProject(id, { name: editName.trim(), description: editDesc.trim() });
+    await updateProject(id, {
+      name: editName.trim(),
+      description: editDesc.trim(),
+      startDate: editStart,
+      deadline: editEnd,
+    });
     setSaving(false);
     setEditing(false);
   };
@@ -190,13 +197,37 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 placeholder="What is this project about?"
                 className="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:border-ink-faint"
               />
+              <div className="flex gap-3">
+                <label className="flex-1">
+                  <span className="block text-[12px] font-medium mb-1 text-ink-soft">
+                    Start date
+                  </span>
+                  <input
+                    type="date"
+                    value={editStart}
+                    onChange={(e) => setEditStart(e.target.value)}
+                    className="w-full rounded-lg border border-line bg-transparent px-3 py-1.5 text-sm outline-none focus:border-ink-faint"
+                  />
+                </label>
+                <label className="flex-1">
+                  <span className="block text-[12px] font-medium mb-1 text-ink-soft">Deadline</span>
+                  <input
+                    type="date"
+                    value={editEnd}
+                    min={editStart || undefined}
+                    onChange={(e) => setEditEnd(e.target.value)}
+                    className="w-full rounded-lg border border-line bg-transparent px-3 py-1.5 text-sm outline-none focus:border-ink-faint"
+                  />
+                </label>
+              </div>
               <p className="text-[11px] text-ink-faint">
-                The working folder can&apos;t be changed — only the name and description.
+                The working folder can&apos;t be changed — name, description and schedule only. The
+                timeline, deadline badges and Task Board follow the new dates immediately.
               </p>
               <div className="flex gap-2">
                 <button
                   onClick={saveEdit}
-                  disabled={!editName.trim() || saving}
+                  disabled={!editName.trim() || !editStart || !editEnd || saving}
                   className="rounded-lg bg-accent px-3.5 py-1.5 text-[13px] text-white hover:bg-accent-hover disabled:opacity-40"
                 >
                   {saving ? "Saving…" : "Save"}
@@ -223,6 +254,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                   onClick={() => {
                     setEditName(project.name);
                     setEditDesc(project.description);
+                    setEditStart(project.startDate ?? "");
+                    setEditEnd(project.deadline ?? "");
                     setEditing(true);
                   }}
                   className="p-2 rounded-lg text-ink-faint hover:text-ink hover:bg-parchment-dark opacity-0 group-hover:opacity-100 transition-opacity"

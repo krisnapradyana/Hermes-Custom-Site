@@ -11,7 +11,17 @@ export const dynamic = "force-dynamic";
 // folder manifest, thumbnails and TASK-HISTORY all live there — re-pointing
 // it after creation would orphan them. Name/description are safe to change:
 // every link (chats, tasks, artifacts, clock sessions) uses the project id.
-const EDITABLE: (keyof Project)[] = ["name", "description", "slackChannel", "archived"];
+const EDITABLE: (keyof Project)[] = [
+  "name",
+  "description",
+  "slackChannel",
+  "archived",
+  "startDate",
+  "deadline",
+];
+
+const isoDate = (v: unknown) =>
+  typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined;
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const gate = await requireUser();
@@ -35,6 +45,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         next[k] = typeof v === "string" ? v.trim() || undefined : v;
       }
     }
+    // Dates must be plain ISO (YYYY-MM-DD) or absent — garbage never lands.
+    next.startDate = isoDate(next.startDate);
+    next.deadline = isoDate(next.deadline);
     updated = next as unknown as Project;
     return list.map((p, i) => (i === idx ? updated! : p));
   });
