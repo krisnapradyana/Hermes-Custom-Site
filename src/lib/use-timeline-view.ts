@@ -16,7 +16,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 const MIN_SPAN = 7; // days — don't zoom in past a week
 
-export function useTimelineView(fullFrom: number, fullTo: number) {
+/**
+ * @param leftInsetPx width of a fixed label column (e.g. project names) at
+ * the canvas' left edge — excluded from the px→days math so dragging and
+ * zoom anchoring track the cursor exactly over the time area.
+ */
+export function useTimelineView(fullFrom: number, fullTo: number, leftInsetPx = 0) {
   const [win, setWin] = useState<{ from: number; to: number } | null>(null); // null = fit
   const from = win?.from ?? fullFrom;
   const to = win?.to ?? fullTo;
@@ -66,18 +71,22 @@ export function useTimelineView(fullFrom: number, fullTo: number) {
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       const rect = el.getBoundingClientRect();
+      const width = Math.max(1, rect.width - leftInsetPx);
       // Horizontal wheel / shift+wheel = pan; plain scroll = zoom at cursor.
       if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-        const d = (e.deltaX || e.deltaY) / rect.width;
+        const d = (e.deltaX || e.deltaY) / width;
         panBy(d * total * 0.6);
         return;
       }
-      const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+      const frac = Math.min(
+        1,
+        Math.max(0, (e.clientX - rect.left - leftInsetPx) / width)
+      );
       zoomAt(frac, e.deltaY > 0 ? 1.18 : 1 / 1.18);
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [panBy, zoomAt, total]);
+  }, [panBy, zoomAt, total, leftInsetPx]);
 
   const onPointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -98,10 +107,11 @@ export function useTimelineView(fullFrom: number, fullTo: number) {
         setPanning(true);
         el.setPointerCapture(e.pointerId);
       }
-      const days = (dx / el.getBoundingClientRect().width) * total;
+      const width = Math.max(1, el.getBoundingClientRect().width - leftInsetPx);
+      const days = (dx / width) * total;
       setWin(clamp(d.startFrom - days, total));
     },
-    [clamp, total]
+    [clamp, total, leftInsetPx]
   );
   const endDrag = useCallback((e: React.PointerEvent) => {
     if (drag.current?.moved) canvasRef.current?.releasePointerCapture(e.pointerId);

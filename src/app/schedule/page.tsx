@@ -107,15 +107,18 @@ export default function SchedulePage() {
     return { fullFrom: Math.min(...days) - 3, fullTo: Math.max(...days) + 4, todayDay };
   }, [scheduled, tasksByProject]);
 
-  // Blender-style zoom/pan (hook must run unconditionally).
-  const view = useTimelineView(model?.fullFrom ?? 0, model?.fullTo ?? 30);
+  // Blender-style zoom/pan (hook must run unconditionally). 180 = name column.
+  const view = useTimelineView(model?.fullFrom ?? 0, model?.fullTo ?? 30, 180);
 
   // Mondays inside the current view; crowded charts label every Nth tick.
-  const mondays: { day: number; label: string }[] = [];
+  // Labeling is anchored to the CALENDAR WEEK NUMBER (stable while panning) —
+  // index-based selection made the labeled dates jump on every drag step.
+  const mondays: { day: number; week: number; label: string }[] = [];
   for (let d = view.from; d <= view.to; d++) {
     if ((d + 3) % 7 === 0) {
       mondays.push({
         day: d,
+        week: Math.floor((d + 3) / 7),
         label: new Date(d * DAY).toLocaleDateString(undefined, { day: "numeric", month: "short" }),
       });
     }
@@ -178,8 +181,8 @@ export default function SchedulePage() {
             {/* Month/week labels */}
             <div className="relative h-5 mb-1 ml-[180px] overflow-hidden">
               {mondays.map(
-                (w, i) =>
-                  i % labelEvery === 0 && (
+                (w) =>
+                  w.week % labelEvery === 0 && (
                     <span
                       key={w.day}
                       className="absolute top-0 -translate-x-1/2 text-[10px] text-ink-faint whitespace-nowrap"

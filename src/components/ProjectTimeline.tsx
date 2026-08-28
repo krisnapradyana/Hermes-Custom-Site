@@ -87,11 +87,14 @@ export function ProjectTimeline({
   }
 
   // Week tick marks (Mondays) inside the current view; label density adapts.
-  const weeks: { day: number; label: string }[] = [];
+  // Label selection anchors to the calendar week number so the SAME Mondays
+  // stay labeled while panning (index-based selection jumped around).
+  const weeks: { day: number; week: number; label: string }[] = [];
   for (let d = view.from; d <= view.to; d++) {
     if ((d + 3) % 7 === 0) {
       weeks.push({
         day: d,
+        week: Math.floor((d + 3) / 7),
         label: new Date(d * DAY).toLocaleDateString(undefined, { day: "numeric", month: "short" }),
       });
     }
@@ -134,8 +137,8 @@ export function ProjectTimeline({
           {/* Week gridlines + labels */}
           <div className="relative h-5 mb-1 overflow-hidden">
             {weeks.map(
-              (w, i) =>
-                i % labelEvery === 0 && (
+              (w) =>
+                w.week % labelEvery === 0 && (
                   <span
                     key={w.day}
                     className="absolute top-0 -translate-x-1/2 text-[10px] text-ink-faint whitespace-nowrap"
