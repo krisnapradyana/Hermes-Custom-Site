@@ -11,7 +11,7 @@ import {
   FolderKanban,
   Package,
   Paperclip,
-  Clock,
+  GanttChart,
   History,
   MessageSquare,
   ChevronLeft,
@@ -140,13 +140,14 @@ export function Sidebar() {
         >
           <Paperclip size={16} />
         </Link>
-        {/* Scheduler temporarily disabled — not ready for team use yet. */}
-        <span
-          className="p-2 rounded-lg text-ink-faint opacity-40 cursor-not-allowed"
-          title="Scheduler — this feature is under development"
+        <Link
+          prefetch={false}
+          href="/schedule"
+          className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
+          title="Schedule — all projects on one timeline"
         >
-          <Clock size={16} />
-        </span>
+          <GanttChart size={16} />
+        </Link>
         <Link
           prefetch={false}
           href="/history"
@@ -205,17 +206,9 @@ export function Sidebar() {
           </button>
           {navItem("/projects", <FolderKanban size={15} />, "Projects")}
           {navItem("/team", <Users size={15} />, "Team")}
+          {navItem("/schedule", <GanttChart size={15} />, "Schedule")}
           {navItem("/artifacts", <Package size={15} />, "Artifacts")}
           {navItem("/attachments", <Paperclip size={15} />, "Attachments")}
-          {/* Scheduler temporarily disabled — not ready for team use yet. */}
-          <span
-            className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-sm text-ink-faint opacity-50 cursor-not-allowed select-none"
-            title="This feature is under development"
-          >
-            <Clock size={15} />
-            Scheduler
-            <span className="ml-auto text-[10px] uppercase tracking-wide">soon</span>
-          </span>
           {navItem("/history", <History size={15} />, "Agent history")}
         </div>
 
