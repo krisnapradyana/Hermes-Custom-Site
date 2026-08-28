@@ -66,15 +66,14 @@ export function useTimelineView(fullFrom: number, fullTo: number) {
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       const rect = el.getBoundingClientRect();
-      if (e.ctrlKey || e.metaKey) {
-        // Bonus, not required: ctrl+scroll zooms at the cursor.
-        const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
-        zoomAt(frac, e.deltaY > 0 ? 1.18 : 1 / 1.18);
+      // Horizontal wheel / shift+wheel = pan; plain scroll = zoom at cursor.
+      if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        const d = (e.deltaX || e.deltaY) / rect.width;
+        panBy(d * total * 0.6);
         return;
       }
-      // Plain scroll = pan the timeline (vertical wheel maps to horizontal).
-      const d = (e.deltaX || e.deltaY) / rect.width;
-      panBy(d * total * 0.6);
+      const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+      zoomAt(frac, e.deltaY > 0 ? 1.18 : 1 / 1.18);
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
@@ -151,4 +150,4 @@ export function useTimelineView(fullFrom: number, fullTo: number) {
 }
 
 /** The −/+/Fit cluster + hint, same look on every timeline. */
-export const TIMELINE_HINT = "drag or scroll to move · − / + to zoom";
+export const TIMELINE_HINT = "scroll to zoom · drag to move";
