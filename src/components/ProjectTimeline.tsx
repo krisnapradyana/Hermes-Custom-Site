@@ -261,6 +261,15 @@ export function ProjectTimeline({
               Milestone
             </span>
           )}
+          {(() => {
+            const undated = tasks.filter((t) => t.kind !== "milestone" && !t.dueDate);
+            return undated.length > 0 ? (
+              <span className="text-[10px] text-amber-600 dark:text-amber-400">
+                {undated.length} task{undated.length > 1 ? "s" : ""} without a due date not shown —
+                set due dates on the board below to place them here
+              </span>
+            ) : null;
+          })()}
         </div>
       </div>
     </div>
