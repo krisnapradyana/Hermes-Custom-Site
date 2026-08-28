@@ -2,9 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { GanttChart, ChevronDown, ChevronRight, Diamond, ListChecks } from "lucide-react";
+import {
+  GanttChart,
+  ChevronDown,
+  ChevronRight,
+  Diamond,
+  ListChecks,
+  ZoomIn,
+  ZoomOut,
+  Maximize,
+} from "lucide-react";
 import { useHermesStore } from "@/lib/store";
 import { useFocusRefresh } from "@/lib/use-focus-refresh";
+import { useTimelineView, TIMELINE_HINT } from "@/lib/use-timeline-view";
 import { api } from "@/lib/api";
 
 /**
@@ -94,25 +104,23 @@ export default function SchedulePage() {
       if (p.deadline) days.push(dayOf(p.deadline));
       for (const t of tasksByProject[p.id] ?? []) if (t.dueDate) days.push(dayOf(t.dueDate));
     }
-    const from = Math.min(...days) - 3;
-    const to = Math.max(...days) + 4;
-    const total = to - from + 1;
-    const pct = (d: number) => ((d - from) / total) * 100;
-    const spanPct = (a: number, b: number) => (Math.max(1, b - a + 1) / total) * 100;
-
-    const mondays: { day: number; label: string }[] = [];
-    for (let d = from; d <= to; d++) {
-      if ((d + 3) % 7 === 0) {
-        mondays.push({
-          day: d,
-          label: new Date(d * DAY).toLocaleDateString(undefined, { day: "numeric", month: "short" }),
-        });
-      }
-    }
-    // Crowded charts label every Nth Monday but keep every gridline.
-    const labelEvery = Math.max(1, Math.ceil(mondays.length / 12));
-    return { from, to, pct, spanPct, mondays, labelEvery, todayDay };
+    return { fullFrom: Math.min(...days) - 3, fullTo: Math.max(...days) + 4, todayDay };
   }, [scheduled, tasksByProject]);
+
+  // Blender-style zoom/pan (hook must run unconditionally).
+  const view = useTimelineView(model?.fullFrom ?? 0, model?.fullTo ?? 30);
+
+  // Mondays inside the current view; crowded charts label every Nth tick.
+  const mondays: { day: number; label: string }[] = [];
+  for (let d = view.from; d <= view.to; d++) {
+    if ((d + 3) % 7 === 0) {
+      mondays.push({
+        day: d,
+        label: new Date(d * DAY).toLocaleDateString(undefined, { day: "numeric", month: "short" }),
+      });
+    }
+  }
+  const labelEvery = Math.max(1, Math.ceil(mondays.length / 12));
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -139,15 +147,43 @@ export default function SchedulePage() {
       {model && (
         <div className="rounded-xl border border-line bg-card p-4 overflow-x-auto">
           <div className="min-w-[44rem] relative">
+            {/* Zoom controls */}
+            <div className="flex items-center justify-end gap-1 mb-1">
+              <span className="text-[10px] text-ink-faint mr-1.5">{TIMELINE_HINT}</span>
+              <button
+                onClick={() => view.zoom(1.4)}
+                className="p-1 rounded-md text-ink-faint hover:text-ink hover:bg-parchment-dark"
+                title="Zoom out"
+              >
+                <ZoomOut size={13} />
+              </button>
+              <button
+                onClick={() => view.zoom(1 / 1.4)}
+                className="p-1 rounded-md text-ink-faint hover:text-ink hover:bg-parchment-dark"
+                title="Zoom in"
+              >
+                <ZoomIn size={13} />
+              </button>
+              <button
+                onClick={view.fit}
+                disabled={view.isFit}
+                className="p-1 rounded-md text-ink-faint hover:text-ink hover:bg-parchment-dark disabled:opacity-30"
+                title="Fit everything"
+              >
+                <Maximize size={13} />
+              </button>
+            </div>
+
+            <div ref={view.canvasRef} {...view.canvasProps}>
             {/* Month/week labels */}
-            <div className="relative h-5 mb-1 ml-[180px]">
-              {model.mondays.map(
+            <div className="relative h-5 mb-1 ml-[180px] overflow-hidden">
+              {mondays.map(
                 (w, i) =>
-                  i % model.labelEvery === 0 && (
+                  i % labelEvery === 0 && (
                     <span
                       key={w.day}
                       className="absolute top-0 -translate-x-1/2 text-[10px] text-ink-faint whitespace-nowrap"
-                      style={{ left: `${model.pct(w.day)}%` }}
+                      style={{ left: `${view.pct(w.day)}%` }}
                     >
                       {w.label}
                     </span>
@@ -157,18 +193,18 @@ export default function SchedulePage() {
 
             <div className="relative">
               {/* gridlines + TODAY, spanning all rows (offset past the name column) */}
-              <div className="absolute inset-y-0 left-[180px] right-0">
-                {model.mondays.map((w) => (
+              <div className="absolute inset-y-0 left-[180px] right-0 overflow-hidden">
+                {mondays.map((w) => (
                   <span
                     key={w.day}
                     className="absolute inset-y-0 w-px bg-line/50"
-                    style={{ left: `${model.pct(w.day)}%` }}
+                    style={{ left: `${view.pct(w.day)}%` }}
                   />
                 ))}
-                {model.todayDay >= model.from && model.todayDay <= model.to && (
+                {model.todayDay >= view.from && model.todayDay <= view.to && (
                   <div
                     className="absolute inset-y-0 w-0.5 bg-accent z-10"
-                    style={{ left: `${model.pct(model.todayDay)}%` }}
+                    style={{ left: `${view.pct(model.todayDay)}%` }}
                     title="Today"
                   >
                     <span className="absolute -top-0.5 left-1 text-[9px] font-medium text-accent">
@@ -206,12 +242,12 @@ export default function SchedulePage() {
                           {p.name}
                         </Link>
                       </div>
-                      <div className="flex-1 relative h-5">
+                      <div className="flex-1 relative h-5 overflow-hidden">
                         <div
                           className={`absolute inset-y-0 rounded-md ${overdue ? "ring-1 ring-red-500" : ""}`}
                           style={{
-                            left: `${model.pct(Math.min(a, b))}%`,
-                            width: `${model.spanPct(Math.min(a, b), b)}%`,
+                            left: `${view.pct(Math.min(a, b))}%`,
+                            width: `${view.spanPct(Math.min(a, b), b)}%`,
                             backgroundColor: `${p.color}cc`,
                           }}
                           title={`${p.name} · ${p.startDate ?? "?"} → ${p.deadline ?? "?"}${overdue ? " · OVERDUE" : ""}`}
@@ -220,7 +256,7 @@ export default function SchedulePage() {
                           <span
                             key={m.id}
                             className="absolute top-1/2 -translate-y-1/2 z-10"
-                            style={{ left: `${model.pct(dayOf(m.dueDate!))}%`, transform: "translate(-6px,-50%)" }}
+                            style={{ left: `${view.pct(dayOf(m.dueDate!))}%`, transform: "translate(-6px,-50%)" }}
                             title={`${m.title} — ${m.dueDate}`}
                           >
                             <Diamond
@@ -247,14 +283,14 @@ export default function SchedulePage() {
                           return (
                             <div key={t.id} className="flex items-center h-6">
                               <div className="w-[180px] shrink-0" />
-                              <div className="flex-1 relative h-4">
+                              <div className="flex-1 relative h-4 overflow-hidden">
                                 <div
                                   className={`absolute inset-y-0 rounded flex items-center px-1.5 overflow-hidden ${
                                     t.status === "done" ? "opacity-40" : ""
                                   } ${tOver ? "ring-1 ring-red-500" : ""}`}
                                   style={{
-                                    left: `${model.pct(Math.min(ta, tb))}%`,
-                                    width: `${model.spanPct(Math.min(ta, tb), tb)}%`,
+                                    left: `${view.pct(Math.min(ta, tb))}%`,
+                                    width: `${view.spanPct(Math.min(ta, tb), tb)}%`,
                                     backgroundColor: `${PHASE_COLORS[t.phase ?? "Other"] ?? "#8a8a8a"}bb`,
                                   }}
                                   title={`${t.title}${t.assignee ? ` — ${t.assignee.name}` : ""} · due ${t.dueDate}`}
@@ -283,6 +319,7 @@ export default function SchedulePage() {
                   </div>
                 );
               })}
+            </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-3 mt-3 text-[10px] text-ink-faint">
