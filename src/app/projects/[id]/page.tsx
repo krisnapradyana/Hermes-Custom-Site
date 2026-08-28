@@ -155,8 +155,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               {/* Edit name / description / schedule — always visible. */}
               <button
                 onClick={() => {
-                  setEditName(project.name);
-                  setEditDesc(project.description);
+                  setEditName(project.name ?? "");
+                  setEditDesc(project.description ?? "");
                   setEditStart(project.startDate ?? "");
                   setEditEnd(project.deadline ?? "");
                   setEditing(true);

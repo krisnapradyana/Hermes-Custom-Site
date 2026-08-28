@@ -35,6 +35,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   let updated: Project | undefined;
+  let badRequest: string | null = null;
   await updateProjects((list) => {
     const idx = list.findIndex((p) => p.id === id);
     if (idx === -1) return null; // abort, no write
@@ -42,15 +43,24 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     for (const k of EDITABLE) {
       if (k in body) {
         const v = body[k];
-        next[k] = typeof v === "string" ? v.trim() || undefined : v;
+        next[k] = typeof v === "string" ? v.trim() : v;
       }
     }
+    // name/description are REQUIRED strings on the Project type — an empty
+    // edit must never turn them undefined (that crashed the search filter).
+    if (!next.name) {
+      badRequest = "Project name cannot be empty";
+      return null; // abort the write
+    }
+    if (typeof next.description !== "string") next.description = "";
+    if (!next.slackChannel) next.slackChannel = undefined;
     // Dates must be plain ISO (YYYY-MM-DD) or absent — garbage never lands.
     next.startDate = isoDate(next.startDate);
     next.deadline = isoDate(next.deadline);
     updated = next as unknown as Project;
     return list.map((p, i) => (i === idx ? updated! : p));
   });
+  if (badRequest) return NextResponse.json({ error: badRequest }, { status: 400 });
   if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
   scheduleTrackerUpdate();
   return NextResponse.json({ project: updated });

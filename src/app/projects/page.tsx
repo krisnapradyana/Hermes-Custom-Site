@@ -247,9 +247,11 @@ export default function ProjectsPage() {
       : pool;
 
     if (q) {
+      // Every field defensive: older records (or ones edited to empty) can
+      // carry undefined here — one undefined.toLowerCase() kills the page.
       const matches = (p: Project) =>
-        p.name.toLowerCase().includes(q) ||
-        p.description.toLowerCase().includes(q) ||
+        (p.name ?? "").toLowerCase().includes(q) ||
+        (p.description ?? "").toLowerCase().includes(q) ||
         (p.workingFolder ?? "").toLowerCase().includes(q) ||
         (p.createdBy?.name ?? "").toLowerCase().includes(q);
       // Name hits first, then everything else; chosen sort inside each band.
