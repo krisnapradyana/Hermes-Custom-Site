@@ -142,7 +142,7 @@ export function ProjectTeam({ projectId }: { projectId: string }) {
                     className="inline-flex items-center gap-1 text-[12px] text-accent hover:underline truncate"
                     title="Open that project"
                   >
-                    Currently working on {data?.projects[elsewhere]?.name ?? elsewhere}
+                    Currently working on {data?.projects[elsewhere]?.name ?? "a deleted project"}
                     <ArrowUpRight size={11} className="shrink-0" />
                   </Link>
                 ) : (

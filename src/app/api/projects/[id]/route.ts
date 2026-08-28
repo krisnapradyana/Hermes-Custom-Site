@@ -71,6 +71,23 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   if (gate.denied) return gate.denied;
   const { id } = await params;
   await updateProjects((list) => list.filter((p) => p.id !== id));
+
+  // Cascade: a deleted project must not leave orphans that leak raw ids
+  // into task lists and the Team page. Tasks (board + archive) and the
+  // project's conversations go with it. Clock sessions are deliberately
+  // KEPT — hours worked are real history; displays label them "Deleted
+  // project". Files on the Drive are never touched.
+  try {
+    const { purgeProjectTasks } = await import("@/lib/tasks-store");
+    await purgeProjectTasks(id);
+    const { listByProject, deleteConversation } = await import("@/lib/conversations-store");
+    for (const c of await listByProject(id)) await deleteConversation(c.id);
+  } catch (err) {
+    console.warn(
+      `[projects] cascade cleanup failed for ${id}: ${err instanceof Error ? err.message : err}`
+    );
+  }
+
   scheduleTrackerUpdate();
   return NextResponse.json({ ok: true });
 }

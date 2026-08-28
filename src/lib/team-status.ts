@@ -70,7 +70,8 @@ export async function updateTeamStatus(): Promise<void> {
   await withLock("team-status", async () => {
     try {
       const [projects, members] = await Promise.all([readProjects(), fetchPulse()]);
-      const pname = (id: string) => projects.find((p) => p.id === id)?.name ?? id;
+      const pname = (id: string) =>
+        projects.find((p) => p.id === id)?.name ?? "a deleted project";
 
       const tasksByProject = new Map<string, Task[]>();
       for (const p of projects) {

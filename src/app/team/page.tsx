@@ -92,7 +92,9 @@ export default function TeamPage() {
   const onBreak = data?.members.filter((m) => m.active?.breakAt) ?? [];
   const idle = data?.members.filter((m) => !m.active) ?? [];
 
-  const projectName = (id: string) => data?.projects[id]?.name ?? id;
+  // Unknown id = the project was deleted; hours are real, so show them
+  // under a human label instead of leaking a raw "proj-…" id.
+  const projectName = (id: string) => data?.projects[id]?.name ?? "Deleted project";
   const projectColor = (id: string) => data?.projects[id]?.color ?? "#888888";
 
   const row = (m: MemberPulse) => (

@@ -236,9 +236,17 @@ export function deleteTask(
   });
 }
 
-/** All OPEN tasks assigned to one person, across every project (clock app). */
+/**
+ * All OPEN tasks assigned to one person, across every project (clock app +
+ * Team page). Tasks whose project no longer exists are EXCLUDED — a deleted
+ * project must never leak raw ids into anyone's task list.
+ */
 export function tasksForAssignee(userKey: string): Promise<Task[]> {
   return withLock(LOCK, async () => {
+    // Live project ids — file names are sanitized, so compare sanitized.
+    const { readProjects } = await import("./projects-store");
+    const alive = new Set((await readProjects()).map((p) => sanitize(p.id)));
+
     let files: string[] = [];
     try {
       files = (await fs.readdir(DIR)).filter(
@@ -247,13 +255,22 @@ export function tasksForAssignee(userKey: string): Promise<Task[]> {
     } catch {}
     const mine: Task[] = [];
     for (const f of files) {
-      const projectId = f.replace(/\.json$/, "");
-      const tasks = await read(projectId);
+      const fileId = f.replace(/\.json$/, "");
+      if (!alive.has(fileId)) continue; // orphan of a deleted project
+      const tasks = await readFileTasks(path.join(DIR, f));
       for (const t of tasks) {
         if (t.assignee?.key === userKey && t.status !== "done") mine.push(t);
       }
     }
     const order = (t: Task) => TASK_STATUSES.indexOf(t.status);
     return mine.sort((a, b) => order(a) - order(b) || b.updatedAt.localeCompare(a.updatedAt));
+  });
+}
+
+/** Remove a project's task files (board + archive) — called on project delete. */
+export function purgeProjectTasks(projectId: string): Promise<void> {
+  return withLock(LOCK, async () => {
+    await fs.rm(file(projectId), { force: true }).catch(() => {});
+    await fs.rm(archiveFile(projectId), { force: true }).catch(() => {});
   });
 }
