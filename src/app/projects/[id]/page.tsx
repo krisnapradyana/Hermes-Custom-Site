@@ -13,6 +13,7 @@ import {
   ListChecks,
   Archive,
   Pencil,
+  FileText,
 } from "lucide-react";
 import { useHermesStore } from "@/lib/store";
 import { timeAgo } from "@/lib/format";
@@ -87,6 +88,34 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [showPanel, setShowPanel] = useState(true);
   const ws = useResizableWidth("hermes-workspace-w", 320, 240, 640, true);
 
+  // "Summarize" — fetch the server-built prompt, open a fresh conversation
+  // with it, and let the agent produce the document in plain sight.
+  const [summarizing, setSummarizing] = useState(false);
+  const summarize = async () => {
+    if (summarizing) return;
+    setSummarizing(true);
+    try {
+      const res = await api.get<{ prompt: string; title: string }>(
+        `/api/projects/${encodeURIComponent(id)}/summary`
+      );
+      if (!res.ok) {
+        console.warn(`[project] summary prompt failed: ${res.error}`);
+        return;
+      }
+      const created = await api.post<{ conversation: ConversationMeta }>(
+        `/api/projects/${encodeURIComponent(id)}/conversations`,
+        { title: res.data.title }
+      );
+      if (!created.ok) return;
+      try {
+        sessionStorage.setItem(`pending-msg-${created.data.conversation.id}`, res.data.prompt);
+      } catch {}
+      router.push(`/conversation/${created.data.conversation.id}`);
+    } finally {
+      setSummarizing(false);
+    }
+  };
+
   // Inline edit of name & description (folder stays immutable — see API).
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState("");
@@ -152,6 +181,17 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               All projects
             </Link>
             <div className="flex items-center gap-1.5">
+              {/* Summarize: opens a conversation where the agent writes the
+                  official project summary doc into the working folder. */}
+              <button
+                onClick={summarize}
+                disabled={summarizing}
+                className="flex items-center gap-1.5 rounded-lg border border-accent/50 bg-accent-soft/40 px-2.5 py-1.5 text-[12px] text-accent hover:bg-accent-soft transition-colors disabled:opacity-50"
+                title="Generate an official project summary document (saved to the project folder)"
+              >
+                <FileText size={13} />
+                {summarizing ? "Preparing…" : "Summarize"}
+              </button>
               {/* Edit name / description / schedule — always visible. */}
               <button
                 onClick={() => {
