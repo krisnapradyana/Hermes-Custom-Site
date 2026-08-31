@@ -131,7 +131,7 @@ export function Sidebar() {
           prefetch={false}
           href="/events"
           className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
-          title="Event — company calendar"
+          title="Event — company calendar (beta)"
         >
           <CalendarDays size={16} />
         </Link>
@@ -184,7 +184,7 @@ export function Sidebar() {
     );
   }
 
-  const navItem = (href: string, icon: React.ReactNode, label: string) => {
+  const navItem = (href: string, icon: React.ReactNode, label: string, badge?: string) => {
     const active = pathname === href || (href !== "/" && pathname.startsWith(href));
     return (
       <Link
@@ -198,6 +198,11 @@ export function Sidebar() {
       >
         <span className="text-accent">{icon}</span>
         {label}
+        {badge && (
+          <span className="ml-auto rounded-full border border-amber-500/50 bg-amber-500/10 px-1.5 py-px text-[9px] font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">
+            {badge}
+          </span>
+        )}
       </Link>
     );
   };
@@ -230,7 +235,7 @@ export function Sidebar() {
           {navItem("/team", <Users size={15} />, "Team")}
           {navItem("/projects", <FolderKanban size={15} />, "Projects")}
           {navItem("/schedule", <GanttChart size={15} />, "Schedule")}
-          {navItem("/events", <CalendarDays size={15} />, "Event")}
+          {navItem("/events", <CalendarDays size={15} />, "Event", "beta")}
 
           <div className="px-2.5 pt-2.5">
             <p className="text-left text-[10.5px] font-medium uppercase tracking-wider text-ink-faint">

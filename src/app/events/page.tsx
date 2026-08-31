@@ -160,6 +160,9 @@ export default function EventsPage() {
           <div className="w-9 h-9 rounded-xl bg-accent-soft flex items-center justify-center">
             <CalendarDays size={17} className="text-accent" />
           </div>
+          <span className="order-last rounded-full border border-amber-500/50 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">
+            beta
+          </span>
           {selectedDay ? (
             <>
               <button
