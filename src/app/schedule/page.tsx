@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { useHermesStore } from "@/lib/store";
 import { useFocusRefresh } from "@/lib/use-focus-refresh";
-import { useTimelineView, TIMELINE_HINT } from "@/lib/use-timeline-view";
+import { useTimelineView, TIMELINE_HINT, OVERDUE_STRIPES } from "@/lib/use-timeline-view";
 import { api } from "@/lib/api";
 
 /**
@@ -252,6 +252,7 @@ export default function SchedulePage() {
                             left: `${view.pct(Math.min(a, b))}%`,
                             width: `${view.spanPct(Math.min(a, b), b)}%`,
                             backgroundColor: `${p.color}cc`,
+                            backgroundImage: overdue ? OVERDUE_STRIPES : undefined,
                           }}
                           title={`${p.name} · ${p.startDate ?? "?"} → ${p.deadline ?? "?"}${overdue ? " · OVERDUE" : ""}`}
                         />
@@ -295,6 +296,7 @@ export default function SchedulePage() {
                                     left: `${view.pct(Math.min(ta, tb))}%`,
                                     width: `${view.spanPct(Math.min(ta, tb), tb)}%`,
                                     backgroundColor: `${PHASE_COLORS[t.phase ?? "Other"] ?? "#8a8a8a"}bb`,
+                                    backgroundImage: tOver ? OVERDUE_STRIPES : undefined,
                                   }}
                                   title={`${t.title}${t.assignee ? ` — ${t.assignee.name}` : ""} · due ${t.dueDate}`}
                                 >
@@ -330,7 +332,11 @@ export default function SchedulePage() {
                 <Diamond size={9} className="text-ink-soft" fill="currentColor" /> milestone
               </span>
               <span className="flex items-center gap-1">
-                <span className="inline-block w-3 h-2 rounded-sm ring-1 ring-red-500" /> overdue
+                <span
+                  className="inline-block w-4 h-2.5 rounded-sm ring-1 ring-red-500 bg-ink-faint/40"
+                  style={{ backgroundImage: OVERDUE_STRIPES }}
+                />{" "}
+                overdue
               </span>
               <span>bar = project start → deadline · click the name to open the project</span>
             </div>

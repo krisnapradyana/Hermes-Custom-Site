@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { Diamond, ZoomIn, ZoomOut, Maximize } from "lucide-react";
-import { useTimelineView, TIMELINE_HINT } from "@/lib/use-timeline-view";
+import { useTimelineView, TIMELINE_HINT, OVERDUE_STRIPES } from "@/lib/use-timeline-view";
 
 /**
  * Project timeline — the pattern of Asana's Timeline (horizontal time axis,
@@ -214,6 +214,7 @@ export function ProjectTimeline({
                         left: `${pct(Math.min(a, b))}%`,
                         width: `${spanPct(Math.min(a, b), b)}%`,
                         backgroundColor: `${barColor(t)}cc`,
+                        backgroundImage: overdue ? OVERDUE_STRIPES : undefined,
                       }}
                       title={`${t.title}${t.assignee ? ` — ${t.assignee.name}` : ""} · ${
                         t.startDate ?? t.createdAt.slice(0, 10)
@@ -261,6 +262,13 @@ export function ProjectTimeline({
               Milestone
             </span>
           )}
+          <span className="flex items-center gap-1.5 text-[10px] text-ink-faint">
+            <span
+              className="inline-block w-4 h-2.5 rounded-sm ring-1 ring-red-500 bg-ink-faint/40"
+              style={{ backgroundImage: OVERDUE_STRIPES }}
+            />
+            Overdue
+          </span>
           {(() => {
             const undated = tasks.filter((t) => t.kind !== "milestone" && !t.dueDate);
             return undated.length > 0 ? (

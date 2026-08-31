@@ -161,3 +161,7 @@ export function useTimelineView(fullFrom: number, fullTo: number, leftInsetPx = 
 
 /** The −/+/Fit cluster + hint, same look on every timeline. */
 export const TIMELINE_HINT = "scroll to zoom · drag to move";
+
+/** Diagonal red hatching layered over an overdue bar's own color. */
+export const OVERDUE_STRIPES =
+  "repeating-linear-gradient(135deg, rgba(239,68,68,0.55) 0px, rgba(239,68,68,0.55) 5px, transparent 5px, transparent 11px)";
