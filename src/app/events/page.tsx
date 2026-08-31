@@ -220,8 +220,8 @@ export default function EventsPage() {
           <div className="rounded-xl border border-line bg-card p-6 text-center">
             <p className="text-sm font-medium mb-1">The company calendar isn&apos;t connected yet</p>
             <p className="text-[13px] text-ink-faint">
-              An engineer needs to set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and
-              GOOGLE_REFRESH_TOKEN (calendar.readonly) on the server.
+              The server reads Hermes&apos; Google credentials (documents/token.json). If this
+              shows after a rebuild, check that file — or ask an engineer.
             </p>
           </div>
         )}
