@@ -133,7 +133,12 @@ export default function CronPage() {
         // the result to the creator's Slack DM unless they opt out.
         deliverSlackDm: deliverDm,
       });
-      if (!res.ok) console.warn(`[cron] create failed: ${res.error}`);
+      if (!res.ok) {
+        // Show the reason ON the form — a silent failure looks like a bug.
+        setError(`Could not create the task: ${res.error}`);
+        return;
+      }
+      setError("");
       setName("");
       setPrompt("");
       setShowForm(false);
@@ -318,9 +323,7 @@ export default function CronPage() {
       )}
 
       {loading && <p className="text-sm text-ink-faint">Loading tasks…</p>}
-      {error && (
-        <p className="text-sm text-red-500 mb-4">{error} — is the Hermes gateway running?</p>
-      )}
+      {error && <p className="text-sm text-red-500 mb-4">{error}</p>}
 
       <div className="space-y-3">
         {jobs.map((j) => (
