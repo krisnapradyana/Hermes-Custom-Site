@@ -15,7 +15,7 @@ import { IconButton } from "@/components/ui";
  * the page shows an under-development notice (sidebar entry is greyed out
  * too). Flip SCHEDULER_ENABLED to true to restore it — nothing was removed.
  */
-const SCHEDULER_ENABLED = false;
+const SCHEDULER_ENABLED = true;
 
 function UnderDevelopment() {
   return (
@@ -74,6 +74,7 @@ export default function CronPage() {
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [prompt, setPrompt] = useState("");
+  const [deliverDm, setDeliverDm] = useState(true);
   const [busy, setBusy] = useState("");
 
   // Friendly schedule inputs — the cron expression is generated automatically.
@@ -127,6 +128,9 @@ export default function CronPage() {
         name: name.trim() || undefined,
         schedule,
         prompt: prompt.trim(),
+        // Web jobs deliver nowhere by default (api_server origin) — route
+        // the result to the creator's Slack DM unless they opt out.
+        deliverSlackDm: deliverDm,
       });
       if (!res.ok) console.warn(`[cron] create failed: ${res.error}`);
       setName("");
@@ -274,13 +278,33 @@ export default function CronPage() {
             </button>
           </div>
           {advanced && (
-            <input
-              value={rawSchedule}
-              onChange={(e) => setRawSchedule(e.target.value)}
-              placeholder={`Raw cron expression (currently: ${schedule})`}
-              className="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm font-mono outline-none focus:border-ink-faint"
-            />
+            <>
+              <input
+                value={rawSchedule}
+                onChange={(e) => setRawSchedule(e.target.value)}
+                placeholder={`Raw cron expression (currently: ${schedule})`}
+                className="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm font-mono outline-none focus:border-ink-faint"
+              />
+              <p className="text-[11px] text-ink-faint -mt-2">
+                Raw expressions run in UTC (the quick picker converts your local time
+                automatically).
+              </p>
+            </>
           )}
+
+          {/* Delivery — without this, a web-created job's result goes nowhere. */}
+          <label className="flex items-center gap-2 text-[13px] text-ink-soft cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={deliverDm}
+              onChange={(e) => setDeliverDm(e.target.checked)}
+              className="accent-[var(--color-accent,#2a73e1)]"
+            />
+            Deliver the result to my Slack DM
+            <span className="text-[11px] text-ink-faint">
+              — otherwise it only runs silently on the server
+            </span>
+          </label>
 
           <div className="flex gap-2">
             <button

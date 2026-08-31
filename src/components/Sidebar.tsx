@@ -12,6 +12,7 @@ import {
   Package,
   Paperclip,
   GanttChart,
+  AlarmClock,
   History,
   MessageSquare,
   ChevronLeft,
@@ -150,6 +151,14 @@ export function Sidebar() {
         </Link>
         <Link
           prefetch={false}
+          href="/cron"
+          className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
+          title="Scheduler — automatic tasks the agent runs for you"
+        >
+          <AlarmClock size={16} />
+        </Link>
+        <Link
+          prefetch={false}
           href="/history"
           className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
           title="Agent history"
@@ -207,6 +216,7 @@ export function Sidebar() {
           {navItem("/projects", <FolderKanban size={15} />, "Projects")}
           {navItem("/team", <Users size={15} />, "Team")}
           {navItem("/schedule", <GanttChart size={15} />, "Schedule")}
+          {navItem("/cron", <AlarmClock size={15} />, "Scheduler")}
           {navItem("/artifacts", <Package size={15} />, "Artifacts")}
           {navItem("/attachments", <Paperclip size={15} />, "Attachments")}
           {navItem("/history", <History size={15} />, "Agent history")}

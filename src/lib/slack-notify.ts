@@ -37,12 +37,17 @@ async function slackCall(
   }
 }
 
+/** Open (or fetch) the DM channel with a user; null when not DM-able. */
+export async function openDmChannel(slackUserId: string): Promise<string | null> {
+  // Slack user ids start with U or W; anything else (e.g. "local") is not DM-able.
+  if (!/^[UW][A-Z0-9]{5,}$/i.test(slackUserId)) return null;
+  const opened = await slackCall("conversations.open", { users: slackUserId });
+  return (opened?.channel as { id?: string } | undefined)?.id ?? null;
+}
+
 /** DM one user by Slack id. */
 export async function slackDm(slackUserId: string, text: string): Promise<void> {
-  // Slack user ids start with U or W; anything else (e.g. "local") is not DM-able.
-  if (!/^[UW][A-Z0-9]{5,}$/i.test(slackUserId)) return;
-  const opened = await slackCall("conversations.open", { users: slackUserId });
-  const channel = (opened?.channel as { id?: string } | undefined)?.id;
+  const channel = await openDmChannel(slackUserId);
   if (!channel) return;
   await slackCall("chat.postMessage", { channel, text, unfurl_links: false });
 }
