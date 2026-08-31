@@ -219,7 +219,8 @@ export async function POST(req: NextRequest) {
   contextParts.push(
     `Team status: ${teamStatusPath()} — auto-regenerated every few minutes; ` +
       `read it whenever asked WHO is working on something, who is standby/free ` +
-      `to take work, what someone is assigned to, or about task/milestone ` +
+      `to take work, what someone is assigned to, who was ACTIVE on a past ` +
+      `date (per-day attendance, last 30 days), or about task/milestone ` +
       `deadlines and project schedules. It lists who is clocked in right now ` +
       `(and on which project), who is standby, each member's open tasks, and ` +
       `per-project schedules with unassigned tasks (good suggestions for ` +
