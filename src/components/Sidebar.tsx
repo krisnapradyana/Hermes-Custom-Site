@@ -127,12 +127,14 @@ export function Sidebar() {
         >
           <GanttChart size={16} />
         </Link>
-        <span
-          className="p-2 rounded-lg text-ink-faint opacity-40 cursor-not-allowed"
-          title="Event — coming soon"
+        <Link
+          prefetch={false}
+          href="/events"
+          className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
+          title="Event — company calendar"
         >
           <CalendarDays size={16} />
-        </span>
+        </Link>
 
         {/* Divider stands in for the group titles in the rail. */}
         <span className="w-6 border-b border-line my-1.5" />
@@ -228,14 +230,7 @@ export function Sidebar() {
           {navItem("/team", <Users size={15} />, "Team")}
           {navItem("/projects", <FolderKanban size={15} />, "Projects")}
           {navItem("/schedule", <GanttChart size={15} />, "Schedule")}
-          <span
-            className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-sm text-ink-faint opacity-60 cursor-not-allowed select-none"
-            title="Event — coming soon"
-          >
-            <CalendarDays size={15} />
-            Event
-            <span className="ml-auto text-[10px] uppercase tracking-wide">soon</span>
-          </span>
+          {navItem("/events", <CalendarDays size={15} />, "Event")}
 
           <div className="px-2.5 pt-2.5">
             <p className="text-left text-[10.5px] font-medium uppercase tracking-wider text-ink-faint">
