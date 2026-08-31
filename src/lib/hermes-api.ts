@@ -11,6 +11,14 @@
 
 import { Message, Attachment } from "./types";
 
+export interface ApprovalRequest {
+  command?: string;
+  description?: string;
+  /** Choices offered by the agent — observed: ["once","session","deny"]. */
+  choices?: string[];
+  patternKey?: string;
+}
+
 export interface StreamState {
   content: string;
   thinking: string;
@@ -18,6 +26,10 @@ export interface StreamState {
   status?: string;
   /** ms since the last token/tool event — lets the UI flag a quiet stretch. */
   idleMs?: number;
+  /** Run id (runs mode) — where approval decisions are POSTed. */
+  runId?: string;
+  /** A pending guarded-command approval waiting on an engineer, if any. */
+  approval?: ApprovalRequest | null;
 }
 
 /** Human-readable label for a tool the agent is running. */
@@ -137,13 +149,15 @@ export async function hermesStream(
     let lastEmit = 0;
     let status = "Thinking…"; // live one-line summary of current activity
     let lastActivity = Date.now();
+    let runId: string | undefined;
+    let approval: ApprovalRequest | null = null;
     const emit = (force = false) => {
       const now = Date.now();
       if (!force && now - lastEmit < 50) return;
       lastEmit = now;
       const { content, think } = splitThink(rawText);
       const thinking = [toolLines.join("\n"), reasoning, think].filter(Boolean).join("\n");
-      onUpdate({ content, thinking, status, idleMs: now - lastActivity });
+      onUpdate({ content, thinking, status, idleMs: now - lastActivity, runId, approval });
     };
 
     // Heartbeat: refresh the idle timer view even when nothing arrives, so the
@@ -180,6 +194,79 @@ export async function hermesStream(
           data = JSON.parse(dataStr);
         } catch {
           continue;
+        }
+
+        // ── Hermes runs-mode events. Their event NAME lives INSIDE the data
+        // payload (data.event) — NOT on the SSE "event:" line. That single
+        // detail is what broke the first runs attempt. All shapes below are
+        // verified against streams recorded from the live agent (probes,
+        // 2026-08-31): message.delta{delta}, tool.started{tool,preview},
+        // tool.completed{tool,duration,error}, approval.request{command,
+        // description,choices}, approval.responded{choice}, run.completed
+        // {output,usage}.
+        const ev = typeof data.event === "string" ? (data.event as string) : eventName;
+
+        if (ev === "run.meta") {
+          if (typeof data.run_id === "string") runId = data.run_id;
+          continue;
+        }
+        if (ev === "approval.request") {
+          approval = {
+            command: data.command as string | undefined,
+            description: data.description as string | undefined,
+            choices: Array.isArray(data.choices) ? (data.choices as string[]) : undefined,
+            patternKey: data.pattern_key as string | undefined,
+          };
+          status = "Waiting for approval…";
+          emit(true);
+          continue;
+        }
+        if (ev === "approval.responded" || ev === "approval.resolved") {
+          approval = null;
+          status = "Continuing…";
+          emit(true);
+          continue;
+        }
+        if (ev === "message.delta") {
+          if (typeof data.delta === "string") {
+            rawText += data.delta;
+            status = "Writing the answer…";
+            emit();
+          }
+          continue;
+        }
+        if (ev === "reasoning.available") {
+          // Snapshot of the message segment just streamed via deltas — using
+          // it would duplicate visible text into the thinking block.
+          continue;
+        }
+        if (ev === "tool.started" || ev === "tool.completed") {
+          const name = String(data.tool ?? "tool");
+          const done = ev === "tool.completed";
+          toolLines.push(
+            `⚙ ${name}${done ? " · done" : ""}` +
+              `${typeof data.preview === "string" ? ` — ${data.preview.slice(0, 200)}` : ""}` +
+              `${data.error === true ? " · ERROR" : ""}`
+          );
+          status = statusFor(name, done ? "completed" : "started");
+          emit(true);
+          continue;
+        }
+        if (ev === "run.completed" || ev === "run.final") {
+          sawDone = true;
+          approval = null;
+          // Final output is authoritative — replaces streamed text if longer.
+          if (typeof data.output === "string" && data.output.length > rawText.length) {
+            rawText = data.output;
+          }
+          emit(true);
+          continue;
+        }
+        if (ev === "run.failed" || ev === "run.error" || ev === "error") {
+          throw new Error(String(data.error ?? data.message ?? "The agent run failed."));
+        }
+        if (ev.startsWith("run.") || ev.startsWith("gateway.") || ev.startsWith("subagent.")) {
+          continue; // other lifecycle events — harmless
         }
 
         if (eventName.includes("tool")) {

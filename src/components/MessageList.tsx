@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Package,
   FileText,
@@ -12,8 +12,10 @@ import {
   RotateCw,
   Loader2,
   Download,
+  ShieldAlert,
 } from "lucide-react";
 import { Message, Attachment } from "@/lib/types";
+import { api } from "@/lib/api";
 import { useHermesStore } from "@/lib/store";
 import { renderMarkdown } from "@/lib/markdown";
 import { extractFilePaths } from "@/lib/file-paths";
@@ -119,6 +121,15 @@ export function MessageList({
                 <StatusLine status={m.status} idleMs={m.idleMs} hasText={!!m.content} />
               )}
 
+              {/* Approval gate: the agent is blocked on a human decision. */}
+              {streaming && isLast && m.role === "assistant" && m.approval && m.runId && (
+                <ApprovalCard
+                  key={m.approval.patternKey ?? m.approval.command ?? "appr"}
+                  approval={m.approval}
+                  runId={m.runId}
+                />
+              )}
+
               {isPendingAssistant && !m.status ? (
                 <div className="flex items-center gap-1.5 h-[26px]">
                   <span className="w-1.5 h-1.5 rounded-full bg-ink-faint animate-bounce [animation-delay:0ms]" />
@@ -182,6 +193,117 @@ export function MessageList({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/** One shared answer to "may I approve?" — fetched once per page life. */
+let approverCache: boolean | null = null;
+
+/**
+ * Approval card — a guarded command is waiting on an engineer. Buttons come
+ * from the event's own choices (observed: once/session/deny) and resolve via
+ * POST /api/hermes/approval; non-approvers see a waiting state. The card
+ * clears itself when the stream delivers approval.responded.
+ */
+function ApprovalCard({
+  approval,
+  runId,
+}: {
+  approval: NonNullable<Message["approval"]>;
+  runId: string;
+}) {
+  const [sending, setSending] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const [canApprove, setCanApprove] = useState<boolean | null>(approverCache);
+
+  useEffect(() => {
+    if (approverCache !== null) return;
+    api.get<{ approver: boolean }>("/api/hermes/approval").then((res) => {
+      approverCache = res.ok ? res.data.approver : false;
+      setCanApprove(approverCache);
+    });
+  }, []);
+
+  const choices = approval.choices?.length ? approval.choices : ["once", "deny"];
+  const LABELS: Record<string, string> = {
+    once: "Approve once",
+    session: "Approve for this session",
+    always: "Always allow",
+    deny: "Deny",
+  };
+
+  const resolve = async (choice: string) => {
+    setSending(choice);
+    setError("");
+    const res = await api.post("/api/hermes/approval", { runId, choice });
+    if (!res.ok) {
+      setError(res.error);
+      setSending(null);
+    }
+    // On success the card stays in "sent" state until the stream clears it.
+  };
+
+  return (
+    <div className="mb-2 rounded-xl border border-amber-500/40 bg-amber-500/5 px-4 py-3">
+      <div className="flex items-center gap-2 mb-1.5">
+        <ShieldAlert size={15} className="text-amber-500 shrink-0" />
+        <p className="text-[13px] font-medium">Guarded command — approval needed</p>
+      </div>
+      {approval.description && (
+        <p className="text-[12.5px] text-ink-soft mb-1.5 whitespace-pre-wrap">
+          {approval.description}
+        </p>
+      )}
+      {approval.command && (
+        <pre className="mb-2.5 rounded-lg bg-parchment-dark px-3 py-2 text-[12px] font-mono whitespace-pre-wrap break-all max-h-40 overflow-y-auto">
+          {approval.command}
+        </pre>
+      )}
+
+      {canApprove === false && (
+        <p className="flex items-center gap-1.5 text-[12.5px] text-ink-soft">
+          <Loader2 size={12} className="animate-spin text-amber-500" />
+          Waiting for an engineer to approve…
+        </p>
+      )}
+      {canApprove === null && <p className="text-[12px] text-ink-faint">Checking permissions…</p>}
+
+      {canApprove === true &&
+        (sending && !error ? (
+          <p className="flex items-center gap-1.5 text-[12.5px] text-ink-soft">
+            <Loader2 size={12} className="animate-spin text-accent" />
+            {sending === "deny" ? "Denying…" : "Approved — the agent is continuing…"}
+          </p>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            {choices
+              .filter((c) => c !== "deny")
+              .map((c) => (
+                <button
+                  key={c}
+                  onClick={() => resolve(c)}
+                  className={`rounded-lg px-3.5 py-1.5 text-[12.5px] font-medium transition-colors ${
+                    c === "once"
+                      ? "bg-accent text-white hover:bg-accent-hover"
+                      : "border border-line bg-card hover:border-ink-faint"
+                  }`}
+                  title={c === "session" ? "Allow this pattern for the rest of this session" : undefined}
+                >
+                  {LABELS[c] ?? c}
+                </button>
+              ))}
+            {choices.includes("deny") && (
+              <button
+                onClick={() => resolve("deny")}
+                className="rounded-lg border border-red-500/40 px-3.5 py-1.5 text-[12.5px] font-medium text-red-500 hover:bg-red-500/10 transition-colors"
+              >
+                Deny
+              </button>
+            )}
+          </div>
+        ))}
+      {error && <p className="mt-1.5 text-[12px] text-red-500">{error}</p>}
     </div>
   );
 }

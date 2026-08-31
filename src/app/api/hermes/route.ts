@@ -67,6 +67,43 @@ const CHAT_PATH = process.env.HERMES_CHAT_PATH ?? "/chat";
 const MODE = process.env.HERMES_API_MODE ?? "custom";
 const API_KEY = process.env.HERMES_API_KEY ?? "";
 const MODEL = process.env.HERMES_MODEL ?? "hermes-agent";
+
+/**
+ * Runs mode: turns go over /v1/runs so guarded-command approvals reach the
+ * user as events (verified end-to-end against this deployment's agent —
+ * probe recordings 2026-08-31). DEFAULT OFF: flip HERMES_RUNS_MODE=auto on
+ * the server to enable; any runs-path failure falls back to the legacy
+ * chat-completions path automatically, and image turns always use legacy
+ * (runs input is plain text).
+ */
+const RUNS_MODE = process.env.HERMES_RUNS_MODE ?? "off";
+
+let capCache: { at: number; runs: boolean } | null = null;
+async function runsSupported(headers: Record<string, string>): Promise<boolean> {
+  if (RUNS_MODE !== "auto" && RUNS_MODE !== "on") return false;
+  if (capCache && Date.now() - capCache.at < 5 * 60_000) return capCache.runs;
+  let runs = false;
+  try {
+    const res = await fetch(`${API_URL}/v1/capabilities`, {
+      headers,
+      cache: "no-store",
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (res.ok) {
+      const cap = (await res.json()) as { features?: Record<string, boolean> };
+      const f = cap.features ?? {};
+      runs = !!(
+        f.run_submission &&
+        f.run_events_sse &&
+        (f.run_approval || f.run_approval_response || f.approval_events)
+      );
+    }
+  } catch {
+    runs = false;
+  }
+  capCache = { at: Date.now(), runs };
+  return runs;
+}
 // Should mirror the session-key scheme the Slack bridge uses so web + Slack
 // share memory. Adjust via env if your bridge uses a different scheme.
 const SESSION_KEY_PREFIX = process.env.HERMES_SESSION_KEY_PREFIX ?? "agent:main:slack:dm:";
@@ -238,13 +275,125 @@ export async function POST(req: NextRequest) {
     ? [{ role: "system" as const, content: contextParts.join("\n\n") }]
     : [];
 
+  // ── Runs path (opt-in): same turn over /v1/runs so approval events reach
+  // the browser. Any content that produced image parts stays on legacy.
+  const builtContent = isOpenAI ? await buildUserContent(message, attachments) : message;
+  if (isOpenAI && typeof builtContent === "string" && (await runsSupported(headers))) {
+    try {
+      const created = await fetch(`${API_URL}/v1/runs`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          input: builtContent,
+          instructions: contextParts.join("\n\n"),
+          conversation_history: (body.history ?? []).map((h) => ({
+            role: h.role,
+            content: h.content,
+          })),
+          ...(body.chatId ? { session_id: body.chatId } : {}),
+        }),
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!created.ok) throw new Error(`run create ${created.status}`);
+      const { run_id: runId } = (await created.json()) as { run_id: string };
+      if (!runId) throw new Error("no run_id in response");
+
+      const upstream = await fetch(`${API_URL}/v1/runs/${encodeURIComponent(runId)}/events`, {
+        headers: { ...headers, Accept: "text/event-stream" },
+        signal: AbortSignal.timeout(600_000),
+      });
+      if (!upstream.ok || !upstream.body) throw new Error(`run events ${upstream.status}`);
+
+      const enc = new TextEncoder();
+      const reader = upstream.body.getReader();
+      // Diagnostic: log each distinct event name once per run (data.event —
+      // the name lives in the payload, not the SSE event line).
+      const seen = new Set<string>();
+      const sniffer = new TextDecoder();
+      const sniff = (chunk: Uint8Array) => {
+        for (const m of sniffer
+          .decode(chunk, { stream: true })
+          .matchAll(/"event":\s*"([^"]+)"/g)) {
+          if (!seen.has(m[1])) {
+            seen.add(m[1]);
+            console.log(`[hermes] run ${runId} event: ${m[1]}`);
+          }
+        }
+      };
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          // First frame: tell the client which run this is, so the approval
+          // buttons know where to POST the decision.
+          controller.enqueue(
+            enc.encode(`data: ${JSON.stringify({ event: "run.meta", run_id: runId })}\n\n`)
+          );
+        },
+        async pull(controller) {
+          const { done, value } = await reader.read();
+          if (done) {
+            // Safety net: the run status carries the final output — send it
+            // so the client always has the full answer even if a delta shape
+            // ever drifts.
+            try {
+              const st = await fetch(`${API_URL}/v1/runs/${encodeURIComponent(runId)}`, {
+                headers,
+                cache: "no-store",
+                signal: AbortSignal.timeout(15_000),
+              });
+              if (st.ok) {
+                const j = (await st.json()) as { output?: unknown };
+                if (typeof j.output === "string" && j.output) {
+                  controller.enqueue(
+                    enc.encode(
+                      `data: ${JSON.stringify({ event: "run.final", output: j.output })}\n\n`
+                    )
+                  );
+                }
+              }
+            } catch {
+              // stream content is all we have — proceed
+            }
+            controller.enqueue(enc.encode("data: [DONE]\n\n"));
+            controller.close();
+            return;
+          }
+          sniff(value);
+          controller.enqueue(value);
+        },
+        cancel() {
+          // Stop button / navigation: actually stop the agent.
+          reader.cancel().catch(() => {});
+          fetch(`${API_URL}/v1/runs/${encodeURIComponent(runId)}/stop`, {
+            method: "POST",
+            headers,
+            signal: AbortSignal.timeout(10_000),
+          }).catch(() => {});
+        },
+      });
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache, no-transform",
+          Connection: "keep-alive",
+        },
+      });
+    } catch (err) {
+      capCache = null; // re-detect next turn
+      console.warn(
+        `[hermes] runs path failed, falling back to chat/completions: ${
+          err instanceof Error ? err.message : err
+        }`
+      );
+    }
+  }
+
   const payload = isOpenAI
     ? {
         model: MODEL,
         messages: [
           ...contextMessages,
           ...(body.history ?? []).map((h) => ({ role: h.role, content: h.content })),
-          { role: "user", content: await buildUserContent(message, attachments) },
+          { role: "user", content: builtContent },
         ],
         stream: true,
       }
