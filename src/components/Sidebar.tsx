@@ -13,6 +13,7 @@ import {
   Paperclip,
   GanttChart,
   AlarmClock,
+  CalendarDays,
   History,
   MessageSquare,
   ChevronLeft,
@@ -101,13 +102,14 @@ export function Sidebar() {
         <IconButton onClick={() => setCollapsed(false)} title="Expand sidebar">
           <ChevronRight size={16} />
         </IconButton>
+        {/* Team group */}
         <Link
           prefetch={false}
-          href="/"
-          className="p-2 rounded-lg hover:bg-parchment-dark text-accent"
-          title="New chat"
+          href="/team"
+          className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
+          title="Team"
         >
-          <PenSquare size={16} />
+          <Users size={16} />
         </Link>
         <Link
           prefetch={false}
@@ -119,11 +121,30 @@ export function Sidebar() {
         </Link>
         <Link
           prefetch={false}
-          href="/team"
+          href="/schedule"
           className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
-          title="Team"
+          title="Schedule — all projects on one timeline"
         >
-          <Users size={16} />
+          <GanttChart size={16} />
+        </Link>
+        <span
+          className="p-2 rounded-lg text-ink-faint opacity-40 cursor-not-allowed"
+          title="Event — coming soon"
+        >
+          <CalendarDays size={16} />
+        </span>
+
+        {/* Divider stands in for the group titles in the rail. */}
+        <span className="w-6 border-b border-line my-1.5" />
+
+        {/* Personal group */}
+        <Link
+          prefetch={false}
+          href="/"
+          className="p-2 rounded-lg hover:bg-parchment-dark text-accent"
+          title="New chat"
+        >
+          <PenSquare size={16} />
         </Link>
         <Link
           prefetch={false}
@@ -143,11 +164,11 @@ export function Sidebar() {
         </Link>
         <Link
           prefetch={false}
-          href="/schedule"
+          href="/history"
           className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
-          title="Schedule — all projects on one timeline"
+          title="Agent history"
         >
-          <GanttChart size={16} />
+          <History size={16} />
         </Link>
         <Link
           prefetch={false}
@@ -156,14 +177,6 @@ export function Sidebar() {
           title="Scheduler — automatic tasks the agent runs for you"
         >
           <AlarmClock size={16} />
-        </Link>
-        <Link
-          prefetch={false}
-          href="/history"
-          className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
-          title="Agent history"
-        >
-          <History size={16} />
         </Link>
       </aside>
     );
@@ -204,8 +217,32 @@ export function Sidebar() {
           </button>
         </div>
 
-        {/* New chat + nav */}
+        {/* Nav — grouped: shared TEAM surfaces first, then PERSONAL ones. */}
         <div className="mx-3 mb-2 rounded-xl bg-black/[0.04] dark:bg-white/[0.04] p-1.5 space-y-0.5">
+          <div className="px-2.5 pt-1">
+            <p className="text-left text-[10.5px] font-medium uppercase tracking-wider text-ink-faint">
+              Team
+            </p>
+            <div className="border-b border-line mt-1" />
+          </div>
+          {navItem("/team", <Users size={15} />, "Team")}
+          {navItem("/projects", <FolderKanban size={15} />, "Projects")}
+          {navItem("/schedule", <GanttChart size={15} />, "Schedule")}
+          <span
+            className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-sm text-ink-faint opacity-60 cursor-not-allowed select-none"
+            title="Event — coming soon"
+          >
+            <CalendarDays size={15} />
+            Event
+            <span className="ml-auto text-[10px] uppercase tracking-wide">soon</span>
+          </span>
+
+          <div className="px-2.5 pt-2.5">
+            <p className="text-left text-[10.5px] font-medium uppercase tracking-wider text-ink-faint">
+              Personal
+            </p>
+            <div className="border-b border-line mt-1" />
+          </div>
           <button
             onClick={() => router.push("/")}
             className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium text-accent hover:bg-accent-soft transition-colors"
@@ -213,13 +250,10 @@ export function Sidebar() {
             <PenSquare size={15} />
             New chat
           </button>
-          {navItem("/projects", <FolderKanban size={15} />, "Projects")}
-          {navItem("/team", <Users size={15} />, "Team")}
-          {navItem("/schedule", <GanttChart size={15} />, "Schedule")}
-          {navItem("/cron", <AlarmClock size={15} />, "Scheduler")}
           {navItem("/artifacts", <Package size={15} />, "Artifacts")}
           {navItem("/attachments", <Paperclip size={15} />, "Attachments")}
           {navItem("/history", <History size={15} />, "Agent history")}
+          {navItem("/cron", <AlarmClock size={15} />, "Scheduler")}
         </div>
 
         {/* Search */}
