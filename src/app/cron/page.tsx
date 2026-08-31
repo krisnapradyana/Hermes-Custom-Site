@@ -125,7 +125,8 @@ export default function CronPage() {
     setBusy("new");
     try {
       const res = await api.post("/api/cron", {
-        name: name.trim() || undefined,
+        // No name typed → a readable one from the prompt, not a hex id.
+        name: name.trim() || prompt.trim().slice(0, 48),
         schedule,
         prompt: prompt.trim(),
         // Web jobs deliver nowhere by default (api_server origin) — route
@@ -258,53 +259,45 @@ export default function CronPage() {
             </p>
           </div>
 
-          {/* 3. Optional details */}
-          <div className="flex flex-wrap items-center gap-3">
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Name (optional)"
-              className="flex-1 min-w-40 rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:border-ink-faint"
-            />
-            <button
-              onClick={() => setAdvanced(!advanced)}
-              className={`flex items-center gap-1.5 text-[12px] transition-colors ${
-                advanced ? "text-accent" : "text-ink-faint hover:text-ink-soft"
-              }`}
-              title="Enter a raw cron expression"
-            >
-              <Settings2 size={13} />
-              Advanced
-            </button>
-          </div>
+          {/* Everything optional hides behind Advanced. */}
           {advanced && (
-            <>
+            <div className="space-y-2">
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Name (otherwise taken from the prompt)"
+                className="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:border-ink-faint"
+              />
               <input
                 value={rawSchedule}
                 onChange={(e) => setRawSchedule(e.target.value)}
-                placeholder={`Raw cron expression (currently: ${schedule})`}
+                placeholder={`Raw cron expression, runs in UTC (currently: ${schedule})`}
                 className="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm font-mono outline-none focus:border-ink-faint"
               />
-              <p className="text-[11px] text-ink-faint -mt-2">
-                Raw expressions run in UTC (the quick picker converts your local time
-                automatically).
-              </p>
-            </>
+              <label className="flex items-center gap-2 text-[13px] text-ink-soft cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={deliverDm}
+                  onChange={(e) => setDeliverDm(e.target.checked)}
+                />
+                Deliver the result to my Slack DM
+              </label>
+            </div>
           )}
 
-          {/* Delivery — without this, a web-created job's result goes nowhere. */}
-          <label className="flex items-center gap-2 text-[13px] text-ink-soft cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={deliverDm}
-              onChange={(e) => setDeliverDm(e.target.checked)}
-              className="accent-[var(--color-accent,#2a73e1)]"
-            />
-            Deliver the result to my Slack DM
-            <span className="text-[11px] text-ink-faint">
-              — otherwise it only runs silently on the server
-            </span>
-          </label>
+          <div className="flex items-center gap-3 text-[12px] text-ink-faint">
+            {deliverDm ? "The result arrives in your Slack DM." : "Runs silently on the server."}
+            <button
+              onClick={() => setAdvanced(!advanced)}
+              className={`flex items-center gap-1 transition-colors ${
+                advanced ? "text-accent" : "hover:text-ink-soft"
+              }`}
+              title="Name, raw cron expression, delivery"
+            >
+              <Settings2 size={12} />
+              Advanced
+            </button>
+          </div>
 
           <div className="flex gap-2">
             <button
