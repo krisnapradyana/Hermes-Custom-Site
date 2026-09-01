@@ -46,9 +46,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       sheets?: { properties?: { title?: string } }[];
     };
     const tabs = (meta.sheets ?? []).map((s) => s.properties?.title ?? "").filter(Boolean);
-    // Auto-pick the most tracker-looking tab instead of blindly the first.
+    // Auto-pick the most tracker-looking tab instead of blindly the first —
+    // but "Dashboard_Production Tracker"-style summary tabs also contain the
+    // tracker words, so prefer candidates that are NOT dashboards/overviews.
+    const looksTracker = (t: string) => /prod|track|shot|asset/i.test(t);
+    const looksSummary = (t: string) => /dash|overview|summar|report/i.test(t);
     const chosen =
-      tab || tabs.find((t) => /prod|track|shot|asset/i.test(t)) || tabs[0];
+      tab ||
+      tabs.find((t) => looksTracker(t) && !looksSummary(t)) ||
+      tabs.find(looksTracker) ||
+      tabs[0];
     if (!chosen) return NextResponse.json({ error: "No tabs found" }, { status: 400 });
 
     const valRes = await fetch(
