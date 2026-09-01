@@ -18,6 +18,7 @@ import {
   MessageSquare,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Search,
   X,
   Users,
@@ -41,6 +42,26 @@ export function Sidebar() {
   const hydrated = useHermesStore((s) => s._hasHydrated);
   const [collapsed, setCollapsed] = useState(false);
   const { width, startResize } = useResizableWidth("hermes-sidebar-w", 288, 208, 480);
+
+  // Collapsible nav groups — folding them gives the chat list more room.
+  const [navFold, setNavFold] = useState<{ team: boolean; personal: boolean }>({
+    team: false,
+    personal: false,
+  });
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("hermes-nav-fold");
+      if (saved) setNavFold((prev) => ({ ...prev, ...JSON.parse(saved) }));
+    } catch {}
+  }, []);
+  const toggleFold = (key: "team" | "personal") =>
+    setNavFold((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      try {
+        localStorage.setItem("hermes-nav-fold", JSON.stringify(next));
+      } catch {}
+      return next;
+    });
 
   // Chat search: matches titles and message content.
   const [query, setQuery] = useState("");
@@ -227,33 +248,61 @@ export function Sidebar() {
         {/* Nav — grouped: shared TEAM surfaces first, then PERSONAL ones. */}
         <div className="mx-3 mb-2 rounded-xl bg-black/[0.04] dark:bg-white/[0.04] p-1.5 space-y-0.5">
           <div className="px-2.5 pt-1">
-            <p className="text-left text-[10.5px] font-medium uppercase tracking-wider text-ink-faint">
-              Team
-            </p>
+            <button
+              onClick={() => toggleFold("team")}
+              className="w-full flex items-center gap-1 group"
+              title={navFold.team ? "Expand" : "Collapse"}
+            >
+              <p className="text-left text-[10.5px] font-medium uppercase tracking-wider text-ink-faint group-hover:text-ink-soft">
+                Team
+              </p>
+              <span className="flex-1" />
+              <span className="text-ink-faint group-hover:text-ink-soft">
+                {navFold.team ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+              </span>
+            </button>
             <div className="border-b border-line mt-1" />
           </div>
-          {navItem("/team", <Users size={15} />, "Team")}
-          {navItem("/projects", <FolderKanban size={15} />, "Projects")}
-          {navItem("/schedule", <GanttChart size={15} />, "Schedule")}
-          {navItem("/events", <CalendarDays size={15} />, "Event", "beta")}
+          {!navFold.team && (
+            <>
+              {navItem("/team", <Users size={15} />, "Team")}
+              {navItem("/projects", <FolderKanban size={15} />, "Projects")}
+              {navItem("/schedule", <GanttChart size={15} />, "Schedule")}
+              {navItem("/events", <CalendarDays size={15} />, "Event", "beta")}
+            </>
+          )}
 
           <div className="px-2.5 pt-2.5">
-            <p className="text-left text-[10.5px] font-medium uppercase tracking-wider text-ink-faint">
-              Personal
-            </p>
+            <button
+              onClick={() => toggleFold("personal")}
+              className="w-full flex items-center gap-1 group"
+              title={navFold.personal ? "Expand" : "Collapse"}
+            >
+              <p className="text-left text-[10.5px] font-medium uppercase tracking-wider text-ink-faint group-hover:text-ink-soft">
+                Personal
+              </p>
+              <span className="flex-1" />
+              <span className="text-ink-faint group-hover:text-ink-soft">
+                {navFold.personal ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+              </span>
+            </button>
             <div className="border-b border-line mt-1" />
           </div>
-          <button
-            onClick={() => router.push("/")}
-            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium text-accent hover:bg-accent-soft transition-colors"
-          >
-            <PenSquare size={15} />
-            New chat
-          </button>
-          {navItem("/artifacts", <Package size={15} />, "Artifacts")}
-          {navItem("/attachments", <Paperclip size={15} />, "Attachments")}
-          {navItem("/history", <History size={15} />, "Agent history")}
-          {navItem("/cron", <AlarmClock size={15} />, "Scheduler")}
+          {!navFold.personal && (
+            <>
+              <button
+                onClick={() => router.push("/")}
+                className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium text-accent hover:bg-accent-soft transition-colors"
+              >
+                <PenSquare size={15} />
+                New chat
+              </button>
+              {navItem("/artifacts", <Package size={15} />, "Artifacts")}
+              {navItem("/attachments", <Paperclip size={15} />, "Attachments")}
+              {navItem("/history", <History size={15} />, "Agent history")}
+              {navItem("/cron", <AlarmClock size={15} />, "Scheduler")}
+            </>
+          )}
         </div>
 
         {/* Search */}
