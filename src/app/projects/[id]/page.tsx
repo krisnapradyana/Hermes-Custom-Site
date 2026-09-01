@@ -22,14 +22,15 @@ import { IconButton } from "@/components/ui";
 import { Composer } from "@/components/Composer";
 import { WorkspacePanel } from "@/components/WorkspacePanel";
 import { ProjectTeam } from "@/components/ProjectTeam";
+import { ProductionTracker } from "@/components/ProductionTracker";
 import { useFocusRefresh } from "@/lib/use-focus-refresh";
 import { useResizableWidth, ResizeHandle } from "@/components/ResizeHandle";
 import { ConversationMeta, Attachment, Artifact } from "@/lib/types";
-import { Paperclip, Package } from "lucide-react";
+import { Paperclip, Package, Table2 } from "lucide-react";
 import { AttachmentPreview, attachmentIconKind } from "@/components/AttachmentPreview";
 import { ArtifactPreview } from "@/components/ArtifactPreview";
 
-type Tab = "conversations" | "attachments" | "artifacts";
+type Tab = "conversations" | "production" | "attachments" | "artifacts";
 interface AttachmentItem extends Attachment {
   conversationId: string;
   conversationTitle: string;
@@ -352,6 +353,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             {(
               [
                 ["conversations", "Conversations", <MessageSquare key="c" size={13} />],
+                ["production", "Production", <Table2 key="t" size={13} />],
                 ["attachments", "Attachments", <Paperclip key="p" size={13} />],
                 ["artifacts", "Artifacts", <Package key="a" size={13} />],
               ] as [Tab, string, React.ReactNode][]
@@ -376,6 +378,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               </button>
             ))}
           </div>
+
+          {tab === "production" && <ProductionTracker projectId={project.id} />}
 
           {tab === "attachments" && (
             <div className="space-y-2 mb-10">
