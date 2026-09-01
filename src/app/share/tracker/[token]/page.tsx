@@ -19,6 +19,7 @@ interface Shot {
   rowIndex: number;
   scene?: string;
   shotId: string;
+  thumb?: string;
   type?: string;
   complexity?: string;
   batch?: string;
@@ -191,8 +192,11 @@ export default function ShareTrackerPage({ params }: { params: Promise<{ token: 
             {/* Matrix */}
             <div className="rounded-xl border border-line bg-card overflow-x-auto">
               <div
-                className="grid min-w-[40rem]"
-                style={{ gridTemplateColumns: `160px 90px repeat(${phases.length}, minmax(140px,1fr))` }}
+                className="grid"
+                style={{
+                  gridTemplateColumns: `160px 90px repeat(${phases.length}, minmax(150px,1fr))`,
+                  minWidth: `${250 + phases.length * 150}px`,
+                }}
               >
                 <div className="px-3 py-2 text-[10.5px] font-medium uppercase tracking-wide text-ink-faint bg-parchment-dark/40">Shot</div>
                 <div className="px-3 py-2 text-[10.5px] font-medium uppercase tracking-wide text-ink-faint bg-parchment-dark/40">Batch</div>
@@ -221,11 +225,28 @@ export default function ShareTrackerPage({ params }: { params: Promise<{ token: 
 function ShotCells({ shot, phases }: { shot: Shot; phases: string[] }) {
   return (
     <>
-      <div className="px-3 py-2 border-t border-line/60 min-w-0">
-        <p className="text-[13px] font-medium truncate">{shot.shotId}</p>
-        <p className="text-[10.5px] text-ink-faint truncate">
-          {[shot.type, shot.complexity].filter(Boolean).join(" · ") || shot.scene}
-        </p>
+      <div className="px-3 py-2 border-t border-line/60 min-w-0 flex items-start gap-2">
+        {shot.thumb && /^https?:\/\//i.test(shot.thumb) && (
+          <a href={shot.thumb} target="_blank" rel="noreferrer" className="shrink-0" title="Open sketch">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={shot.thumb}
+              alt=""
+              loading="lazy"
+              referrerPolicy="no-referrer"
+              className="h-9 w-14 rounded-md object-cover border border-line/60 bg-parchment-dark"
+              onError={(e) => {
+                (e.currentTarget.parentElement as HTMLElement).style.display = "none";
+              }}
+            />
+          </a>
+        )}
+        <div className="flex-1 min-w-0">
+          <p className="text-[13px] font-medium truncate">{shot.shotId}</p>
+          <p className="text-[10.5px] text-ink-faint truncate">
+            {[shot.type, shot.complexity].filter(Boolean).join(" · ") || shot.scene}
+          </p>
+        </div>
       </div>
       <div className="px-3 py-2 border-t border-line/60 text-[11.5px] text-ink-soft">
         {shot.batch ?? "—"}

@@ -37,6 +37,18 @@ async function sheetsGet(pathAndQuery: string): Promise<Response | null> {
 
 const tabRange = (tab: string) => encodeURIComponent(`'${tab.replace(/'/g, "''")}'`);
 
+/** 0-based column index → A1 letter(s): 0→A, 25→Z, 26→AA. */
+function colA1(index: number): string {
+  let n = index + 1;
+  let s = "";
+  while (n > 0) {
+    const r = (n - 1) % 26;
+    s = String.fromCharCode(65 + r) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
+}
+
 const cache = new Map<string, { at: number; body: TrackerPayload }>();
 export function invalidateTrackerCache(projectId: string): void {
   cache.delete(projectId);
@@ -69,6 +81,36 @@ export async function buildTrackerPayload(
   }
 
   const parsed = parseTracker(mapping, values);
+
+  // Sketch thumbnails, best-effort: the values API renders an =IMAGE() cell
+  // as empty text, but the FORMULA render option exposes the URL. Pasted
+  // in-cell images are invisible to the API entirely (documented risk) —
+  // those cells simply stay without a preview.
+  const thumbCol = mapping.columns.find((c) => c.role === "thumb");
+  if (thumbCol && parsed.shots.length > 0) {
+    try {
+      const a1 = colA1(thumbCol.index);
+      const res2 = await sheetsGet(
+        `/v4/spreadsheets/${encodeURIComponent(mapping.sheetId)}/values/${encodeURIComponent(
+          `'${mapping.tab.replace(/'/g, "''")}'!${a1}:${a1}`
+        )}?majorDimension=ROWS&valueRenderOption=FORMULA`
+      );
+      if (res2?.ok) {
+        const col = ((await res2.json()) as { values?: string[][] }).values ?? [];
+        for (const shot of parsed.shots) {
+          const raw = String(col[shot.rowIndex - 1]?.[0] ?? "");
+          const img = raw.match(/=\s*image\s*\(\s*"([^"]+)"/i);
+          const link = raw.match(/=\s*hyperlink\s*\(\s*"([^"]+)"/i);
+          if (img) shot.thumb = img[1];
+          else if (link) shot.thumb = link[1];
+          else if (/^https?:\/\//i.test(raw.trim())) shot.thumb = raw.trim();
+          else if (shot.thumb && !/^https?:\/\//i.test(shot.thumb)) shot.thumb = undefined;
+        }
+      }
+    } catch {
+      /* thumbnails are decoration — never fail the payload over them */
+    }
+  }
 
   // Optional Weekly schedule grid → dated blocks (non-fatal on failure).
   let schedule: TrackerPayload["schedule"];

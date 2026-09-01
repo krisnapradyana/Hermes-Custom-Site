@@ -50,6 +50,7 @@ interface Shot {
   rowIndex: number;
   scene?: string;
   shotId: string;
+  thumb?: string;
   type?: string;
   complexity?: string;
   batch?: string;
@@ -489,11 +490,14 @@ function TrackerView({
         <span className="text-[11.5px] text-ink-faint">{filtered.length} of {shots.length}</span>
       </div>
 
-      {/* Matrix */}
+      {/* Matrix — explicit min width so many phases scroll sideways instead of squishing */}
       <div className="rounded-xl border border-line bg-card overflow-x-auto mb-5">
         <div
-          className="grid min-w-[46rem]"
-          style={{ gridTemplateColumns: `180px 90px repeat(${phases.length}, minmax(150px,1fr))` }}
+          className="grid"
+          style={{
+            gridTemplateColumns: `180px 90px repeat(${phases.length}, minmax(160px,1fr))`,
+            minWidth: `${270 + phases.length * 160}px`,
+          }}
         >
           <div className="px-3 py-2 text-[10.5px] font-medium uppercase tracking-wide text-ink-faint bg-parchment-dark/40">Shot</div>
           <div className="px-3 py-2 text-[10.5px] font-medium uppercase tracking-wide text-ink-faint bg-parchment-dark/40">Batch</div>
@@ -526,7 +530,10 @@ function TrackerView({
             Artist workload (from the sheet)
           </p>
           <div className="overflow-x-auto">
-            <table className="w-full text-[12.5px]">
+            <table
+              className="w-full text-[12.5px]"
+              style={{ minWidth: `${200 + phases.length * 110}px` }}
+            >
               <thead>
                 <tr className="text-left text-[10.5px] uppercase tracking-wide text-ink-faint">
                   <th className="pb-1.5 pr-3 font-medium">Artist</th>
@@ -584,7 +591,22 @@ function ShotRow({
 }) {
   return (
     <>
-      <div className="group px-3 py-2 border-t border-line/60 min-w-0 flex items-start gap-1">
+      <div className="group px-3 py-2 border-t border-line/60 min-w-0 flex items-start gap-2">
+        {shot.thumb && /^https?:\/\//i.test(shot.thumb) && (
+          <a href={shot.thumb} target="_blank" rel="noreferrer" className="shrink-0" title="Open sketch">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={shot.thumb}
+              alt=""
+              loading="lazy"
+              referrerPolicy="no-referrer"
+              className="h-9 w-14 rounded-md object-cover border border-line/60 bg-parchment-dark"
+              onError={(e) => {
+                (e.currentTarget.parentElement as HTMLElement).style.display = "none";
+              }}
+            />
+          </a>
+        )}
         <div className="flex-1 min-w-0">
           <p className="text-[13px] font-medium truncate">{shot.shotId}</p>
           <p className="text-[10.5px] text-ink-faint truncate">
@@ -968,11 +990,9 @@ function TrackerWizard({
   const [recognized, setRecognized] = useState<Template | null>(null);
   const [tplName, setTplName] = useState("");
 
-  // Optional Weekly-schedule tab config
-  const [schedTab, setSchedTab] = useState("none");
-  const [monthRow, setMonthRow] = useState(1);
-  const [weekRow, setWeekRow] = useState(2);
-  const [schedGuessed, setSchedGuessed] = useState(false);
+  // Mapping details stay collapsed when the heuristics/template already
+  // produced a usable mapping — the common path is: pick tab, Connect.
+  const [advanced, setAdvanced] = useState(false);
 
   useEffect(() => {
     api.get<{ templates: Template[] }>("/api/tracker-templates").then((res) => {
@@ -992,12 +1012,6 @@ function TrackerWizard({
       return;
     }
     setInspect(res.data);
-    // First read: guess a schedule tab once (never override a user's choice).
-    if (!schedGuessed) {
-      setSchedGuessed(true);
-      const guess = res.data.tabs.find((t) => /week|sched|daily/i.test(t));
-      if (guess && guess !== res.data.tab) setSchedTab(guess);
-    }
   };
 
   // Recognize a saved template against this tab's headers (score ≥ 0.7 wins).
@@ -1088,7 +1102,6 @@ function TrackerWizard({
         .filter((r) => r.role !== "ignore")
         .map((r) => ({ index: r.index, header: r.header, role: r.role, phase: r.phase || undefined })),
       statusDict: dict,
-      schedule: schedTab !== "none" ? { tab: schedTab, monthRow, weekRow } : { tab: "none" },
       saveAsTemplate: tplName.trim() || undefined,
     });
     setBusy(false);
@@ -1098,6 +1111,14 @@ function TrackerWizard({
     }
     onDone();
   };
+
+  const hasStatus = roles.some((r) => r.role === "phaseStatus");
+  const phaseNames = [
+    ...new Set(roles.filter((r) => r.role === "phaseStatus" && r.phase).map((r) => r.phase)),
+  ];
+  const mappedCount = roles.filter((r) => r.role !== "ignore").length;
+  // Auto-open the details when the automatic mapping isn't usable yet.
+  const showDetails = advanced || (!!inspect && !hasStatus);
 
   const roleOptions: [Role, string][] = [
     ["ignore", "Ignore"],
@@ -1144,7 +1165,7 @@ function TrackerWizard({
         <>
           <div className="flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-2 text-[13px] text-ink-soft">
-              Tab
+              Tab to mirror
               <select
                 value={inspect.tab}
                 onChange={(e) => doInspect(e.target.value)}
@@ -1155,33 +1176,58 @@ function TrackerWizard({
                 ))}
               </select>
             </label>
-            <label className="flex items-center gap-2 text-[13px] text-ink-soft">
-              Header rows
-              <select
-                value={headerRows}
-                onChange={(e) => setHeaderRows(Number(e.target.value))}
-                className="rounded-lg border border-line bg-card px-2 py-1.5 text-[13px] outline-none"
-              >
-                {[1, 2, 3].map((n) => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-              </select>
-            </label>
             <span className="text-[11.5px] text-ink-faint">
-              {inspect.values.length - headerRows} data rows
+              {Math.max(0, inspect.values.length - headerRows)} data rows
             </span>
           </div>
 
           {recognized && (
             <p className="rounded-lg border border-green-500/40 bg-green-500/5 px-3 py-2 text-[12px] text-green-600 dark:text-green-400">
-              Recognized template &ldquo;{recognized.name}&rdquo; — columns and status words
-              prefilled. Adjust anything below if this sheet differs.
+              Recognized template &ldquo;{recognized.name}&rdquo; — mapping prefilled.
             </p>
           )}
 
+          {/* Auto-mapping summary — the normal path is: pick tab, Connect. */}
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-parchment-dark/30 px-3 py-2.5 text-[12.5px] text-ink-soft">
+            {hasStatus ? (
+              <span>
+                Mapped {mappedCount} columns automatically · phases:{" "}
+                <span className="text-ink font-medium">{phaseNames.join(", ")}</span>
+                {distinct.length > 0 && <> · {distinct.length} status words</>}
+              </span>
+            ) : (
+              <span className="text-amber-600 dark:text-amber-400">
+                Couldn&apos;t detect the columns on this tab — pick the tab with the shot list, or
+                map the columns below.
+              </span>
+            )}
+            <span className="flex-1" />
+            <button
+              onClick={() => setAdvanced((v) => !v)}
+              className="text-[12px] text-accent hover:underline"
+            >
+              {showDetails ? "Hide mapping" : "Adjust mapping"}
+            </button>
+          </div>
+
+          {showDetails && (
+          <>
+          <label className="flex items-center gap-2 text-[13px] text-ink-soft">
+            Header rows
+            <select
+              value={headerRows}
+              onChange={(e) => setHeaderRows(Number(e.target.value))}
+              className="rounded-lg border border-line bg-card px-2 py-1.5 text-[13px] outline-none"
+            >
+              {[1, 2, 3].map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+          </label>
+
           <div>
             <p className="text-[11px] font-medium uppercase tracking-wide text-ink-faint mb-1.5">
-              1 · What is each column?
+              What is each column?
             </p>
             <div className="grid gap-1.5 sm:grid-cols-2">
               {roles.map((r, i) =>
@@ -1232,7 +1278,7 @@ function TrackerWizard({
           {distinct.length > 0 && (
             <div>
               <p className="text-[11px] font-medium uppercase tracking-wide text-ink-faint mb-1.5">
-                2 · What does each status word mean?
+                What does each status word mean?
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {distinct.map(([v, count]) => {
@@ -1259,74 +1305,25 @@ function TrackerWizard({
             </div>
           )}
 
-          <div>
-            <p className="text-[11px] font-medium uppercase tracking-wide text-ink-faint mb-1.5">
-              3 · Weekly schedule tab (optional)
-            </p>
-            <div className="flex flex-wrap items-center gap-3">
-              <select
-                value={schedTab}
-                onChange={(e) => setSchedTab(e.target.value)}
-                className="rounded-lg border border-line bg-card px-2 py-1.5 text-[13px] outline-none"
-              >
-                <option value="none">None</option>
-                {inspect.tabs
-                  .filter((t) => t !== inspect.tab)
-                  .map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-              </select>
-              {schedTab !== "none" && (
-                <>
-                  <label className="flex items-center gap-1.5 text-[12px] text-ink-soft">
-                    Month row
-                    <input
-                      type="number"
-                      min={1}
-                      value={monthRow}
-                      onChange={(e) => setMonthRow(Math.max(1, Number(e.target.value)))}
-                      className="w-14 rounded-md border border-line bg-transparent px-1.5 py-1 text-[12px] outline-none"
-                    />
-                  </label>
-                  <label className="flex items-center gap-1.5 text-[12px] text-ink-soft">
-                    Week row
-                    <input
-                      type="number"
-                      min={1}
-                      value={weekRow}
-                      onChange={(e) => setWeekRow(Math.max(1, Number(e.target.value)))}
-                      className="w-14 rounded-md border border-line bg-transparent px-1.5 py-1 text-[12px] outline-none"
-                    />
-                  </label>
-                </>
-              )}
-              <span className="text-[11px] text-ink-faint">
-                Renders the sheet&apos;s schedule grid as a timeline on this tab.
-              </span>
-            </div>
+          </>
+          )}
+
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              value={tplName}
+              onChange={(e) => setTplName(e.target.value)}
+              placeholder="Save as template (optional)"
+              className="w-64 rounded-lg border border-line bg-transparent px-2.5 py-1.5 text-[12.5px] outline-none focus:border-ink-faint placeholder:text-ink-faint"
+            />
+            <span className="text-[11px] text-ink-faint">
+              Future sheets with these columns get recognized automatically.
+            </span>
           </div>
 
-          <div>
-            <p className="text-[11px] font-medium uppercase tracking-wide text-ink-faint mb-1.5">
-              4 · Save as template (optional)
-            </p>
-            <div className="flex items-center gap-2">
-              <input
-                value={tplName}
-                onChange={(e) => setTplName(e.target.value)}
-                placeholder={recognized ? `e.g. ${recognized.name} v2` : "e.g. Kurzgesagt tracker"}
-                className="w-64 rounded-lg border border-line bg-transparent px-2.5 py-1.5 text-[12.5px] outline-none focus:border-ink-faint placeholder:text-ink-faint"
-              />
-              <span className="text-[11px] text-ink-faint">
-                Future sheets with these columns get recognized automatically.
-              </span>
-            </div>
-          </div>
-
-          <div className="flex gap-2 pt-1">
+          <div className="flex items-center gap-2 pt-1">
             <button
               onClick={save}
-              disabled={busy || !roles.some((r) => r.role === "phaseStatus")}
+              disabled={busy || !hasStatus}
               className="rounded-lg bg-accent px-4 py-2 text-sm text-white hover:bg-accent-hover disabled:opacity-40"
             >
               {busy ? "Saving…" : "Connect sheet"}
@@ -1334,6 +1331,11 @@ function TrackerWizard({
             <button onClick={onCancel} className="rounded-lg px-3.5 py-2 text-sm text-ink-soft hover:bg-parchment-dark">
               Cancel
             </button>
+            {!hasStatus && (
+              <span className="text-[11.5px] text-ink-faint">
+                Needs at least one phase status column.
+              </span>
+            )}
           </div>
         </>
       )}
