@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePerson } from "@/lib/user-key";
-import { googleAccessToken, GOOGLE_API_BASE } from "@/lib/google-auth";
+import { googleAccessToken, GOOGLE_SHEETS_BASE } from "@/lib/google-auth";
 import { sheetIdFromUrl } from "@/lib/tracker-store";
 
 export const runtime = "nodejs";
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   try {
     const metaRes = await fetch(
-      `${GOOGLE_API_BASE}/sheets/v4/spreadsheets/${encodeURIComponent(sheetId)}?fields=properties.title,sheets.properties.title`,
+      `${GOOGLE_SHEETS_BASE}/v4/spreadsheets/${encodeURIComponent(sheetId)}?fields=properties.title,sheets.properties.title`,
       { headers: auth, signal: AbortSignal.timeout(15_000) }
     );
     if (!metaRes.ok) {
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!chosen) return NextResponse.json({ error: "No tabs found" }, { status: 400 });
 
     const valRes = await fetch(
-      `${GOOGLE_API_BASE}/sheets/v4/spreadsheets/${encodeURIComponent(sheetId)}/values/${encodeURIComponent(`'${chosen.replace(/'/g, "''")}'`)}?majorDimension=ROWS`,
+      `${GOOGLE_SHEETS_BASE}/v4/spreadsheets/${encodeURIComponent(sheetId)}/values/${encodeURIComponent(`'${chosen.replace(/'/g, "''")}'`)}?majorDimension=ROWS`,
       { headers: auth, signal: AbortSignal.timeout(20_000) }
     );
     if (!valRes.ok) {

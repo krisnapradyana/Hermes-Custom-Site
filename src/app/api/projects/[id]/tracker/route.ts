@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePerson } from "@/lib/user-key";
-import { googleAccessToken, GOOGLE_API_BASE } from "@/lib/google-auth";
+import { googleAccessToken, GOOGLE_SHEETS_BASE } from "@/lib/google-auth";
 import {
   readTrackerMapping,
   saveTrackerMapping,
@@ -27,7 +27,7 @@ async function fetchValues(
   const token = await googleAccessToken();
   if (!token) return { error: "Google credentials unavailable (documents/token.json)", status: 502 };
   const url =
-    `${GOOGLE_API_BASE}/sheets/v4/spreadsheets/${encodeURIComponent(sheetId)}/values/` +
+    `${GOOGLE_SHEETS_BASE}/v4/spreadsheets/${encodeURIComponent(sheetId)}/values/` +
     `${encodeURIComponent(`'${tab.replace(/'/g, "''")}'`)}?majorDimension=ROWS`;
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },

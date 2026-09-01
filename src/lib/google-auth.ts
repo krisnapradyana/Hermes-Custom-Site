@@ -19,6 +19,9 @@ const SECRET_FILE =
 export const GOOGLE_TOKEN_URL =
   process.env.GOOGLE_TOKEN_URL ?? "https://oauth2.googleapis.com/token";
 export const GOOGLE_API_BASE = process.env.GOOGLE_API_BASE ?? "https://www.googleapis.com";
+/** Sheets v4 lives on its OWN host — www.googleapis.com/sheets/v4 404s. */
+export const GOOGLE_SHEETS_BASE =
+  process.env.GOOGLE_SHEETS_BASE ?? process.env.GOOGLE_API_BASE ?? "https://sheets.googleapis.com";
 
 interface Creds {
   clientId: string;
