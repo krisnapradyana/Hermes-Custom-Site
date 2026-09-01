@@ -369,6 +369,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               >
                 {icon}
                 {label}
+                {key === "production" && (
+                  <span className="rounded-full border border-amber-500/50 bg-amber-500/10 px-1.5 py-px text-[9px] font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                    beta
+                  </span>
+                )}
                 {key === "attachments" && collected && (
                   <span className="text-[11px] text-ink-faint">{collected.attachments.length}</span>
                 )}
