@@ -18,6 +18,7 @@ const PUBLIC_API = [
   /^\/api\/server-status$/, // coarse load level for the status bar (pre-login too)
   /^\/api\/version$/, // deploy beacon — stale tabs must see it even with a dead session
   /^\/api\/internal\//, // server-to-server (Attendee UI) — routes enforce INTERNAL_TOKEN
+  /^\/api\/share\//, // client share links — the long random token IS the auth
 ];
 
 export default auth((req) => {

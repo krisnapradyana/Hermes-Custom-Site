@@ -179,6 +179,147 @@ export function parseTracker(
   };
 }
 
+// ── Weekly schedule grid → dated blocks ─────────────────────────────────────
+
+export interface ScheduleBlock {
+  label: string;
+  start: string; // YYYY-MM-DD
+  end: string;
+  row: number;
+}
+
+export interface MergeRange {
+  startRow: number;
+  endRow: number; // exclusive
+  startCol: number;
+  endCol: number; // exclusive
+}
+
+const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+const monthIdx = (s: string) => MONTHS.findIndex((m) => s.trim().toLowerCase().startsWith(m));
+const ymd = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/**
+ * Parse a Weekly-style grid (month header row + week-range row + merged
+ * block cells) into dated blocks. Week ranges that cross a month boundary
+ * ("29-4") are resolved by CONTINUITY with the previous column — the first
+ * ambiguous column assumes the labeled month is the start month.
+ * A date range inside the block's own label ("(21 Aug - 2 Sept)") overrides
+ * the column-derived dates when parseable.
+ */
+export function parseScheduleGrid(
+  values: string[][],
+  merges: MergeRange[],
+  monthRow: number, // 1-based
+  weekRow: number, // 1-based
+  year = new Date().getFullYear()
+): ScheduleBlock[] {
+  const mRow = values[monthRow - 1] ?? [];
+  const wRow = values[weekRow - 1] ?? [];
+  const width = Math.max(mRow.length, wRow.length);
+
+  // Column → month (carry-forward across merged month headers), with year
+  // rollover when the month sequence wraps (DEC → JAN).
+  const colMonth: (number | null)[] = [];
+  const colYear: number[] = [];
+  let curMonth: number | null = null;
+  let curYear = year;
+  for (let c = 0; c < width; c++) {
+    const m = monthIdx((mRow[c] ?? "").toString());
+    if (m >= 0) {
+      if (curMonth !== null && m < curMonth) curYear++;
+      curMonth = m;
+    }
+    colMonth.push(curMonth);
+    colYear.push(curYear);
+  }
+
+  // Column → {start, end} from the week range, resolved sequentially.
+  const colSpan: ({ start: Date; end: Date } | null)[] = [];
+  let prevEnd: Date | null = null;
+  for (let c = 0; c < width; c++) {
+    const m = colMonth[c];
+    const wm = (wRow[c] ?? "").toString().match(/(\d{1,2})\s*[-–]\s*(\d{1,2})/);
+    if (m === null || !wm) {
+      colSpan.push(null);
+      continue;
+    }
+    const d1 = Number(wm[1]);
+    const d2 = Number(wm[2]);
+    const y = colYear[c];
+    let span: { start: Date; end: Date };
+    if (d1 <= d2) {
+      span = { start: new Date(y, m, d1), end: new Date(y, m, d2) };
+    } else {
+      // Crosses a month boundary — labeled month could be start or end.
+      const a = { start: new Date(y, m, d1), end: new Date(y, m + 1, d2) };
+      const b = { start: new Date(y, m - 1, d1), end: new Date(y, m, d2) };
+      if (prevEnd) {
+        const gap = (s: Date) => Math.abs(s.getTime() - (prevEnd!.getTime() + 86_400_000));
+        span = gap(a.start) <= gap(b.start) ? a : b;
+      } else {
+        span = a;
+      }
+    }
+    colSpan.push(span);
+    prevEnd = span.end;
+  }
+
+  // Label-embedded dates, e.g. "(12 - 31 Aug)" or "(21 Aug - 2 Sept)".
+  const labelDates = (label: string, baseYear: number): { start: Date; end: Date } | null => {
+    const toks = [...label.toLowerCase().matchAll(/(\d{1,2})\s*([a-z]{3,9})?/g)]
+      .map((t) => ({ day: Number(t[1]), month: t[2] ? monthIdx(t[2]) : -1 }))
+      .filter((t) => t.day >= 1 && t.day <= 31);
+    const withMonth = toks.filter((t) => t.month >= 0);
+    if (toks.length < 2 || withMonth.length === 0) return null;
+    const a = toks[0];
+    const b = toks[toks.length - 1];
+    const bm = b.month >= 0 ? b.month : withMonth[withMonth.length - 1].month;
+    const am = a.month >= 0 ? a.month : bm;
+    const start = new Date(baseYear, am, a.day);
+    let end = new Date(baseYear, bm, b.day);
+    if (end < start) end = new Date(baseYear + 1, bm, b.day);
+    return { start, end };
+  };
+
+  const inMerge = (r: number, c: number) =>
+    merges.find((m) => r >= m.startRow && r < m.endRow && c >= m.startCol && c < m.endCol);
+
+  const blocks: ScheduleBlock[] = [];
+  for (let r = weekRow; r < values.length; r++) {
+    const row = values[r] ?? [];
+    for (let c = 0; c < width; c++) {
+      const label = (row[c] ?? "").toString().trim();
+      if (!label) continue;
+      const merge = inMerge(r, c);
+      if (merge && (merge.startRow !== r || merge.startCol !== c)) continue; // continuation
+      const cEnd = merge ? Math.min(width, merge.endCol) - 1 : c;
+      // Only columns that actually sit under a week range are dated — a label
+      // in an undated column (e.g. the category column at the left edge) is
+      // a row heading, not a schedule block.
+      let startSpan: { start: Date; end: Date } | null = null;
+      let endSpan: { start: Date; end: Date } | null = null;
+      for (let i = c; i <= cEnd; i++) {
+        const s = colSpan[i];
+        if (s) {
+          startSpan ??= s;
+          endSpan = s;
+        }
+      }
+      if (!startSpan || !endSpan) continue;
+      const fromLabel = labelDates(label, startSpan.start.getFullYear());
+      blocks.push({
+        label,
+        start: ymd(fromLabel?.start ?? startSpan.start),
+        end: ymd(fromLabel?.end ?? endSpan.end),
+        row: r + 1,
+      });
+    }
+  }
+  return blocks.sort((a, b) => a.start.localeCompare(b.start));
+}
+
 /**
  * Mapping still fits the sheet? Compares saved header text to the current
  * flattened headers; a restructured sheet degrades to "needs attention"

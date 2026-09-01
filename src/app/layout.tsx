@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Sidebar } from "@/components/Sidebar";
-import { Providers, AuthGate } from "@/components/Providers";
+import { Providers, AuthGate, PublicRouteSwitch } from "@/components/Providers";
 import { StatusBar } from "@/components/StatusBar";
 import { UpdateGuard } from "@/components/UpdateGuard";
 
@@ -24,15 +24,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="antialiased">
         <Providers>
           <UpdateGuard />
-          <AuthGate>
-            <div className="flex flex-col h-screen overflow-hidden">
-              <div className="flex flex-1 min-h-0">
-                <Sidebar />
-                <main className="flex-1 min-w-0 overflow-y-auto">{children}</main>
-              </div>
-              <StatusBar />
-            </div>
-          </AuthGate>
+          <PublicRouteSwitch
+            app={
+              <AuthGate>
+                <div className="flex flex-col h-screen overflow-hidden">
+                  <div className="flex flex-1 min-h-0">
+                    <Sidebar />
+                    <main className="flex-1 min-w-0 overflow-y-auto">{children}</main>
+                  </div>
+                  <StatusBar />
+                </div>
+              </AuthGate>
+            }
+          >
+            {children}
+          </PublicRouteSwitch>
         </Providers>
       </body>
     </html>

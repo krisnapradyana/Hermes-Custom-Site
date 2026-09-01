@@ -1,6 +1,7 @@
 "use client";
 
 import { SessionProvider, useSession, signIn } from "next-auth/react";
+import { usePathname } from "next/navigation";
 import { BrandMark } from "@/components/BrandMark";
 
 const AUTH_ENABLED = process.env.NEXT_PUBLIC_AUTH_ENABLED === "true";
@@ -13,6 +14,22 @@ export function Providers({ children }: { children: React.ReactNode }) {
 export function AuthGate({ children }: { children: React.ReactNode }) {
   if (!AUTH_ENABLED) return <>{children}</>;
   return <Gate>{children}</Gate>;
+}
+
+/**
+ * Public client pages (/share/*) render bare: no auth gate, no sidebar —
+ * the tokenized URL is the access control (API side is allowlisted too).
+ */
+export function PublicRouteSwitch({
+  app,
+  children,
+}: {
+  app: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const pathname = usePathname();
+  if (pathname?.startsWith("/share/")) return <>{children}</>;
+  return <>{app}</>;
 }
 
 function Gate({ children }: { children: React.ReactNode }) {

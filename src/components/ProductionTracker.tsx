@@ -9,10 +9,16 @@ import {
   Search,
   Link2,
   X,
+  Share2,
+  Copy,
+  Plus,
+  CalendarRange,
 } from "lucide-react";
+import Link from "next/link";
 import { api } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
 import { useFocusRefresh } from "@/lib/use-focus-refresh";
+import { useTimelineView, TIMELINE_HINT } from "@/lib/use-timeline-view";
 
 /**
  * Production Tracker — read-only mirror of the project's client Google
@@ -50,6 +56,12 @@ interface Shot {
   remark?: string;
   phases: Record<string, PhaseCell>;
 }
+interface ScheduleBlock {
+  label: string;
+  start: string;
+  end: string;
+  row: number;
+}
 interface Payload {
   connected: boolean;
   broken?: boolean;
@@ -57,6 +69,8 @@ interface Payload {
   sheetUrl?: string;
   tab?: string;
   syncedAt?: string;
+  shareToken?: string | null;
+  schedule?: { tab: string; blocks?: ScheduleBlock[]; error?: string };
   shots?: Shot[];
   phases?: string[];
   stats?: {
@@ -110,6 +124,29 @@ const guessPhase = (header: string) =>
   header.match(/\[([^\]]+)\]/)?.[1]?.trim() ??
   header.replace(/status|assignee|link/gi, "").trim() ??
   "";
+
+interface Template {
+  name: string;
+  headerRows: number;
+  columns: { header: string; role: Role; phase?: string }[];
+  statusDict: Record<string, Bucket>;
+  savedAt: string;
+}
+
+const normHeader = (h: string) => h.trim().toLowerCase().replace(/\s+/g, " ");
+
+/** Same flattening the wizard uses, but for an arbitrary headerRows count. */
+function flattenForRows(values: string[][], headerRows: number): string[] {
+  const width = Math.max(0, ...values.slice(0, Math.max(1, headerRows)).map((r) => r.length));
+  return Array.from({ length: width }, (_, i) => {
+    const parts: string[] = [];
+    for (let r = 0; r < headerRows; r++) {
+      const v = (values[r]?.[i] ?? "").toString().trim();
+      if (v) parts.push(v);
+    }
+    return parts.join(" ");
+  });
+}
 
 export function ProductionTracker({ projectId }: { projectId: string }) {
   const [data, setData] = useState<Payload | null>(null);
@@ -230,8 +267,35 @@ function TrackerView({
   const [batch, setBatch] = useState("");
   const [assignee, setAssignee] = useState("");
   const [bucket, setBucket] = useState<Bucket | "">("");
+  const [sharePanel, setSharePanel] = useState(false);
+  const [shareBusy, setShareBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [taskShot, setTaskShot] = useState<Shot | null>(null);
 
   const assignees = useMemo(() => stats.workload.map((w) => w.assignee), [stats]);
+
+  const shareUrl =
+    data.shareToken && typeof window !== "undefined"
+      ? `${window.location.origin}/share/tracker/${data.shareToken}`
+      : "";
+
+  const shareAction = async (action: "create" | "revoke") => {
+    setShareBusy(true);
+    await api.post(`/api/projects/${encodeURIComponent(projectId)}/tracker/share`, { action });
+    setShareBusy(false);
+    setCopied(false);
+    onRefresh();
+  };
+
+  const copyShare = async () => {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard unavailable — the input stays selectable */
+    }
+  };
 
   const filtered = shots.filter((s) => {
     if (batch && s.batch !== batch) return false;
@@ -277,6 +341,18 @@ function TrackerView({
           <ExternalLink size={12} />
           Open in Sheets
         </a>
+        <button
+          onClick={() => setSharePanel((v) => !v)}
+          className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] ${
+            data.shareToken
+              ? "border-accent/50 text-accent"
+              : "border-line text-ink-soft hover:border-ink-faint hover:text-ink"
+          }`}
+          title="Share a read-only link with the client"
+        >
+          <Share2 size={12} />
+          Client link
+        </button>
         <button onClick={onRemap} className="text-[11.5px] text-ink-faint hover:text-ink px-1">
           Re-map
         </button>
@@ -284,6 +360,59 @@ function TrackerView({
           Disconnect
         </button>
       </div>
+
+      {/* Client share link */}
+      {sharePanel && (
+        <div className="mb-4 rounded-xl border border-line bg-card p-4">
+          <p className="text-[13px] font-medium mb-1">Client link</p>
+          <p className="text-[12px] text-ink-faint mb-3">
+            A read-only page anyone with the link can open — no sign-in, internal names of the
+            sheet and tab hidden. Revoking it kills the old link instantly.
+          </p>
+          {data.shareToken ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                readOnly
+                value={shareUrl}
+                onFocus={(e) => e.currentTarget.select()}
+                className="flex-1 min-w-[16rem] rounded-lg border border-line bg-transparent px-3 py-1.5 text-[12px] font-mono outline-none"
+              />
+              <button
+                onClick={copyShare}
+                className="flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[12px] text-white hover:bg-accent-hover"
+              >
+                <Copy size={12} />
+                {copied ? "Copied!" : "Copy"}
+              </button>
+              <button
+                onClick={() => shareAction("revoke")}
+                disabled={shareBusy}
+                className="text-[12px] text-ink-faint hover:text-red-500 px-1 disabled:opacity-40"
+              >
+                Revoke
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => shareAction("create")}
+              disabled={shareBusy}
+              className="rounded-lg bg-accent px-3.5 py-1.5 text-[13px] text-white hover:bg-accent-hover disabled:opacity-40"
+            >
+              {shareBusy ? "Creating…" : "Create client link"}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Weekly schedule timeline */}
+      {data.schedule?.error && (
+        <p className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-[12px] text-amber-600 dark:text-amber-400">
+          Schedule tab &ldquo;{data.schedule.tab}&rdquo;: {data.schedule.error}
+        </p>
+      )}
+      {(data.schedule?.blocks?.length ?? 0) > 0 && (
+        <ScheduleTimeline tab={data.schedule!.tab} blocks={data.schedule!.blocks!} />
+      )}
 
       {/* Unknown-status banner */}
       {stats.unknownStatuses.length > 0 && (
@@ -372,13 +501,23 @@ function TrackerView({
             <div key={p} className="px-3 py-2 text-[10.5px] font-medium uppercase tracking-wide text-ink-faint bg-parchment-dark/40 truncate">{p}</div>
           ))}
           {filtered.map((s) => (
-            <ShotRow key={s.rowIndex} shot={s} phases={phases} />
+            <ShotRow key={s.rowIndex} shot={s} phases={phases} onAddTask={() => setTaskShot(s)} />
           ))}
         </div>
         {filtered.length === 0 && (
           <p className="px-4 py-6 text-center text-[13px] text-ink-faint">No shots match the filters.</p>
         )}
       </div>
+
+      {/* Task-from-shot modal */}
+      {taskShot && (
+        <ShotTaskModal
+          projectId={projectId}
+          shot={taskShot}
+          phases={phases}
+          onClose={() => setTaskShot(null)}
+        />
+      )}
 
       {/* Workload */}
       {stats.workload.length > 0 && (
@@ -434,14 +573,31 @@ function TrackerView({
   );
 }
 
-function ShotRow({ shot, phases }: { shot: Shot; phases: string[] }) {
+function ShotRow({
+  shot,
+  phases,
+  onAddTask,
+}: {
+  shot: Shot;
+  phases: string[];
+  onAddTask: () => void;
+}) {
   return (
     <>
-      <div className="px-3 py-2 border-t border-line/60 min-w-0">
-        <p className="text-[13px] font-medium truncate">{shot.shotId}</p>
-        <p className="text-[10.5px] text-ink-faint truncate">
-          {[shot.type, shot.complexity].filter(Boolean).join(" · ") || shot.scene}
-        </p>
+      <div className="group px-3 py-2 border-t border-line/60 min-w-0 flex items-start gap-1">
+        <div className="flex-1 min-w-0">
+          <p className="text-[13px] font-medium truncate">{shot.shotId}</p>
+          <p className="text-[10.5px] text-ink-faint truncate">
+            {[shot.type, shot.complexity].filter(Boolean).join(" · ") || shot.scene}
+          </p>
+        </div>
+        <button
+          onClick={onAddTask}
+          className="opacity-0 group-hover:opacity-100 shrink-0 p-1 rounded-md text-ink-faint hover:text-accent hover:bg-parchment-dark transition-opacity"
+          title="Create an internal task for this shot"
+        >
+          <Plus size={12} />
+        </button>
       </div>
       <div className="px-3 py-2 border-t border-line/60 text-[11.5px] text-ink-soft">{shot.batch ?? "—"}</div>
       {phases.map((p) => {
@@ -468,6 +624,326 @@ function ShotRow({ shot, phases }: { shot: Shot; phases: string[] }) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+const DAY = 86_400_000;
+const toDay = (iso: string) => Math.floor(new Date(`${iso}T00:00:00`).getTime() / DAY);
+const BLOCK_COLORS = ["#60A5FA", "#34D399", "#FBBF24", "#F472B6", "#A78BFA", "#2DD4BF", "#FB923C"];
+const blockColor = (label: string) => {
+  let h = 0;
+  for (let i = 0; i < label.length; i++) h = (h * 31 + label.charCodeAt(i)) >>> 0;
+  return BLOCK_COLORS[h % BLOCK_COLORS.length];
+};
+
+/** The sheet's Weekly tab rendered as bars — same zoom/pan as other timelines. */
+function ScheduleTimeline({ tab, blocks }: { tab: string; blocks: ScheduleBlock[] }) {
+  const rows = useMemo(() => {
+    const byRow = new Map<number, ScheduleBlock[]>();
+    for (const b of blocks) {
+      const list = byRow.get(b.row) ?? [];
+      list.push(b);
+      byRow.set(b.row, list);
+    }
+    return [...byRow.entries()].sort((a, b) => a[0] - b[0]).map(([, list]) => list);
+  }, [blocks]);
+
+  const [fullFrom, fullTo] = useMemo(() => {
+    const days = blocks.flatMap((b) => [toDay(b.start), toDay(b.end)]);
+    return [Math.min(...days), Math.max(...days)];
+  }, [blocks]);
+
+  const view = useTimelineView(fullFrom, fullTo);
+  const today = Math.floor((Date.now() + new Date().getTimezoneOffset() * -60_000) / DAY);
+
+  // Month ticks inside the current window.
+  const months = useMemo(() => {
+    const out: { day: number; label: string }[] = [];
+    const d = new Date(view.from * DAY);
+    d.setDate(1);
+    for (let i = 0; i < 40; i++) {
+      const day = Math.floor(d.getTime() / DAY);
+      if (day > view.to) break;
+      if (day >= view.from - 31) {
+        out.push({
+          day: Math.max(day, view.from),
+          label: d.toLocaleDateString(undefined, { month: "short", year: "2-digit" }),
+        });
+      }
+      d.setMonth(d.getMonth() + 1);
+    }
+    return out;
+  }, [view.from, view.to]);
+
+  return (
+    <div className="mb-4 rounded-xl border border-line bg-card p-4">
+      <div className="flex items-center gap-2 mb-2.5">
+        <CalendarRange size={13} className="text-accent" />
+        <p className="text-[11px] font-medium uppercase tracking-wide text-ink-faint">
+          Schedule (from &ldquo;{tab}&rdquo;)
+        </p>
+        <span className="flex-1" />
+        <span className="text-[10.5px] text-ink-faint hidden sm:inline">{TIMELINE_HINT}</span>
+        <button onClick={() => view.zoom(1.4)} className="px-1.5 text-ink-faint hover:text-ink text-[13px]" title="Zoom out">−</button>
+        <button onClick={() => view.zoom(1 / 1.4)} className="px-1.5 text-ink-faint hover:text-ink text-[13px]" title="Zoom in">+</button>
+        <button
+          onClick={view.fit}
+          disabled={view.isFit}
+          className="rounded-md border border-line px-2 py-0.5 text-[10.5px] text-ink-soft hover:border-ink-faint disabled:opacity-40"
+        >
+          Fit
+        </button>
+      </div>
+
+      <div ref={view.canvasRef} {...view.canvasProps} className="relative overflow-hidden select-none">
+        {/* Month header */}
+        <div className="relative h-5 border-b border-line/60">
+          {months.map((m) => (
+            <span
+              key={m.day}
+              className="absolute top-0 text-[10px] text-ink-faint whitespace-nowrap"
+              style={{ left: `${view.pct(m.day)}%`, paddingLeft: 3 }}
+            >
+              {m.label}
+            </span>
+          ))}
+        </div>
+
+        <div className="relative">
+          {/* Month gridlines */}
+          {months.map((m) => (
+            <div
+              key={m.day}
+              className="absolute top-0 bottom-0 w-px bg-line/50"
+              style={{ left: `${view.pct(m.day)}%` }}
+            />
+          ))}
+          {/* Today */}
+          {today >= view.from && today <= view.to && (
+            <div
+              className="absolute top-0 bottom-0 w-px bg-red-400/80 z-10"
+              style={{ left: `${view.pct(today)}%` }}
+              title="Today"
+            />
+          )}
+
+          {rows.map((list, i) => (
+            <div key={i} className="relative h-7">
+              {list.map((b, j) => {
+                const s = toDay(b.start);
+                const e = toDay(b.end);
+                if (e < view.from || s > view.to) return null;
+                return (
+                  <div
+                    key={j}
+                    className="absolute top-1 h-5 rounded-md px-1.5 text-[10.5px] leading-5 text-white/95 truncate"
+                    style={{
+                      left: `${view.pct(s)}%`,
+                      width: `${view.spanPct(s, e)}%`,
+                      backgroundColor: blockColor(b.label),
+                      minWidth: 8,
+                    }}
+                    title={`${b.label} · ${b.start} → ${b.end}`}
+                  >
+                    {b.label}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Mini form: turn a sheet shot into an internal task on the project board. */
+function ShotTaskModal({
+  projectId,
+  shot,
+  phases,
+  onClose,
+}: {
+  projectId: string;
+  shot: Shot;
+  phases: string[];
+  onClose: () => void;
+}) {
+  // Prefer a phase that actually needs work on this shot.
+  const suggested =
+    phases.find((p) => ["revise", "in_progress", "todo"].includes(shot.phases[p]?.status)) ??
+    phases[0] ??
+    "";
+  const [phase, setPhase] = useState(suggested);
+  const [title, setTitle] = useState(`${shot.shotId} — ${suggested}`.trim());
+  const [titleTouched, setTitleTouched] = useState(false);
+  const [assigneeKey, setAssigneeKey] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [team, setTeam] = useState<{ userKey: string; name: string }[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const res = await api.get<{ members: { userKey: string; name: string }[] }>("/api/team");
+      if (res.ok) {
+        setTeam(res.data.members);
+        // Preselect the artist the sheet names on this phase, if we know them.
+        const sheetName = shot.phases[suggested]?.assignee?.trim().toLowerCase();
+        if (sheetName) {
+          const hit = res.data.members.find(
+            (m) =>
+              m.name.toLowerCase() === sheetName ||
+              m.name.toLowerCase().startsWith(sheetName) ||
+              sheetName.startsWith(m.name.toLowerCase().split(" ")[0])
+          );
+          if (hit) setAssigneeKey(hit.userKey);
+        }
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const pickPhase = (p: string) => {
+    setPhase(p);
+    if (!titleTouched) setTitle(`${shot.shotId} — ${p}`.trim());
+    // Re-suggest assignee from the sheet for the newly picked phase.
+    const sheetName = shot.phases[p]?.assignee?.trim().toLowerCase();
+    if (sheetName && !assigneeKey) {
+      const hit = team.find((m) => m.name.toLowerCase().startsWith(sheetName.split(" ")[0]));
+      if (hit) setAssigneeKey(hit.userKey);
+    }
+  };
+
+  const create = async () => {
+    setBusy(true);
+    setErr("");
+    const member = team.find((m) => m.userKey === assigneeKey);
+    const res = await api.post(`/api/projects/${encodeURIComponent(projectId)}/tasks`, {
+      title: title.trim(),
+      phase: phase || undefined,
+      note: shot.remark ? `From tracker: ${shot.remark}` : `From tracker shot ${shot.shotId}`,
+      assignee: member ? { key: member.userKey, name: member.name } : undefined,
+      dueDate: dueDate || undefined,
+    });
+    setBusy(false);
+    if (!res.ok) {
+      setErr((res as { error: string }).error);
+      return;
+    }
+    setDone(true);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={onClose}>
+      <div
+        className="w-full max-w-md rounded-xl border border-line bg-card p-5 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {done ? (
+          <div className="text-center py-2">
+            <p className="text-sm font-medium mb-1">Task created</p>
+            <p className="text-[12.5px] text-ink-faint mb-4">&ldquo;{title}&rdquo; is on the task board.</p>
+            <div className="flex justify-center gap-2">
+              <Link
+                href={`/projects/${encodeURIComponent(projectId)}`}
+                prefetch={false}
+                className="rounded-lg border border-line px-3.5 py-1.5 text-[13px] text-ink-soft hover:border-ink-faint"
+                onClick={onClose}
+              >
+                Open task board
+              </Link>
+              <button onClick={onClose} className="rounded-lg bg-accent px-3.5 py-1.5 text-[13px] text-white hover:bg-accent-hover">
+                Done
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <p className="text-sm font-medium mb-0.5">New task from shot {shot.shotId}</p>
+            <p className="text-[12px] text-ink-faint mb-4">
+              Internal only — nothing is written back to the sheet.
+            </p>
+            <div className="space-y-3">
+              <label className="block text-[12px] text-ink-soft">
+                Phase
+                <select
+                  value={phase}
+                  onChange={(e) => pickPhase(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-line bg-card px-2.5 py-1.5 text-[13px] outline-none"
+                >
+                  {phases.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                      {shot.phases[p]?.statusRaw ? ` · ${shot.phases[p].statusRaw}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-[12px] text-ink-soft">
+                Title
+                <input
+                  value={title}
+                  onChange={(e) => {
+                    setTitle(e.target.value);
+                    setTitleTouched(true);
+                  }}
+                  className="mt-1 w-full rounded-lg border border-line bg-transparent px-2.5 py-1.5 text-[13px] outline-none focus:border-ink-faint"
+                />
+              </label>
+              <div className="grid grid-cols-2 gap-2.5">
+                <label className="block text-[12px] text-ink-soft">
+                  Assignee
+                  <select
+                    value={assigneeKey}
+                    onChange={(e) => setAssigneeKey(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-line bg-card px-2.5 py-1.5 text-[13px] outline-none"
+                  >
+                    <option value="">Unassigned</option>
+                    {team.map((m) => (
+                      <option key={m.userKey} value={m.userKey}>{m.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block text-[12px] text-ink-soft">
+                  Due date
+                  <input
+                    type="date"
+                    value={dueDate}
+                    onChange={(e) => setDueDate(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-line bg-transparent px-2.5 py-1.5 text-[13px] outline-none focus:border-ink-faint"
+                  />
+                </label>
+              </div>
+              {shot.phases[phase]?.assignee && (
+                <p className="text-[11px] text-ink-faint">
+                  Sheet names <span className="text-ink-soft">{shot.phases[phase].assignee}</span> on
+                  this phase.
+                </p>
+              )}
+              {err && <p className="text-[12.5px] text-red-500">{err}</p>}
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={create}
+                  disabled={busy || !title.trim()}
+                  className="rounded-lg bg-accent px-4 py-2 text-sm text-white hover:bg-accent-hover disabled:opacity-40"
+                >
+                  {busy ? "Creating…" : "Create task"}
+                </button>
+                <button onClick={onClose} className="rounded-lg px-3.5 py-2 text-sm text-ink-soft hover:bg-parchment-dark">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 function TrackerWizard({
   projectId,
   initialUrl,
@@ -487,6 +963,23 @@ function TrackerWizard({
   const [roles, setRoles] = useState<{ index: number; header: string; role: Role; phase: string }[]>([]);
   const [dict, setDict] = useState<Record<string, Bucket>>({});
 
+  // Templates (auto-recognition + save-as)
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [recognized, setRecognized] = useState<Template | null>(null);
+  const [tplName, setTplName] = useState("");
+
+  // Optional Weekly-schedule tab config
+  const [schedTab, setSchedTab] = useState("none");
+  const [monthRow, setMonthRow] = useState(1);
+  const [weekRow, setWeekRow] = useState(2);
+  const [schedGuessed, setSchedGuessed] = useState(false);
+
+  useEffect(() => {
+    api.get<{ templates: Template[] }>("/api/tracker-templates").then((res) => {
+      if (res.ok) setTemplates(res.data.templates);
+    });
+  }, []);
+
   const doInspect = async (tab?: string) => {
     setBusy(true);
     setErr("");
@@ -499,7 +992,32 @@ function TrackerWizard({
       return;
     }
     setInspect(res.data);
+    // First read: guess a schedule tab once (never override a user's choice).
+    if (!schedGuessed) {
+      setSchedGuessed(true);
+      const guess = res.data.tabs.find((t) => /week|sched|daily/i.test(t));
+      if (guess && guess !== res.data.tab) setSchedTab(guess);
+    }
   };
+
+  // Recognize a saved template against this tab's headers (score ≥ 0.7 wins).
+  useEffect(() => {
+    if (!inspect || !templates.length) {
+      setRecognized(null);
+      return;
+    }
+    let best: { tpl: Template; score: number } | null = null;
+    for (const tpl of templates) {
+      const heads = new Set(
+        flattenForRows(inspect.values, tpl.headerRows).map(normHeader).filter(Boolean)
+      );
+      const hit = tpl.columns.filter((c) => heads.has(normHeader(c.header))).length;
+      const score = tpl.columns.length ? hit / tpl.columns.length : 0;
+      if (score >= 0.7 && (!best || score > best.score)) best = { tpl, score };
+    }
+    setRecognized(best?.tpl ?? null);
+    if (best) setHeaderRows(best.tpl.headerRows);
+  }, [inspect, templates]);
 
   // Flattened headers for the chosen headerRows.
   const headers = useMemo(() => {
@@ -515,15 +1033,24 @@ function TrackerWizard({
     });
   }, [inspect, headerRows]);
 
-  // Re-propose roles when headers change.
+  // Re-propose roles when headers change; a recognized template wins over
+  // the heuristics for every column whose header text it knows.
   useEffect(() => {
+    const byHeader = new Map(recognized?.columns.map((c) => [normHeader(c.header), c]) ?? []);
     setRoles(
       headers.map((h, i) => {
+        const tpl = h ? byHeader.get(normHeader(h)) : undefined;
+        if (tpl) return { index: i, header: h, role: tpl.role, phase: tpl.phase ?? "" };
         const role = h ? guessRole(h) : "ignore";
         return { index: i, header: h, role, phase: role.startsWith("phase") ? guessPhase(h) : "" };
       })
     );
-  }, [headers]);
+  }, [headers, recognized]);
+
+  // A recognized template also seeds the status dictionary.
+  useEffect(() => {
+    if (recognized) setDict((prev) => ({ ...recognized.statusDict, ...prev }));
+  }, [recognized]);
 
   // Distinct status values across mapped status columns.
   const distinct = useMemo(() => {
@@ -561,6 +1088,8 @@ function TrackerWizard({
         .filter((r) => r.role !== "ignore")
         .map((r) => ({ index: r.index, header: r.header, role: r.role, phase: r.phase || undefined })),
       statusDict: dict,
+      schedule: schedTab !== "none" ? { tab: schedTab, monthRow, weekRow } : { tab: "none" },
+      saveAsTemplate: tplName.trim() || undefined,
     });
     setBusy(false);
     if (!res.ok) {
@@ -643,6 +1172,13 @@ function TrackerWizard({
             </span>
           </div>
 
+          {recognized && (
+            <p className="rounded-lg border border-green-500/40 bg-green-500/5 px-3 py-2 text-[12px] text-green-600 dark:text-green-400">
+              Recognized template &ldquo;{recognized.name}&rdquo; — columns and status words
+              prefilled. Adjust anything below if this sheet differs.
+            </p>
+          )}
+
           <div>
             <p className="text-[11px] font-medium uppercase tracking-wide text-ink-faint mb-1.5">
               1 · What is each column?
@@ -722,6 +1258,70 @@ function TrackerWizard({
               </div>
             </div>
           )}
+
+          <div>
+            <p className="text-[11px] font-medium uppercase tracking-wide text-ink-faint mb-1.5">
+              3 · Weekly schedule tab (optional)
+            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <select
+                value={schedTab}
+                onChange={(e) => setSchedTab(e.target.value)}
+                className="rounded-lg border border-line bg-card px-2 py-1.5 text-[13px] outline-none"
+              >
+                <option value="none">None</option>
+                {inspect.tabs
+                  .filter((t) => t !== inspect.tab)
+                  .map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+              </select>
+              {schedTab !== "none" && (
+                <>
+                  <label className="flex items-center gap-1.5 text-[12px] text-ink-soft">
+                    Month row
+                    <input
+                      type="number"
+                      min={1}
+                      value={monthRow}
+                      onChange={(e) => setMonthRow(Math.max(1, Number(e.target.value)))}
+                      className="w-14 rounded-md border border-line bg-transparent px-1.5 py-1 text-[12px] outline-none"
+                    />
+                  </label>
+                  <label className="flex items-center gap-1.5 text-[12px] text-ink-soft">
+                    Week row
+                    <input
+                      type="number"
+                      min={1}
+                      value={weekRow}
+                      onChange={(e) => setWeekRow(Math.max(1, Number(e.target.value)))}
+                      className="w-14 rounded-md border border-line bg-transparent px-1.5 py-1 text-[12px] outline-none"
+                    />
+                  </label>
+                </>
+              )}
+              <span className="text-[11px] text-ink-faint">
+                Renders the sheet&apos;s schedule grid as a timeline on this tab.
+              </span>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-[11px] font-medium uppercase tracking-wide text-ink-faint mb-1.5">
+              4 · Save as template (optional)
+            </p>
+            <div className="flex items-center gap-2">
+              <input
+                value={tplName}
+                onChange={(e) => setTplName(e.target.value)}
+                placeholder={recognized ? `e.g. ${recognized.name} v2` : "e.g. Kurzgesagt tracker"}
+                className="w-64 rounded-lg border border-line bg-transparent px-2.5 py-1.5 text-[12.5px] outline-none focus:border-ink-faint placeholder:text-ink-faint"
+              />
+              <span className="text-[11px] text-ink-faint">
+                Future sheets with these columns get recognized automatically.
+              </span>
+            </div>
+          </div>
 
           <div className="flex gap-2 pt-1">
             <button

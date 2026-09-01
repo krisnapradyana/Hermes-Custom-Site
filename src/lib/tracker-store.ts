@@ -36,6 +36,12 @@ export interface TrackerColumn {
   phase?: string; // for phase* roles
 }
 
+export interface ScheduleConfig {
+  tab: string;
+  monthRow: number; // 1-based row with month headers (AUG, SEPT…)
+  weekRow: number; // 1-based row with week ranges (1-7, 8-14…)
+}
+
 export interface TrackerMapping {
   sheetId: string;
   sheetUrl: string;
@@ -44,7 +50,20 @@ export interface TrackerMapping {
   columns: TrackerColumn[];
   /** lowercased raw status text → canonical bucket */
   statusDict: Record<string, StatusBucket>;
+  /** Optional schedule-blocks tab (Weekly grid) rendered as a timeline. */
+  schedule?: ScheduleConfig;
+  /** Client share-link token; unset = no public page. */
+  shareToken?: string;
   savedBy?: string;
+  savedAt: string;
+}
+
+/** Reusable mapping template — matched against new sheets by header text. */
+export interface TrackerTemplate {
+  name: string;
+  headerRows: number;
+  columns: { header: string; role: ColumnRole; phase?: string }[];
+  statusDict: Record<string, StatusBucket>;
   savedAt: string;
 }
 
@@ -74,6 +93,58 @@ export async function saveTrackerMapping(
 
 export async function deleteTrackerMapping(projectId: string): Promise<void> {
   await fs.rm(file(projectId), { force: true }).catch(() => {});
+}
+
+// ── Templates ────────────────────────────────────────────────────────────────
+
+const TPL_DIR = path.join(DATA_DIR, "tracker-templates");
+const tplFile = (name: string) =>
+  path.join(TPL_DIR, `${name.replace(/[^\w.-]+/g, "_").slice(0, 60)}.json`);
+
+export async function listTemplates(): Promise<TrackerTemplate[]> {
+  try {
+    const files = (await fs.readdir(TPL_DIR)).filter((f) => f.endsWith(".json"));
+    const out: TrackerTemplate[] = [];
+    for (const f of files) {
+      try {
+        out.push(JSON.parse(await fs.readFile(path.join(TPL_DIR, f), "utf-8")));
+      } catch {}
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+export async function saveTemplate(tpl: TrackerTemplate): Promise<void> {
+  await fs.mkdir(TPL_DIR, { recursive: true });
+  const f = tplFile(tpl.name);
+  const tmp = `${f}.${process.pid}.${Date.now()}.tmp`;
+  await fs.writeFile(tmp, JSON.stringify(tpl, null, 2), "utf-8");
+  await fs.rename(tmp, f);
+}
+
+// ── Share tokens ─────────────────────────────────────────────────────────────
+
+/** Find which project a share token belongs to (scan — tracker count is tiny). */
+export async function findByShareToken(
+  token: string
+): Promise<{ projectId: string; mapping: TrackerMapping } | null> {
+  if (!token || token.length < 24) return null;
+  try {
+    const files = (await fs.readdir(DIR)).filter((f) => f.endsWith(".json"));
+    for (const f of files) {
+      try {
+        const mapping = JSON.parse(
+          await fs.readFile(path.join(DIR, f), "utf-8")
+        ) as TrackerMapping;
+        if (mapping.shareToken === token) {
+          return { projectId: f.replace(/\.json$/, ""), mapping };
+        }
+      } catch {}
+    }
+  } catch {}
+  return null;
 }
 
 /** Extract the spreadsheet id from a pasted Google Sheets URL (or raw id). */

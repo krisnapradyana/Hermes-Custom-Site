@@ -46,7 +46,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       sheets?: { properties?: { title?: string } }[];
     };
     const tabs = (meta.sheets ?? []).map((s) => s.properties?.title ?? "").filter(Boolean);
-    const chosen = tab || tabs[0];
+    // Auto-pick the most tracker-looking tab instead of blindly the first.
+    const chosen =
+      tab || tabs.find((t) => /prod|track|shot|asset/i.test(t)) || tabs[0];
     if (!chosen) return NextResponse.json({ error: "No tabs found" }, { status: 400 });
 
     const valRes = await fetch(
