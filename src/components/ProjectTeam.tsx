@@ -29,6 +29,8 @@ interface MemberPulse {
   weekMs: number;
   lastSeen: string | null;
   weekByProject: { projectId: string; ms: number }[];
+  todayByProject?: { projectId: string; ms: number }[];
+  totalByProject?: { projectId: string; ms: number }[];
   tasks: MemberTask[];
 }
 
@@ -74,25 +76,67 @@ export function ProjectTeam({ projectId }: { projectId: string }) {
     data?.members.filter(
       (m) =>
         m.active?.projectId === projectId ||
+        (m.totalByProject ?? []).some((w) => w.projectId === projectId) ||
         m.weekByProject.some((w) => w.projectId === projectId) ||
         m.tasks.some((t) => t.projectId === projectId && t.status !== "done")
     ) ?? [];
 
-  // Working here first, then working elsewhere, then by hours here this week.
-  const hoursHere = (m: MemberPulse) =>
+  // Per-member time on THIS project. Total = all-time man-hours (the brief's
+  // primary metric); week/today stay as secondary context.
+  const weekHere = (m: MemberPulse) =>
     m.weekByProject.find((w) => w.projectId === projectId)?.ms ?? 0;
+  const todayHere = (m: MemberPulse) =>
+    (m.todayByProject ?? []).find((w) => w.projectId === projectId)?.ms ?? 0;
+  const totalHere = (m: MemberPulse) =>
+    (m.totalByProject ?? []).find((w) => w.projectId === projectId)?.ms ?? 0;
   const rank = (m: MemberPulse) =>
     m.active?.projectId === projectId ? 0 : m.active ? 1 : 2;
-  const sorted = [...involved].sort((a, b) => rank(a) - rank(b) || hoursHere(b) - hoursHere(a));
+  const sorted = [...involved].sort((a, b) => rank(a) - rank(b) || totalHere(b) - totalHere(a));
+
+  // Man-hours stats: concurrent work sums per person, so the project total
+  // is simply the sum of individual totals.
+  const manHours = sorted.reduce((acc, m) => acc + totalHere(m), 0);
+  const contributors = sorted.filter((m) => totalHere(m) > 0).length;
+  const activeNow = sorted.filter((m) => m.active?.projectId === projectId).length;
 
   return (
-    <div className="mb-8 rounded-xl border border-line bg-card px-4 py-3">
+    <div className="mb-8">
+      {/* Stat strip — the manager's one-glance answer. */}
+      {data && sorted.length > 0 && (
+        <div className="grid grid-cols-3 gap-2.5 mb-3">
+          <div className="rounded-xl border border-line bg-card px-3.5 py-2.5">
+            <p className="text-[10.5px] font-medium uppercase tracking-wide text-ink-faint">
+              Total man-hours
+            </p>
+            <p className="text-xl font-medium leading-tight mt-0.5 tabular-nums">{fmtH(manHours)}</p>
+            <p className="text-[10.5px] text-ink-faint mt-0.5">total used</p>
+          </div>
+          <div className="rounded-xl border border-line bg-card px-3.5 py-2.5">
+            <p className="text-[10.5px] font-medium uppercase tracking-wide text-ink-faint">
+              Contributors
+            </p>
+            <p className="text-xl font-medium leading-tight mt-0.5">{contributors}</p>
+            <p className="text-[10.5px] text-ink-faint mt-0.5">people with recorded time</p>
+          </div>
+          <div className="rounded-xl border border-line bg-card px-3.5 py-2.5">
+            <p className="text-[10.5px] font-medium uppercase tracking-wide text-ink-faint">
+              Active now
+            </p>
+            <p className={`text-xl font-medium leading-tight mt-0.5 ${activeNow > 0 ? "text-green-600 dark:text-green-400" : ""}`}>
+              {activeNow}
+            </p>
+            <p className="text-[10.5px] text-ink-faint mt-0.5">currently clocked in</p>
+          </div>
+        </div>
+      )}
+
+      <div className="rounded-xl border border-line bg-card px-4 py-3">
       <div className="flex items-center gap-2 mb-2.5">
         <Users size={14} className="text-accent" />
         <p className="text-sm font-medium">Team on this project</p>
         {data && (
           <span className="text-[12px] text-ink-faint">
-            {sorted.filter((m) => m.active?.projectId === projectId).length} working now
+            {activeNow} working now
           </span>
         )}
       </div>
@@ -155,12 +199,20 @@ export function ProjectTeam({ projectId }: { projectId: string }) {
               </div>
 
               <div className="text-right shrink-0">
-                <p className="text-[13px] font-medium tabular-nums">{fmtH(hoursHere(m))}</p>
-                <p className="text-[11px] text-ink-faint">this week here</p>
+                <p className="text-[13.5px] font-medium tabular-nums text-accent">
+                  {fmtH(totalHere(m))}{" "}
+                  <span className="text-[11px] font-normal text-ink-faint">project</span>
+                </p>
+                <p className="text-[11px] text-ink-faint tabular-nums">
+                  {todayHere(m) > 0 || weekHere(m) > 0
+                    ? `${fmtH(todayHere(m))} today · ${fmtH(weekHere(m))} this week`
+                    : "no time this week"}
+                </p>
               </div>
             </div>
           );
         })}
+      </div>
       </div>
     </div>
   );
