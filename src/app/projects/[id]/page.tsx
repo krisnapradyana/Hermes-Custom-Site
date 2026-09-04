@@ -26,7 +26,7 @@ import { ProductionTracker } from "@/components/ProductionTracker";
 import { useFocusRefresh } from "@/lib/use-focus-refresh";
 import { useResizableWidth, ResizeHandle } from "@/components/ResizeHandle";
 import { ConversationMeta, Attachment, Artifact } from "@/lib/types";
-import { Paperclip, Package, Table2 } from "lucide-react";
+import { Paperclip, Package, Table2, CheckCircle2 } from "lucide-react";
 import { AttachmentPreview, attachmentIconKind } from "@/components/AttachmentPreview";
 import { ArtifactPreview } from "@/components/ArtifactPreview";
 
@@ -192,6 +192,28 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               >
                 <FileText size={13} />
                 {summarizing ? "Preparing…" : "Summarize"}
+              </button>
+              {/* Done: green everywhere (schedule, lists) but stays fully
+                  usable — unlike archive, which hides. Reversible. */}
+              <button
+                onClick={() =>
+                  updateProject(project.id, {
+                    doneAt: project.doneAt ? null : new Date().toISOString(),
+                  })
+                }
+                title={
+                  project.doneAt
+                    ? `Done ${new Date(project.doneAt).toLocaleDateString()} — click to reopen`
+                    : "Mark the project as done (green on the schedule)"
+                }
+                className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] transition-colors ${
+                  project.doneAt
+                    ? "border-green-500/50 bg-green-500/10 text-green-600 dark:text-green-400 hover:bg-green-500/20"
+                    : "border-line text-ink-soft hover:border-green-500/60 hover:text-green-600 dark:hover:text-green-400"
+                }`}
+              >
+                <CheckCircle2 size={13} />
+                {project.doneAt ? "Done — reopen" : "Mark done"}
               </button>
               {/* Edit name / description / schedule — always visible. */}
               <button

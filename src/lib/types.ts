@@ -76,6 +76,9 @@ export interface Project {
   deadline?: string;
   /** Archived: hidden from the clock-in menu and default project list. */
   archived?: boolean;
+  /** Marked done (ISO datetime): green on the schedule and lists — still
+   * fully visible and usable, unlike archived. null in a PATCH = reopen. */
+  doneAt?: string | null;
 }
 
 /** Shared, project-scoped conversation (readable by all; only creator replies). */

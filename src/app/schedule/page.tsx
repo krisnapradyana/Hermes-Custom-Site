@@ -11,6 +11,7 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize,
+  CheckCircle2,
 } from "lucide-react";
 import { useHermesStore } from "@/lib/store";
 import { useFocusRefresh } from "@/lib/use-focus-refresh";
@@ -223,7 +224,8 @@ export default function SchedulePage() {
                 const dated = tasks.filter((t) => t.kind !== "milestone" && t.dueDate);
                 const a = p.startDate ? dayOf(p.startDate) : dayOf(p.deadline!);
                 const b = p.deadline ? dayOf(p.deadline) : a;
-                const overdue = !!p.deadline && p.deadline < today;
+                const done = !!p.doneAt;
+                const overdue = !done && !!p.deadline && p.deadline < today;
                 const isOpen = expanded === p.id;
                 return (
                   <div key={p.id} className="relative">
@@ -244,17 +246,32 @@ export default function SchedulePage() {
                         >
                           {p.name}
                         </Link>
+                        {done && (
+                          <CheckCircle2
+                            size={12}
+                            className="text-green-500 shrink-0"
+                            aria-label="Done"
+                          />
+                        )}
                       </div>
                       <div className="flex-1 relative h-5 overflow-hidden">
                         <div
-                          className={`absolute inset-y-0 rounded-md ${overdue ? "ring-1 ring-red-500" : ""}`}
+                          className={`absolute inset-y-0 rounded-md ${
+                            overdue ? "ring-1 ring-red-500" : done ? "ring-1 ring-green-500" : ""
+                          }`}
                           style={{
                             left: `${view.pct(Math.min(a, b))}%`,
                             width: `${view.spanPct(Math.min(a, b), b)}%`,
                             backgroundColor: `${p.color}cc`,
-                            backgroundImage: overdue ? OVERDUE_STRIPES : undefined,
+                            // Done = green wash over the project color; done also
+                            // beats overdue (a finished project is never late).
+                            backgroundImage: done
+                              ? "linear-gradient(rgba(34,197,94,0.55), rgba(34,197,94,0.55))"
+                              : overdue
+                                ? OVERDUE_STRIPES
+                                : undefined,
                           }}
-                          title={`${p.name} · ${p.startDate ?? "?"} → ${p.deadline ?? "?"}${overdue ? " · OVERDUE" : ""}`}
+                          title={`${p.name} · ${p.startDate ?? "?"} → ${p.deadline ?? "?"}${done ? " · DONE" : overdue ? " · OVERDUE" : ""}`}
                         />
                         {milestones.map((m) => (
                           <span
@@ -337,6 +354,10 @@ export default function SchedulePage() {
                   style={{ backgroundImage: OVERDUE_STRIPES }}
                 />{" "}
                 overdue
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="inline-block w-4 h-2.5 rounded-sm ring-1 ring-green-500 bg-green-500/50" />{" "}
+                done
               </span>
               <span>bar = project start → deadline · click the name to open the project</span>
             </div>

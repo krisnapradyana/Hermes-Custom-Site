@@ -304,6 +304,11 @@ export default function ProjectsPage() {
               <FolderKanban size={15} style={{ color: p.color }} />
             </div>
             <h2 className="font-medium">{p.name}</h2>
+            {p.doneAt && (
+              <span className="rounded-full bg-green-500/15 px-2 py-0.5 text-[10px] text-green-600 dark:text-green-400 shrink-0">
+                Done
+              </span>
+            )}
             {p.archived && (
               <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] text-amber-600 dark:text-amber-400 shrink-0">
                 Archived

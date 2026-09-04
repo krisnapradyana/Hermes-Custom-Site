@@ -16,6 +16,7 @@ const EDITABLE: (keyof Project)[] = [
   "description",
   "slackChannel",
   "archived",
+  "doneAt",
   "startDate",
   "deadline",
 ];
@@ -57,6 +58,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     // Dates must be plain ISO (YYYY-MM-DD) or absent — garbage never lands.
     next.startDate = isoDate(next.startDate);
     next.deadline = isoDate(next.deadline);
+    // doneAt: any non-empty string marks done (client sends an ISO datetime);
+    // null/empty reopens.
+    if (typeof next.doneAt !== "string" || !next.doneAt) next.doneAt = undefined;
     updated = next as unknown as Project;
     return list.map((p, i) => (i === idx ? updated! : p));
   });
