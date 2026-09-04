@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Users, Coffee, ArrowUpRight } from "lucide-react";
+import { Users, Coffee, ArrowUpRight, Armchair } from "lucide-react";
+
+/** Clock app's pseudo-project for "present, no project". */
+const STANDBY_ID = "standby";
 import { api } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
 import { useFocusRefresh } from "@/lib/use-focus-refresh";
@@ -151,7 +154,8 @@ export function ProjectTeam({ projectId }: { projectId: string }) {
       <div className="space-y-1.5">
         {sorted.map((m) => {
           const here = m.active?.projectId === projectId;
-          const elsewhere = m.active && !here ? m.active.projectId : null;
+          const onStandby = m.active?.projectId === STANDBY_ID;
+          const elsewhere = m.active && !here && !onStandby ? m.active.projectId : null;
           const openHere = m.tasks.filter(
             (t) => t.projectId === projectId && t.status !== "done"
           ).length;
@@ -162,6 +166,11 @@ export function ProjectTeam({ projectId }: { projectId: string }) {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-60" />
                   <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
                 </span>
+              ) : onStandby ? (
+                <span
+                  className="inline-flex h-2.5 w-2.5 rounded-full bg-violet-500 shrink-0"
+                  title="On standby — available for assignment"
+                />
               ) : elsewhere ? (
                 <span
                   className="inline-flex h-2.5 w-2.5 rounded-full bg-amber-500 shrink-0"
@@ -178,6 +187,11 @@ export function ProjectTeam({ projectId }: { projectId: string }) {
                     {m.active!.breakAt
                       ? `On break · since ${fmtSince(m.active!.breakAt)}`
                       : `Working on this now · since ${fmtSince(m.active!.inAt)}`}
+                  </p>
+                ) : onStandby ? (
+                  <p className="text-[12px] truncate text-violet-600 dark:text-violet-400">
+                    <Armchair size={11} className="inline mr-1 -mt-0.5" />
+                    On standby — available for assignment
                   </p>
                 ) : elsewhere ? (
                   <Link

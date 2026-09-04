@@ -1,9 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Users, FolderKanban, Coffee, ChevronDown, ChevronRight, ListChecks } from "lucide-react";
+import {
+  Users,
+  FolderKanban,
+  Coffee,
+  ChevronDown,
+  ChevronRight,
+  ListChecks,
+  Armchair,
+} from "lucide-react";
 import { api } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
+
+/** Clock app's pseudo-project for "present, no project" — labeled, never linked. */
+const STANDBY_ID = "standby";
+const STANDBY_COLOR = "#8b5cf6";
 
 /**
  * Team Pulse — the PM's one-glance answer to "who is busy, who is not".
@@ -88,14 +100,24 @@ export default function TeamPage() {
   }, [load]);
 
   const maxWeek = Math.max(1, ...(data?.members.map((m) => m.weekMs) ?? [1]));
-  const working = data?.members.filter((m) => m.active && !m.active.breakAt) ?? [];
+  const working =
+    data?.members.filter(
+      (m) => m.active && !m.active.breakAt && m.active.projectId !== STANDBY_ID
+    ) ?? [];
+  const standby =
+    data?.members.filter(
+      (m) => m.active && !m.active.breakAt && m.active.projectId === STANDBY_ID
+    ) ?? [];
   const onBreak = data?.members.filter((m) => m.active?.breakAt) ?? [];
   const idle = data?.members.filter((m) => !m.active) ?? [];
 
   // Unknown id = the project was deleted; hours are real, so show them
-  // under a human label instead of leaking a raw "proj-…" id.
-  const projectName = (id: string) => data?.projects[id]?.name ?? "Deleted project";
-  const projectColor = (id: string) => data?.projects[id]?.color ?? "#888888";
+  // under a human label instead of leaking a raw "proj-…" id. Standby is a
+  // pseudo-project — always labeled and colored as itself.
+  const projectName = (id: string) =>
+    id === STANDBY_ID ? "Standby" : (data?.projects[id]?.name ?? "Deleted project");
+  const projectColor = (id: string) =>
+    id === STANDBY_ID ? STANDBY_COLOR : (data?.projects[id]?.color ?? "#888888");
 
   const row = (m: MemberPulse) => (
     <div key={m.userKey} className="rounded-xl border border-line bg-card px-4 py-3">
@@ -109,6 +131,11 @@ export default function TeamPage() {
           <span
             className="inline-flex h-2.5 w-2.5 rounded-full bg-amber-500 shrink-0"
             title="On break"
+          />
+        ) : m.active?.projectId === STANDBY_ID ? (
+          <span
+            className="inline-flex h-2.5 w-2.5 rounded-full bg-violet-500 shrink-0"
+            title="On standby — available for assignment"
           />
         ) : m.active ? (
           <span className="relative flex h-2.5 w-2.5 shrink-0" title="Working now">
@@ -124,7 +151,12 @@ export default function TeamPage() {
 
         <div className="flex-1 min-w-0">
           <p className="font-medium text-[15px] truncate">{m.name}</p>
-          {m.active ? (
+          {m.active?.projectId === STANDBY_ID && !m.active.breakAt ? (
+            <p className="text-[12px] truncate text-violet-600 dark:text-violet-400">
+              <Armchair size={11} className="inline mr-1 -mt-0.5" />
+              On standby · since {fmtSince(m.active.inAt)} — available for assignment
+            </p>
+          ) : m.active ? (
             <p className="text-[12px] text-ink-soft truncate">
               <FolderKanban
                 size={11}
@@ -270,6 +302,15 @@ export default function TeamPage() {
             Working now · {working.length}
           </h2>
           <div className="space-y-2.5">{working.map(row)}</div>
+        </section>
+      )}
+
+      {standby.length > 0 && (
+        <section className="mb-8">
+          <h2 className="text-[12px] font-medium uppercase tracking-wide text-ink-faint mb-2.5">
+            On standby · {standby.length}
+          </h2>
+          <div className="space-y-2.5">{standby.map(row)}</div>
         </section>
       )}
 
