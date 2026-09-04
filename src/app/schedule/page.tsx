@@ -15,7 +15,12 @@ import {
 } from "lucide-react";
 import { useHermesStore } from "@/lib/store";
 import { useFocusRefresh } from "@/lib/use-focus-refresh";
-import { useTimelineView, TIMELINE_HINT, OVERDUE_STRIPES } from "@/lib/use-timeline-view";
+import {
+  useTimelineView,
+  TIMELINE_HINT,
+  OVERDUE_STRIPES,
+  DONE_STRIPES,
+} from "@/lib/use-timeline-view";
 import { api } from "@/lib/api";
 
 /**
@@ -263,10 +268,11 @@ export default function SchedulePage() {
                             left: `${view.pct(Math.min(a, b))}%`,
                             width: `${view.spanPct(Math.min(a, b), b)}%`,
                             backgroundColor: `${p.color}cc`,
-                            // Done = green wash over the project color; done also
+                            // Done = green hatching over the project's own color
+                            // (same treatment as overdue, hopeful hue); done also
                             // beats overdue (a finished project is never late).
                             backgroundImage: done
-                              ? "linear-gradient(rgba(34,197,94,0.55), rgba(34,197,94,0.55))"
+                              ? DONE_STRIPES
                               : overdue
                                 ? OVERDUE_STRIPES
                                 : undefined,
@@ -356,7 +362,10 @@ export default function SchedulePage() {
                 overdue
               </span>
               <span className="flex items-center gap-1">
-                <span className="inline-block w-4 h-2.5 rounded-sm ring-1 ring-green-500 bg-green-500/50" />{" "}
+                <span
+                  className="inline-block w-4 h-2.5 rounded-sm ring-1 ring-green-500 bg-ink-faint/40"
+                  style={{ backgroundImage: DONE_STRIPES }}
+                />{" "}
                 done
               </span>
               <span>bar = project start → deadline · click the name to open the project</span>

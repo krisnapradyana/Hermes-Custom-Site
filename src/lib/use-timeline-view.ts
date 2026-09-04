@@ -165,3 +165,7 @@ export const TIMELINE_HINT = "scroll to zoom · drag to move";
 /** Diagonal red hatching layered over an overdue bar's own color. */
 export const OVERDUE_STRIPES =
   "repeating-linear-gradient(135deg, rgba(239,68,68,0.55) 0px, rgba(239,68,68,0.55) 5px, transparent 5px, transparent 11px)";
+
+/** Diagonal green hatching for done projects — the bar keeps its own color. */
+export const DONE_STRIPES =
+  "repeating-linear-gradient(135deg, rgba(34,197,94,0.55) 0px, rgba(34,197,94,0.55) 5px, transparent 5px, transparent 11px)";
