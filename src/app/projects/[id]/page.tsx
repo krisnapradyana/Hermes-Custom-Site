@@ -48,6 +48,29 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const loadProjects = useHermesStore((s) => s.loadProjects);
   const updateProject = useHermesStore((s) => s.updateProject);
 
+  // Production briefs attached to this project (Tools → Brief generator).
+  const [briefs, setBriefs] = useState<
+    { id: string; title: string; sourceFile: string; createdBy: string; createdAt: string }[]
+  >([]);
+  useEffect(() => {
+    api
+      .get<{
+        briefs: {
+          id: string;
+          title: string;
+          sourceFile: string;
+          createdBy: string;
+          createdAt: string;
+          projectId?: string;
+          status: string;
+        }[];
+      }>("/api/tools/brief")
+      .then((res) => {
+        if (res.ok)
+          setBriefs(res.data.briefs.filter((b) => b.projectId === id && b.status === "ready"));
+      });
+  }, [id]);
+
   const [conversations, setConversations] = useState<ConversationMeta[]>([]);
   const loadConversations = useCallback(async () => {
     const res = await api.get<{ conversations?: ConversationMeta[] }>(
@@ -410,6 +433,33 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
           {tab === "attachments" && (
             <div className="space-y-2 mb-10">
+              {/* Briefs attached from Tools → Brief generator. */}
+              {briefs.length > 0 && (
+                <div className="mb-4">
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-ink-faint mb-2">
+                    Briefs
+                  </p>
+                  <div className="space-y-2">
+                    {briefs.map((b) => (
+                      <Link
+                        key={b.id}
+                        prefetch={false}
+                        href={`/tools/brief/${encodeURIComponent(b.id)}`}
+                        className="flex items-center gap-3 rounded-xl border border-accent/40 bg-accent-soft/20 px-4 py-3 hover:border-accent transition-colors"
+                      >
+                        <FileText size={15} className="text-accent shrink-0" />
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-sm font-medium truncate">{b.title}</span>
+                          <span className="block text-[12px] text-ink-faint truncate">
+                            Production brief · from {b.sourceFile} · {b.createdBy} ·{" "}
+                            {timeAgo(b.createdAt)}
+                          </span>
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
               <p className="text-[12px] text-ink-faint mb-2">
                 Files uploaded into this project&apos;s conversations by anyone on the team.
               </p>
