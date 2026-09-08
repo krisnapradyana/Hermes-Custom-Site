@@ -4,7 +4,6 @@ import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Loader2, Printer, TriangleAlert, FolderKanban } from "lucide-react";
 import { api } from "@/lib/api";
-import { renderMarkdown } from "@/lib/markdown";
 import { useHermesStore } from "@/lib/store";
 
 /** One generated brief: polls while Hermes writes, then renders + prints. */
@@ -89,9 +88,11 @@ export default function BriefViewPage({ params }: { params: Promise<{ id: string
               </select>
             </label>
             <button
-              onClick={() => window.print()}
+              onClick={() =>
+                window.open(`/api/tools/brief/${encodeURIComponent(id)}/html`, "_blank")
+              }
               className="flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[12.5px] text-white hover:bg-accent-hover"
-              title="Print / save as PDF"
+              title="Opens the designed document in a new tab — print there to save as PDF"
             >
               <Printer size={13} />
               Print / PDF
@@ -133,11 +134,14 @@ export default function BriefViewPage({ params }: { params: Promise<{ id: string
         </div>
       )}
 
-      {brief?.status === "ready" && brief.markdown && (
-        <article
-          className="md-body brief-doc rounded-xl border border-line bg-card px-8 py-7 print:border-0 print:px-0 print:py-0"
-          // Safe: renderMarkdown escapes all input before transforming.
-          dangerouslySetInnerHTML={{ __html: renderMarkdown(brief.markdown) }}
+      {brief?.status === "ready" && (
+        /* The designed document itself — same HTML the print view uses, so
+           what you see here is exactly what the PDF will look like. */
+        <iframe
+          src={`/api/tools/brief/${encodeURIComponent(id)}/html`}
+          title={brief.title}
+          className="w-full rounded-xl border border-line bg-white"
+          style={{ height: "78vh" }}
         />
       )}
 
