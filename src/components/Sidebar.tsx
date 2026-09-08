@@ -22,6 +22,7 @@ import {
   Search,
   X,
   Users,
+  Wrench,
 } from "lucide-react";
 import { useHermesStore } from "@/lib/store";
 import { timeAgo } from "@/lib/format";
@@ -156,6 +157,14 @@ export function Sidebar() {
         >
           <CalendarDays size={16} />
         </Link>
+        <Link
+          prefetch={false}
+          href="/tools"
+          className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
+          title="Tools — studio utilities"
+        >
+          <Wrench size={16} />
+        </Link>
 
         {/* Divider stands in for the group titles in the rail. */}
         <span className="w-6 border-b border-line my-1.5" />
@@ -269,6 +278,7 @@ export function Sidebar() {
               {navItem("/projects", <FolderKanban size={15} />, "Projects")}
               {navItem("/schedule", <GanttChart size={15} />, "Schedule")}
               {navItem("/events", <CalendarDays size={15} />, "Event", "beta")}
+              {navItem("/tools", <Wrench size={15} />, "Tools")}
             </>
           )}
 

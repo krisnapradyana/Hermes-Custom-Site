@@ -157,3 +157,30 @@ body.resizing iframe {
 .md-body .md-table tbody tr:nth-child(even) td {
   background: color-mix(in srgb, var(--color-parchment-dark) 40%, transparent);
 }
+
+/* Brief documents (Tools → Brief generator) — print as a clean paper doc. */
+@media print {
+  aside,
+  nav,
+  .status-bar {
+    display: none !important;
+  }
+  main {
+    overflow: visible !important;
+  }
+  body {
+    background: #fff !important;
+    color: #111 !important;
+  }
+  .brief-doc {
+    background: #fff !important;
+    color: #111 !important;
+  }
+  .brief-doc .md-table th,
+  .brief-doc .md-table td {
+    color: #111 !important;
+  }
+  .brief-doc .md-table tr {
+    break-inside: avoid;
+  }
+}
