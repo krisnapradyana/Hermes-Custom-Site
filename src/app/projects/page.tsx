@@ -16,6 +16,7 @@ import {
   Check,
   X,
   CalendarClock,
+  Pin,
 } from "lucide-react";
 import { useHermesStore } from "@/lib/store";
 import { timeAgo } from "@/lib/format";
@@ -40,6 +41,7 @@ interface Summary {
 const GROUP_MIN = 8; // fewer projects than this → flat grid, no month headers
 const COLLAPSE_KEY = "hermes-proj-collapsed";
 const SORT_KEY = "hermes-proj-sort";
+const PIN_KEY = "hermes-pinned-projects"; // personal, per browser — like chat pins
 
 type ProjSort =
   "created-desc" | "created-asc" | "name-asc" | "name-desc" | "edited-desc" | "edited-asc";
@@ -219,6 +221,31 @@ export default function ProjectsPage() {
     [summaries]
   );
 
+  // ---- pinned projects (personal, stays in this browser) ----
+  const [pinnedIds, setPinnedIds] = useState<string[]>([]);
+  useEffect(() => {
+    try {
+      const s = localStorage.getItem(PIN_KEY);
+      if (s) setPinnedIds(JSON.parse(s));
+    } catch {}
+  }, []);
+  const togglePin = (id: string) =>
+    setPinnedIds((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      try {
+        localStorage.setItem(PIN_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  // Pin order = the order you pinned in; archived pins hide with the rest.
+  const pinnedProjects = useMemo(
+    () =>
+      pinnedIds
+        .map((id) => projects.find((p) => p.id === id))
+        .filter((p): p is Project => !!p && (!p.archived || showArchived)),
+    [pinnedIds, projects, showArchived]
+  );
+
   const { flat, groups } = useMemo(() => {
     const q = query.trim().toLowerCase();
 
@@ -279,11 +306,23 @@ export default function ProjectsPage() {
     return { flat: null, groups };
   }, [projects, query, activity, sort, dateFilter, showArchived]);
 
-  const renderCard = (p: Project) => {
+  const renderCard = (p: Project, keySuffix = "") => {
     const s = summaries[p.id];
     const count = s?.conversationCount ?? chats.filter((c) => c.projectId === p.id).length;
+    const isPinned = pinnedIds.includes(p.id);
     return (
-      <div key={p.id} className="relative group">
+      <div key={`${p.id}${keySuffix}`} className="relative group">
+        <button
+          onClick={() => togglePin(p.id)}
+          className={`absolute top-3 right-11 z-10 p-2 rounded-lg transition-opacity ${
+            isPinned
+              ? "text-amber-500 hover:text-ink-faint"
+              : "text-ink-faint hover:text-amber-500 hover:bg-parchment-dark opacity-0 group-hover:opacity-100"
+          }`}
+          title={isPinned ? "Unpin" : "Pin to the top of this page"}
+        >
+          <Pin size={15} fill={isPinned ? "currentColor" : "none"} />
+        </button>
         <button
           onClick={() => setDeleteTarget(p)}
           className="absolute top-3 right-3 z-10 p-2 rounded-lg text-ink-faint hover:text-red-500 hover:bg-parchment-dark opacity-0 group-hover:opacity-100 transition-opacity"
@@ -294,7 +333,9 @@ export default function ProjectsPage() {
         <Link
           prefetch={false}
           href={`/projects/${p.id}`}
-          className="block rounded-xl border border-line bg-card p-5 hover:border-ink-faint transition-colors"
+          className={`block rounded-xl border bg-card p-5 transition-colors ${
+            isPinned ? "border-amber-500/40 hover:border-amber-500/70" : "border-line hover:border-ink-faint"
+          }`}
         >
           <div className="flex items-center gap-2.5 mb-2">
             <div
@@ -361,6 +402,15 @@ export default function ProjectsPage() {
               const due = new Date(`${p.deadline}T23:59:59`);
               const days = Math.ceil((due.getTime() - Date.now()) / 86_400_000);
               const label = due.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+              // A done project is never overdue — its deadline is history.
+              if (p.doneAt) {
+                return (
+                  <div className="flex items-center gap-1.5 text-[11px] mt-1 text-green-600 dark:text-green-400">
+                    <CalendarClock size={11} />
+                    Completed — was due {label}
+                  </div>
+                );
+              }
               const cls =
                 days < 0
                   ? "text-red-500"
@@ -597,6 +647,22 @@ export default function ProjectsPage() {
             />
           )}
 
+          {/* Pinned — always first, personal to this browser. Hidden while
+              searching or date-filtering (those flows are already targeted). */}
+          {!query && !dateFilter && pinnedProjects.length > 0 && (
+            <section className="mb-8">
+              <div className="flex items-center gap-2 mb-2.5">
+                <Pin size={13} className="text-amber-500" fill="currentColor" />
+                <span className="text-[11px] font-medium uppercase tracking-wide text-ink-faint">
+                  Pinned
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {pinnedProjects.map((p) => renderCard(p, "-pin"))}
+              </div>
+            </section>
+          )}
+
           {flat && flat.length === 0 && (
             <p className="text-sm text-ink-faint text-center py-10">
               {query ? "No projects match." : "No projects yet — create the first one."}
@@ -604,7 +670,9 @@ export default function ProjectsPage() {
           )}
 
           {flat && flat.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">{flat.map(renderCard)}</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {flat.map((p) => renderCard(p))}
+            </div>
           )}
 
           {groups &&
@@ -628,7 +696,7 @@ export default function ProjectsPage() {
                   </button>
                   {!isCollapsed && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
-                      {items.map(renderCard)}
+                      {items.map((p) => renderCard(p))}
                     </div>
                   )}
                 </section>
