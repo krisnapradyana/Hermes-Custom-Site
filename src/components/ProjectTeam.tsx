@@ -9,6 +9,7 @@ const STANDBY_ID = "standby";
 import { api } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
 import { useFocusRefresh } from "@/lib/use-focus-refresh";
+import { CountUp } from "@/components/CountUp";
 
 /**
  * Who is (or was) on THIS project — a project-scoped slice of Team Pulse.
@@ -111,14 +112,18 @@ export function ProjectTeam({ projectId }: { projectId: string }) {
             <p className="text-[10.5px] font-medium uppercase tracking-wide text-ink-faint">
               Total man-hours
             </p>
-            <p className="text-xl font-medium leading-tight mt-0.5 tabular-nums">{fmtH(manHours)}</p>
+            <p className="text-xl font-medium leading-tight mt-0.5 tabular-nums">
+              <CountUp value={manHours} format={fmtH} />
+            </p>
             <p className="text-[10.5px] text-ink-faint mt-0.5">total used</p>
           </div>
           <div className="rounded-xl border border-line bg-card px-3.5 py-2.5">
             <p className="text-[10.5px] font-medium uppercase tracking-wide text-ink-faint">
               Contributors
             </p>
-            <p className="text-xl font-medium leading-tight mt-0.5">{contributors}</p>
+            <p className="text-xl font-medium leading-tight mt-0.5">
+              <CountUp value={contributors} />
+            </p>
             <p className="text-[10.5px] text-ink-faint mt-0.5">people with recorded time</p>
           </div>
           <div className="rounded-xl border border-line bg-card px-3.5 py-2.5">
@@ -126,7 +131,7 @@ export function ProjectTeam({ projectId }: { projectId: string }) {
               Active now
             </p>
             <p className={`text-xl font-medium leading-tight mt-0.5 ${activeNow > 0 ? "text-green-600 dark:text-green-400" : ""}`}>
-              {activeNow}
+              <CountUp value={activeNow} />
             </p>
             <p className="text-[10.5px] text-ink-faint mt-0.5">currently clocked in</p>
           </div>
@@ -214,7 +219,7 @@ export function ProjectTeam({ projectId }: { projectId: string }) {
 
               <div className="text-right shrink-0">
                 <p className="text-[13.5px] font-medium tabular-nums text-accent">
-                  {fmtH(totalHere(m))}{" "}
+                  <CountUp value={totalHere(m)} format={fmtH} />{" "}
                   <span className="text-[11px] font-normal text-ink-faint">project</span>
                 </p>
                 <p className="text-[11px] text-ink-faint tabular-nums">
