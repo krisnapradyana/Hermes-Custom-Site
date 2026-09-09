@@ -189,3 +189,11 @@ body.resizing iframe {
     break-inside: avoid;
   }
 }
+
+/* UI-refresh canvas: the soft diagonal wash behind everything. */
+.app-canvas {
+  background: linear-gradient(135deg, #dbe7f7 0%, #eef3fb 28%, #f7fafd 55%, #eef7f0 100%);
+}
+html.dark .app-canvas {
+  background: linear-gradient(135deg, #151a24 0%, #171a20 40%, #191b1f 70%, #16201b 100%);
+}

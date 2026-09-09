@@ -31,7 +31,6 @@ import { IconButton } from "@/components/ui";
 import { Chat } from "@/lib/types";
 import { useResizableWidth, ResizeHandle } from "@/components/ResizeHandle";
 import { UserBadge } from "@/components/UserBadge";
-import { BrandMark } from "@/components/BrandMark";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 export function Sidebar() {
@@ -42,6 +41,7 @@ export function Sidebar() {
   const deleteChat = useHermesStore((s) => s.deleteChat);
   const hydrated = useHermesStore((s) => s._hasHydrated);
   const [collapsed, setCollapsed] = useState(false);
+  const [profileMenu, setProfileMenu] = useState(false);
   const { width, startResize } = useResizableWidth("hermes-sidebar-w", 288, 208, 480);
 
   // Collapsible nav groups — folding them gives the chat list more room.
@@ -248,11 +248,16 @@ export function Sidebar() {
 
   return (
     <>
-      <aside className="shrink-0 border-r border-line bg-sidebar flex flex-col" style={{ width }}>
-        {/* Header */}
+      <aside
+        className="shrink-0 my-3 ml-3 rounded-2xl border border-white/70 dark:border-line bg-sidebar/80 backdrop-blur-md shadow-[0_8px_28px_rgba(23,43,99,0.07)] flex flex-col overflow-hidden"
+        style={{ width }}
+      >
+        {/* Header — wordmark per the refresh (blue x). */}
         <div className="flex items-center justify-between px-4 pt-4 pb-2">
           <Link prefetch={false} href="/" className="min-w-0">
-            <BrandMark size={22} />
+            <span className="font-extrabold text-[17px] tracking-tight select-none">
+              SuperPi<span className="text-accent">x</span>el
+            </span>
           </Link>
           <button
             onClick={() => setCollapsed(true)}
@@ -268,7 +273,7 @@ export function Sidebar() {
         <div className="mx-3 mb-2.5 space-y-1.5">
           <button
             onClick={() => router.push("/")}
-            className="w-full flex items-center gap-2.5 rounded-xl bg-ink px-3.5 py-2.5 text-sm font-medium text-parchment hover:opacity-90 transition-opacity"
+            className="w-full flex items-center gap-2.5 rounded-xl bg-[#33373d] px-3.5 py-2.5 text-sm font-medium text-white hover:bg-[#2a2e33] transition-colors"
           >
             <PenSquare size={15} />
             New chat
@@ -284,15 +289,15 @@ export function Sidebar() {
           </a>
         </div>
 
-        {/* Nav — grouped: shared TEAM surfaces first, then PERSONAL ones. */}
-        <div className="mx-3 mb-2 rounded-xl bg-black/[0.04] dark:bg-white/[0.04] p-1.5 space-y-0.5">
+        {/* Nav — TEAM surfaces; personal items live in the profile menu below. */}
+        <div className="mx-3 mb-2 space-y-0.5">
           <div className="px-2.5 pt-1">
             <button
               onClick={() => toggleFold("team")}
               className="w-full flex items-center gap-1 group"
               title={navFold.team ? "Expand" : "Collapse"}
             >
-              <p className="text-left text-[10.5px] font-medium uppercase tracking-wider text-ink-faint group-hover:text-ink-soft">
+              <p className="text-left text-[10px] font-semibold uppercase tracking-[0.08em] text-ink-faint group-hover:text-ink-soft">
                 Team
               </p>
               <span className="flex-1" />
@@ -300,7 +305,6 @@ export function Sidebar() {
                 {navFold.team ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
               </span>
             </button>
-            <div className="border-b border-line mt-1" />
           </div>
           {!navFold.team && (
             <>
@@ -312,30 +316,6 @@ export function Sidebar() {
             </>
           )}
 
-          <div className="px-2.5 pt-2.5">
-            <button
-              onClick={() => toggleFold("personal")}
-              className="w-full flex items-center gap-1 group"
-              title={navFold.personal ? "Expand" : "Collapse"}
-            >
-              <p className="text-left text-[10.5px] font-medium uppercase tracking-wider text-ink-faint group-hover:text-ink-soft">
-                Personal
-              </p>
-              <span className="flex-1" />
-              <span className="text-ink-faint group-hover:text-ink-soft">
-                {navFold.personal ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
-              </span>
-            </button>
-            <div className="border-b border-line mt-1" />
-          </div>
-          {!navFold.personal && (
-            <>
-              {navItem("/artifacts", <Package size={15} />, "Artifacts")}
-              {navItem("/attachments", <Paperclip size={15} />, "Attachments")}
-              {navItem("/history", <History size={15} />, "Agent history")}
-              {navItem("/cron", <AlarmClock size={15} />, "Scheduler")}
-            </>
-          )}
         </div>
 
         {/* Search */}
@@ -414,7 +394,7 @@ export function Sidebar() {
                 </ChatSection>
               )}
 
-              <ChatSection title="Recents" icon={<MessageSquare size={11} />}>
+              <ChatSection title="Recent chats" icon={<MessageSquare size={11} />}>
                 {recents.map((c) => (
                   <ChatLink
                     key={c.id}
@@ -440,12 +420,40 @@ export function Sidebar() {
           )}
         </div>
 
-        {/* Footer: signed-in user + theme toggle */}
-        <div className="border-t border-line px-4 py-3 flex items-center justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <UserBadge />
-          </div>
-          <ThemeToggle />
+        {/* Footer: profile row opens the Personal menu (artifacts, history…). */}
+        <div className="relative border-t border-line px-3 py-2.5">
+          {profileMenu && (
+            <div className="absolute bottom-full left-3 right-3 mb-2 z-20 rounded-xl border border-line bg-card shadow-lg p-1.5 space-y-0.5">
+              <p className="px-2.5 pt-1 pb-0.5 text-[10px] font-medium uppercase tracking-wider text-ink-faint">
+                Personal
+              </p>
+              <div onClick={() => setProfileMenu(false)}>
+                {navItem("/artifacts", <Package size={15} />, "Artifacts")}
+                {navItem("/attachments", <Paperclip size={15} />, "Attachments")}
+                {navItem("/history", <History size={15} />, "Agent history")}
+                {navItem("/cron", <AlarmClock size={15} />, "Scheduler")}
+              </div>
+              <div className="flex items-center justify-between border-t border-line mt-1 pt-1.5 px-2.5 pb-1">
+                <span className="text-[12px] text-ink-soft">Theme</span>
+                <ThemeToggle />
+              </div>
+            </div>
+          )}
+          <button
+            onClick={() => setProfileMenu((v) => !v)}
+            className="w-full flex items-center gap-2 rounded-lg px-1.5 py-1.5 hover:bg-parchment-dark transition-colors text-left"
+            title="Personal settings"
+          >
+            <div className="min-w-0 flex-1">
+              <UserBadge />
+              <p className="text-[10.5px] text-ink-faint pl-0.5">Personal settings</p>
+            </div>
+            {profileMenu ? (
+              <ChevronDown size={13} className="text-ink-faint shrink-0" />
+            ) : (
+              <ChevronRight size={13} className="text-ink-faint shrink-0 -rotate-90" />
+            )}
+          </button>
         </div>
       </aside>
       <ResizeHandle onPointerDown={startResize} />

@@ -1,7 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowUp, Paperclip, X, FileText, Folder, File as FileIcon, Square } from "lucide-react";
+import {
+  ArrowUp,
+  Paperclip,
+  X,
+  FileText,
+  Folder,
+  File as FileIcon,
+  Square,
+  BookOpen,
+  Globe,
+  Mic,
+} from "lucide-react";
 import { Attachment } from "@/lib/types";
 
 // Documents (PDF/Word/Excel) are converted to text/page-images server-side,
@@ -85,6 +96,23 @@ export function Composer({
   const [warn, setWarn] = useState("");
   const ref = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Context chips (UI-refresh) — visual toggles for now, remembered per
+  // browser; hydrated after mount so SSR output stays deterministic.
+  const [knowledgeOn, setKnowledgeOn] = useState(true);
+  const [webOn, setWebOn] = useState(false);
+  useEffect(() => {
+    try {
+      setKnowledgeOn(localStorage.getItem("hermes-chip-knowledge") !== "off");
+      setWebOn(localStorage.getItem("hermes-chip-web") === "on");
+    } catch {}
+  }, []);
+  useEffect(() => {
+    try {
+      localStorage.setItem("hermes-chip-knowledge", knowledgeOn ? "on" : "off");
+      localStorage.setItem("hermes-chip-web", webOn ? "on" : "off");
+    } catch {}
+  }, [knowledgeOn, webOn]);
 
   // Drag & drop files anywhere onto the composer. Counter (not boolean)
   // because dragenter/dragleave fire on every child element crossed.
@@ -205,8 +233,8 @@ export function Composer({
 
   return (
     <div
-      className={`relative rounded-2xl border bg-card shadow-sm transition-colors ${
-        dragging ? "border-accent border-dashed" : "border-line focus-within:border-ink-faint"
+      className={`relative rounded-2xl border bg-card shadow-[0_10px_34px_rgba(23,43,99,0.10)] dark:shadow-none transition-colors ${
+        dragging ? "border-accent border-dashed" : "border-line/60 focus-within:border-ink-faint"
       }`}
       onDragEnter={(e) => {
         if (!e.dataTransfer.types.includes("Files")) return;
@@ -349,47 +377,80 @@ export function Composer({
         }}
       />
 
-      <div className="flex items-center justify-between px-3 pb-2.5">
-        <div className="flex items-center gap-2 min-w-0">
-          <input
-            ref={fileRef}
-            type="file"
-            multiple
-            className="hidden"
-            onChange={(e) => addFiles(e.target.files)}
-          />
-          <button
-            onClick={() => fileRef.current?.click()}
-            className="p-1.5 rounded-lg hover:bg-parchment-dark text-ink-faint hover:text-ink transition-colors"
-            title="Attach files (images are sent to the agent; text files are inlined)"
-          >
-            <Paperclip size={15} />
-          </button>
-          <span className="text-[11px] text-ink-faint truncate">
-            {warn ||
-              (mentions.length
-                ? `${mentions.length} project file${mentions.length > 1 ? "s" : ""} referenced`
-                : projectId
-                  ? "Type @ to reference a project file"
-                  : "Assistant · powered by Hermes")}
-          </span>
-        </div>
+      {/* UI-refresh: context chips left (Internal knowledge / Attach / Web),
+          mic + round send right — per the Figma composer. Knowledge/Web are
+          visual toggles for now; wiring to agent behavior comes later. */}
+      <div className="flex items-center gap-2 px-3 pb-2.5 min-w-0">
+        <input
+          ref={fileRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={(e) => addFiles(e.target.files)}
+        />
+        <button
+          onClick={() => setKnowledgeOn((v) => !v)}
+          className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11.5px] font-medium transition-colors shrink-0 ${
+            knowledgeOn
+              ? "bg-violet-500/15 text-violet-600 dark:text-violet-300"
+              : "border border-line text-ink-soft hover:border-ink-faint"
+          }`}
+          title="Use the studio's shared knowledge (always on for now)"
+        >
+          <BookOpen size={12} />
+          Internal knowledge
+        </button>
+        <button
+          onClick={() => fileRef.current?.click()}
+          className="flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-[11.5px] text-ink-soft hover:border-ink-faint hover:text-ink transition-colors shrink-0"
+          title="Attach files (images are sent to the agent; text files are inlined)"
+        >
+          <Paperclip size={12} />
+          Attach
+          {attachments.length > 0 && ` · ${attachments.length}`}
+        </button>
+        <button
+          onClick={() => setWebOn((v) => !v)}
+          className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11.5px] transition-colors shrink-0 ${
+            webOn
+              ? "bg-accent-soft text-accent font-medium"
+              : "border border-line text-ink-soft hover:border-ink-faint"
+          }`}
+          title="Let the agent search the web (visual toggle — wiring soon)"
+        >
+          <Globe size={12} />
+          Web
+        </button>
+        <span className="flex-1 min-w-0 text-right text-[11px] text-ink-faint truncate">
+          {warn ||
+            (mentions.length
+              ? `${mentions.length} project file${mentions.length > 1 ? "s" : ""} referenced`
+              : projectId
+                ? "@ references a project file"
+                : "")}
+        </span>
+        <span
+          className="p-1.5 text-ink-faint/60 shrink-0 cursor-default"
+          title="Voice input — coming soon"
+        >
+          <Mic size={15} />
+        </span>
         {disabled && onStop ? (
           <button
             onClick={onStop}
-            className="p-1.5 rounded-lg bg-parchment-dark text-ink border border-line hover:border-ink-faint transition-colors"
+            className="p-2 rounded-full bg-parchment-dark text-ink border border-line hover:border-ink-faint transition-colors shrink-0"
             title="Stop generating"
           >
-            <Square size={16} className="fill-current" />
+            <Square size={15} className="fill-current" />
           </button>
         ) : (
           <button
             onClick={submit}
             disabled={(!value.trim() && attachments.length === 0) || disabled}
-            className="p-1.5 rounded-lg bg-accent text-white disabled:opacity-30 hover:bg-accent-hover transition-colors"
+            className="p-2 rounded-full bg-accent text-white disabled:opacity-30 hover:bg-accent-hover transition-colors shrink-0"
             title="Send"
           >
-            <ArrowUp size={16} />
+            <ArrowUp size={15} />
           </button>
         )}
       </div>
