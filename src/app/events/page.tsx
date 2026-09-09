@@ -429,7 +429,7 @@ export default function EventsPage() {
       {popover && (
         <div className="fixed inset-0 z-50" onClick={() => setPopover(null)}>
           <div
-            className="glass absolute w-[380px] max-w-[92vw] rounded-2xl p-4"
+            className="glass-ice anim-pop absolute w-[380px] max-w-[92vw] rounded-2xl p-4"
             style={{ left: popover.x, top: popover.y }}
             onClick={(e) => e.stopPropagation()}
           >

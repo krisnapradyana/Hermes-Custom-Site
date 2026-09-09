@@ -104,7 +104,7 @@ export function TokenMeter({ sessionId, refreshKey }: { sessionId: string; refre
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1.5 z-50 w-[19rem] rounded-xl border border-line bg-card p-3 shadow-lg">
+        <div className="glass-ice anim-pop absolute right-0 top-full mt-1.5 z-50 w-[19rem] rounded-xl p-3">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[12px] font-medium">Token usage</p>
             <div className="flex items-center gap-1">

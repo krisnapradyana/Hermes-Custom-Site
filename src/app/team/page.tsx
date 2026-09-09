@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
+import { CountUp } from "@/components/CountUp";
 
 /**
  * Team availability — UI-refresh revamp modeled on the Figma "Team Frame":
@@ -396,7 +397,7 @@ function Stat({
           accent ? "text-accent" : faint ? "text-ink-faint" : ""
         }`}
       >
-        {String(n).padStart(2, "0")}
+        <CountUp value={n} pad={2} />
       </span>
       <span className="pb-0.5">
         <span className="block text-[12px] font-medium leading-tight">{label}</span>
