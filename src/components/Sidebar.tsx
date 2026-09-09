@@ -178,6 +178,15 @@ export function Sidebar() {
         >
           <PenSquare size={16} />
         </Link>
+        <a
+          href={process.env.NEXT_PUBLIC_CLOCK_URL ?? "https://clock.spx-assistant.duckdns.org"}
+          target="_blank"
+          rel="noreferrer"
+          className="p-2 rounded-lg hover:bg-parchment-dark text-accent"
+          title="Clock In/Out"
+        >
+          <AlarmClock size={16} />
+        </a>
         <Link
           prefetch={false}
           href="/artifacts"
@@ -254,6 +263,27 @@ export function Sidebar() {
           </button>
         </div>
 
+        {/* Primary actions — per the UI-refresh design: charcoal New chat pill
+            + blue Clock In/Out pill, always at the top. */}
+        <div className="mx-3 mb-2.5 space-y-1.5">
+          <button
+            onClick={() => router.push("/")}
+            className="w-full flex items-center gap-2.5 rounded-xl bg-ink px-3.5 py-2.5 text-sm font-medium text-parchment hover:opacity-90 transition-opacity"
+          >
+            <PenSquare size={15} />
+            New chat
+          </button>
+          <a
+            href={process.env.NEXT_PUBLIC_CLOCK_URL ?? "https://clock.spx-assistant.duckdns.org"}
+            target="_blank"
+            rel="noreferrer"
+            className="w-full flex items-center gap-2.5 rounded-xl bg-accent px-3.5 py-2.5 text-sm font-medium text-white hover:bg-accent-hover transition-colors"
+          >
+            <AlarmClock size={15} />
+            Clock In/Out
+          </a>
+        </div>
+
         {/* Nav — grouped: shared TEAM surfaces first, then PERSONAL ones. */}
         <div className="mx-3 mb-2 rounded-xl bg-black/[0.04] dark:bg-white/[0.04] p-1.5 space-y-0.5">
           <div className="px-2.5 pt-1">
@@ -300,13 +330,6 @@ export function Sidebar() {
           </div>
           {!navFold.personal && (
             <>
-              <button
-                onClick={() => router.push("/")}
-                className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium text-accent hover:bg-accent-soft transition-colors"
-              >
-                <PenSquare size={15} />
-                New chat
-              </button>
               {navItem("/artifacts", <Package size={15} />, "Artifacts")}
               {navItem("/attachments", <Paperclip size={15} />, "Attachments")}
               {navItem("/history", <History size={15} />, "Agent history")}
