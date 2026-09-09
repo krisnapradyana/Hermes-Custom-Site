@@ -453,26 +453,28 @@ export function Sidebar() {
   );
 }
 
-/** The Figma wordmark: bold charcoal "SuperPixel" where the x is a
- *  pixel-cluster glyph (five squares in an ✕) — drawn inline so it scales
- *  with the text and inherits color. */
+/** The Figma wordmark: extrabold charcoal "SuperPixel" where the x is a
+ *  3×3 pixel cluster (corners + center, cells touching — variant A). The
+ *  SVG sits ON the baseline with height = x-height, so it aligns with the
+ *  lowercase letters instead of floating. Lighter "Assistant" suffix. */
 function Wordmark() {
   return (
-    <span className="inline-flex items-baseline font-extrabold text-[17px] tracking-tight select-none text-[#2b2b2b] dark:text-ink">
+    <span className="font-extrabold text-[17px] tracking-tight select-none text-[#2b2b2b] dark:text-ink whitespace-nowrap">
       SuperPi
       <svg
-        viewBox="0 0 10 10"
-        className="w-[0.56em] h-[0.56em] mx-[1px] translate-y-[-0.08em] self-center"
+        viewBox="0 0 3 3"
+        className="inline h-[0.545em] w-[0.545em] mx-px align-baseline"
         fill="currentColor"
         aria-hidden
       >
-        <rect x="0" y="0" width="3" height="3" />
-        <rect x="7" y="0" width="3" height="3" />
-        <rect x="3.5" y="3.5" width="3" height="3" />
-        <rect x="0" y="7" width="3" height="3" />
-        <rect x="7" y="7" width="3" height="3" />
+        <rect x="0" y="0" width="1" height="1" />
+        <rect x="2" y="0" width="1" height="1" />
+        <rect x="1" y="1" width="1" height="1" />
+        <rect x="0" y="2" width="1" height="1" />
+        <rect x="2" y="2" width="1" height="1" />
       </svg>
       el
+      <span className="ml-1.5 text-[13px] font-medium text-ink-faint">Assistant</span>
     </span>
   );
 }
