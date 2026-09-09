@@ -47,11 +47,15 @@ export const EmptyState = ({ children }: { children: ReactNode }) => (
 );
 
 /** Sticky header bar shared by the chat and conversation screens. */
+/** UI-refresh: the screen header is a floating glass capsule aligned to the
+ *  content column — no more edge-to-edge bar slicing the gradient. */
 export const ScreenHeader = ({ left, right }: { left: ReactNode; right?: ReactNode }) => (
-  <header className="flex items-center justify-between border-b border-line bg-parchment/80 backdrop-blur px-6 py-3 sticky top-0 z-10">
-    <div className="flex items-center gap-2.5 min-w-0">{left}</div>
-    {right && <div className="flex items-center gap-1 min-w-0 ml-3">{right}</div>}
-  </header>
+  <div className="px-4 pt-3 pb-1 z-10">
+    <header className="glass mx-auto max-w-3xl rounded-2xl flex items-center justify-between px-4 py-2">
+      <div className="flex items-center gap-2.5 min-w-0">{left}</div>
+      {right && <div className="flex items-center gap-1 min-w-0 ml-3 shrink-0">{right}</div>}
+    </header>
+  </div>
 );
 
 /**

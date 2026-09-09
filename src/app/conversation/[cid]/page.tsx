@@ -320,7 +320,7 @@ export default function ConversationPage({ params }: { params: Promise<{ cid: st
           </div>
         </div>
 
-        <div className="border-t border-line bg-parchment px-6 py-4">
+        <div className="px-6 pb-5 pt-2">
           <div className="mx-auto max-w-3xl">
             {isOwner ? (
               <Composer

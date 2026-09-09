@@ -101,7 +101,7 @@ export function MessageList({
                   )}
                 </div>
               )}
-              <div className="rounded-2xl rounded-br-md bg-parchment-dark px-4 py-2.5 text-[15px] whitespace-pre-wrap">
+              <div className="rounded-2xl rounded-br-md bg-white/75 dark:bg-white/10 border border-white/80 dark:border-white/10 backdrop-blur-sm shadow-[0_4px_14px_rgba(23,43,99,0.06)] px-4 py-2.5 text-[15px] whitespace-pre-wrap">
                 {m.content}
               </div>
             </div>

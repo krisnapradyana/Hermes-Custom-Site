@@ -138,7 +138,8 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
           </div>
         </div>
 
-        <div className="border-t border-line bg-parchment px-6 py-4">
+        {/* Composer floats free over the gradient — no band behind it. */}
+        <div className="px-6 pb-5 pt-2">
           <div className="mx-auto max-w-3xl">
             <Composer
               onSend={(t, a) => sendMessage(chat.id, t, a)}
