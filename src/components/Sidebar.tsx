@@ -254,9 +254,7 @@ export function Sidebar() {
         {/* Header — wordmark per the refresh (blue x). */}
         <div className="flex items-center justify-between px-4 pt-4 pb-2">
           <Link prefetch={false} href="/" className="min-w-0">
-            <span className="font-extrabold text-[17px] tracking-tight select-none">
-              SuperPi<span className="text-accent">x</span>el
-            </span>
+            <Wordmark />
           </Link>
           <button
             onClick={() => setCollapsed(true)}
@@ -272,7 +270,7 @@ export function Sidebar() {
         <div className="mx-3 mb-2.5 space-y-1.5">
           <button
             onClick={() => router.push("/")}
-            className="w-full flex items-center gap-2.5 rounded-xl bg-[#33373d] px-3.5 py-2.5 text-sm font-medium text-white hover:bg-[#2a2e33] transition-colors"
+            className="w-full flex items-center gap-2.5 rounded-xl bg-[#444444] px-3.5 py-2.5 text-sm font-medium text-white hover:bg-[#383838] transition-colors"
           >
             <PenSquare size={15} />
             New chat
@@ -452,6 +450,30 @@ export function Sidebar() {
       </aside>
       <ResizeHandle onPointerDown={startResize} />
     </>
+  );
+}
+
+/** The Figma wordmark: bold charcoal "SuperPixel" where the x is a
+ *  pixel-cluster glyph (five squares in an ✕) — drawn inline so it scales
+ *  with the text and inherits color. */
+function Wordmark() {
+  return (
+    <span className="inline-flex items-baseline font-extrabold text-[17px] tracking-tight select-none text-[#2b2b2b] dark:text-ink">
+      SuperPi
+      <svg
+        viewBox="0 0 10 10"
+        className="w-[0.56em] h-[0.56em] mx-[1px] translate-y-[-0.08em] self-center"
+        fill="currentColor"
+        aria-hidden
+      >
+        <rect x="0" y="0" width="3" height="3" />
+        <rect x="7" y="0" width="3" height="3" />
+        <rect x="3.5" y="3.5" width="3" height="3" />
+        <rect x="0" y="7" width="3" height="3" />
+        <rect x="7" y="7" width="3" height="3" />
+      </svg>
+      el
+    </span>
   );
 }
 

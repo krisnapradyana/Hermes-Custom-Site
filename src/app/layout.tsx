@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import "@fontsource-variable/inter";
+import "@fontsource-variable/plus-jakarta-sans";
 import "./globals.css";
 import { Sidebar } from "@/components/Sidebar";
 import { Providers, AuthGate, PublicRouteSwitch } from "@/components/Providers";

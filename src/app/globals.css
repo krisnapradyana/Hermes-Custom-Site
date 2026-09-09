@@ -4,24 +4,24 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  /* UI-REFRESH PROTOTYPE (Figma "SuperAI Assistant UI"): cool light canvas,
-     pure white surfaces, electric blue accent. Values eyeballed from the
-     frames — swap for the designers' exported tokens when they arrive. */
-  --color-parchment: #f5f7fb;
-  --color-parchment-dark: #e9edf4;
+  /* UI-REFRESH PROTOTYPE — colors SAMPLED from the Figma export (region
+     medians, not eyeballed). Font identified from letterforms: Plus
+     Jakarta Sans (spurless G, single-story g). */
+  --color-parchment: #f6f9fd;
+  --color-parchment-dark: #e7ebf0;
   --color-sidebar: #ffffff;
-  --color-ink: #171a20;
-  --color-ink-soft: #5a6372;
-  --color-ink-faint: #8b95a6;
-  --color-accent: #2a6bf2;
-  --color-accent-hover: #1f56d0;
-  --color-accent-soft: #e8effd;
-  --color-line: #e3e8f0;
+  --color-ink: #1e2433;
+  --color-ink-soft: #7c8596;
+  --color-ink-faint: #98a1b2;
+  --color-accent: #1566e0;
+  --color-accent-hover: #0f55c2;
+  --color-accent-soft: #e3edfc;
+  --color-line: #e0e6ee;
   --color-card: #ffffff;
 
   /* The refresh drops serif heroes — display type is the same sans. */
-  --font-serif-display: "Inter Variable", "Inter", -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-sans-ui: "Inter Variable", "Inter", -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-serif-display: "Plus Jakarta Sans Variable", "Plus Jakarta Sans", -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-sans-ui: "Plus Jakarta Sans Variable", "Plus Jakarta Sans", -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
 :root {
@@ -190,9 +190,10 @@ body.resizing iframe {
   }
 }
 
-/* UI-refresh canvas: the soft diagonal wash behind everything. */
+/* UI-refresh canvas — gradient stops sampled from the Figma export:
+   blue top-left → near-white centre → mint bottom-right. */
 .app-canvas {
-  background: linear-gradient(135deg, #dbe7f7 0%, #eef3fb 28%, #f7fafd 55%, #eef7f0 100%);
+  background: linear-gradient(135deg, #cfe3ff 0%, #e6f0ff 30%, #f6fafd 55%, #e6f8f1 100%);
 }
 html.dark .app-canvas {
   background: linear-gradient(135deg, #151a24 0%, #171a20 40%, #191b1f 70%, #16201b 100%);
