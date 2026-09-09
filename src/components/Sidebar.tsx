@@ -119,7 +119,12 @@ export function Sidebar() {
 
   if (collapsed) {
     return (
-      <aside className="glass anim-slide w-13 shrink-0 my-3 ml-3 rounded-2xl flex flex-col items-center py-3 gap-1.5">
+      {/* key forces a REMOUNT on toggle — mount animations don't re-run on a
+          reused DOM node, which made the slide invisible (field video). */}
+      <aside
+        key="rail"
+        className="glass anim-slide w-13 shrink-0 my-3 ml-3 rounded-2xl flex flex-col items-center py-3 gap-1.5"
+      >
         <IconButton onClick={() => setCollapsed(false)} title="Expand sidebar">
           <ChevronRight size={16} />
         </IconButton>
@@ -248,6 +253,7 @@ export function Sidebar() {
   return (
     <>
       <aside
+        key="expanded"
         className="glass anim-slide shrink-0 my-3 ml-3 rounded-2xl flex flex-col overflow-hidden"
         style={{ width }}
       >
