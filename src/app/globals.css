@@ -195,8 +195,16 @@ body.resizing iframe {
 .app-canvas {
   background: linear-gradient(135deg, #cfe3ff 0%, #e6f0ff 30%, #f6fafd 55%, #e6f8f1 100%);
 }
+/* Dark canvas: near-black base with static aurora glows (blue / violet /
+   mint / a whisper of pink) — they cost nothing and give the glass panels
+   something to refract; without them dark glass is invisible. */
 html.dark .app-canvas {
-  background: linear-gradient(135deg, #151a24 0%, #171a20 40%, #191b1f 70%, #16201b 100%);
+  background:
+    radial-gradient(640px 480px at 8% -6%, rgba(42, 107, 242, 0.26), transparent 70%),
+    radial-gradient(520px 400px at 72% -8%, rgba(139, 92, 246, 0.16), transparent 70%),
+    radial-gradient(560px 440px at 104% 108%, rgba(29, 158, 117, 0.15), transparent 70%),
+    radial-gradient(420px 340px at 42% 112%, rgba(212, 83, 126, 0.10), transparent 70%),
+    #14161c;
 }
 
 /* Liquid glass — chrome surfaces only (sidebar, composer, modals, popovers).
@@ -212,9 +220,11 @@ html.dark .app-canvas {
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 html.dark .glass {
-  background: rgba(24, 27, 33, 0.55);
-  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(28, 32, 40, 0.42);
+  backdrop-filter: blur(22px) saturate(190%);
+  -webkit-backdrop-filter: blur(22px) saturate(190%);
+  border-color: rgba(255, 255, 255, 0.12);
   box-shadow:
-    0 12px 36px rgba(0, 0, 0, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    0 14px 40px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.13);
 }
