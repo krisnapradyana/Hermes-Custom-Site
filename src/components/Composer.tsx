@@ -214,8 +214,8 @@ export function Composer({
 
   return (
     <div
-      className={`relative rounded-2xl border bg-card shadow-[0_10px_34px_rgba(23,43,99,0.10)] dark:shadow-none transition-colors ${
-        dragging ? "border-accent border-dashed" : "border-line/60 focus-within:border-ink-faint"
+      className={`glass relative rounded-2xl transition-shadow ${
+        dragging ? "ring-2 ring-accent" : "focus-within:ring-1 focus-within:ring-line"
       }`}
       onDragEnter={(e) => {
         if (!e.dataTransfer.types.includes("Files")) return;

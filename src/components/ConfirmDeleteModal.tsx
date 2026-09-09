@@ -26,7 +26,7 @@ export function ConfirmDeleteModal({
       onClick={onCancel}
     >
       <div
-        className="w-full max-w-md rounded-2xl border border-line bg-card p-6 shadow-xl"
+        className="glass w-full max-w-md rounded-2xl p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2.5 mb-2">

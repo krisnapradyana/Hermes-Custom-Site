@@ -119,7 +119,7 @@ export function Sidebar() {
 
   if (collapsed) {
     return (
-      <aside className="w-13 shrink-0 border-r border-line bg-sidebar flex flex-col items-center py-3 gap-1.5">
+      <aside className="glass w-13 shrink-0 my-3 ml-3 rounded-2xl flex flex-col items-center py-3 gap-1.5">
         <IconButton onClick={() => setCollapsed(false)} title="Expand sidebar">
           <ChevronRight size={16} />
         </IconButton>
@@ -248,7 +248,7 @@ export function Sidebar() {
   return (
     <>
       <aside
-        className="shrink-0 my-3 ml-3 rounded-2xl border border-white/70 dark:border-line bg-sidebar/80 backdrop-blur-md shadow-[0_8px_28px_rgba(23,43,99,0.07)] flex flex-col overflow-hidden"
+        className="glass shrink-0 my-3 ml-3 rounded-2xl flex flex-col overflow-hidden"
         style={{ width }}
       >
         {/* Header — wordmark per the refresh (blue x). */}
