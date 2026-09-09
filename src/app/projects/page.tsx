@@ -680,20 +680,24 @@ export default function ProjectsPage() {
               const isCollapsed = collapsed.includes(key);
               return (
                 <section key={key} className="mb-6">
-                  <button
-                    onClick={() => toggleGroup(key)}
-                    className="sticky top-0 z-10 w-full flex items-center gap-2 bg-parchment/90 backdrop-blur py-2 text-left"
-                  >
-                    {isCollapsed ? (
-                      <ChevronRight size={14} className="text-ink-faint" />
-                    ) : (
-                      <ChevronDown size={14} className="text-ink-faint" />
-                    )}
-                    <span className="text-sm font-medium">{monthLabel(key)}</span>
-                    <span className="text-[11px] text-ink-faint">
-                      {items.length} project{items.length === 1 ? "" : "s"}
-                    </span>
-                  </button>
+                  {/* Month header floats as a glass pill — no full-width strip
+                      with sharp edges over the gradient. */}
+                  <div className="sticky top-2 z-10 py-1">
+                    <button
+                      onClick={() => toggleGroup(key)}
+                      className="glass inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-left hover:opacity-90 transition-opacity"
+                    >
+                      {isCollapsed ? (
+                        <ChevronRight size={14} className="text-ink-faint" />
+                      ) : (
+                        <ChevronDown size={14} className="text-ink-faint" />
+                      )}
+                      <span className="text-sm font-medium">{monthLabel(key)}</span>
+                      <span className="text-[11px] text-ink-faint">
+                        {items.length} project{items.length === 1 ? "" : "s"}
+                      </span>
+                    </button>
+                  </div>
                   {!isCollapsed && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
                       {items.map((p) => renderCard(p))}
