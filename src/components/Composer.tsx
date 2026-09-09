@@ -9,9 +9,6 @@ import {
   Folder,
   File as FileIcon,
   Square,
-  BookOpen,
-  Globe,
-  Mic,
 } from "lucide-react";
 import { Attachment } from "@/lib/types";
 
@@ -97,22 +94,6 @@ export function Composer({
   const ref = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Context chips (UI-refresh) — visual toggles for now, remembered per
-  // browser; hydrated after mount so SSR output stays deterministic.
-  const [knowledgeOn, setKnowledgeOn] = useState(true);
-  const [webOn, setWebOn] = useState(false);
-  useEffect(() => {
-    try {
-      setKnowledgeOn(localStorage.getItem("hermes-chip-knowledge") !== "off");
-      setWebOn(localStorage.getItem("hermes-chip-web") === "on");
-    } catch {}
-  }, []);
-  useEffect(() => {
-    try {
-      localStorage.setItem("hermes-chip-knowledge", knowledgeOn ? "on" : "off");
-      localStorage.setItem("hermes-chip-web", webOn ? "on" : "off");
-    } catch {}
-  }, [knowledgeOn, webOn]);
 
   // Drag & drop files anywhere onto the composer. Counter (not boolean)
   // because dragenter/dragleave fire on every child element crossed.
@@ -377,9 +358,7 @@ export function Composer({
         }}
       />
 
-      {/* UI-refresh: context chips left (Internal knowledge / Attach / Web),
-          mic + round send right — per the Figma composer. Knowledge/Web are
-          visual toggles for now; wiring to agent behavior comes later. */}
+      {/* UI-refresh: Attach chip left, round send right — per approved mock. */}
       <div className="flex items-center gap-2 px-3 pb-2.5 min-w-0">
         <input
           ref={fileRef}
@@ -389,18 +368,6 @@ export function Composer({
           onChange={(e) => addFiles(e.target.files)}
         />
         <button
-          onClick={() => setKnowledgeOn((v) => !v)}
-          className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11.5px] font-medium transition-colors shrink-0 ${
-            knowledgeOn
-              ? "bg-violet-500/15 text-violet-600 dark:text-violet-300"
-              : "border border-line text-ink-soft hover:border-ink-faint"
-          }`}
-          title="Use the studio's shared knowledge (always on for now)"
-        >
-          <BookOpen size={12} />
-          Internal knowledge
-        </button>
-        <button
           onClick={() => fileRef.current?.click()}
           className="flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-[11.5px] text-ink-soft hover:border-ink-faint hover:text-ink transition-colors shrink-0"
           title="Attach files (images are sent to the agent; text files are inlined)"
@@ -409,18 +376,6 @@ export function Composer({
           Attach
           {attachments.length > 0 && ` · ${attachments.length}`}
         </button>
-        <button
-          onClick={() => setWebOn((v) => !v)}
-          className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11.5px] transition-colors shrink-0 ${
-            webOn
-              ? "bg-accent-soft text-accent font-medium"
-              : "border border-line text-ink-soft hover:border-ink-faint"
-          }`}
-          title="Let the agent search the web (visual toggle — wiring soon)"
-        >
-          <Globe size={12} />
-          Web
-        </button>
         <span className="flex-1 min-w-0 text-right text-[11px] text-ink-faint truncate">
           {warn ||
             (mentions.length
@@ -428,12 +383,6 @@ export function Composer({
               : projectId
                 ? "@ references a project file"
                 : "")}
-        </span>
-        <span
-          className="p-1.5 text-ink-faint/60 shrink-0 cursor-default"
-          title="Voice input — coming soon"
-        >
-          <Mic size={15} />
         </span>
         {disabled && onStop ? (
           <button

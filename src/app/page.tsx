@@ -78,12 +78,6 @@ export default function Home() {
 
   return (
     <div className="flex h-full flex-col px-8 pt-5 pb-6">
-      {/* Breadcrumb, per the frame. */}
-      <div className="text-[12px] text-ink-faint">
-        Workspace <span className="mx-1">›</span>
-        <span className="text-ink font-medium">Assistant</span>
-      </div>
-
       {/* Hero centers in whatever space the window gives it… */}
       <div className="flex-1 flex flex-col justify-center w-full max-w-2xl mx-auto min-h-0">
         <h1 className="text-[38px] font-semibold tracking-tight text-center mb-2 min-h-[1.2em] transition-opacity duration-300">
