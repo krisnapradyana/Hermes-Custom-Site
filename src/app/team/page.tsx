@@ -237,7 +237,7 @@ export default function TeamPage() {
           </div>
 
           {/* Table */}
-          <div className="rounded-2xl border border-line bg-card overflow-hidden">
+          <div className="glass-panel rounded-2xl border border-line overflow-hidden">
             <table className="w-full text-[13px]">
               <thead>
                 <tr className="text-left text-[10.5px] uppercase tracking-wide text-ink-faint border-b border-line">

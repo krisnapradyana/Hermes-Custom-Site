@@ -233,7 +233,7 @@ export default function EventsPage() {
 
         {/* ── MONTH VIEW ─────────────────────────────────────────────── */}
         {data && data.configured && !selectedDay && (
-          <div className="flex-1 min-h-0 flex flex-col rounded-xl border border-line bg-card overflow-hidden">
+          <div className="glass-panel flex-1 min-h-0 flex flex-col rounded-xl border border-line overflow-hidden">
             <div className="grid grid-cols-7 border-b border-line shrink-0">
               {DOW.map((d) => (
                 <div key={d} className="py-1.5 text-center text-[10.5px] font-medium tracking-wider text-ink-faint">
@@ -312,7 +312,7 @@ export default function EventsPage() {
 
         {/* ── DAY VIEW (24h grid) ────────────────────────────────────── */}
         {data && data.configured && selectedDay && (
-          <div className="flex-1 min-h-0 rounded-xl border border-line bg-card overflow-y-auto">
+          <div className="glass-panel flex-1 min-h-0 rounded-xl border border-line overflow-y-auto">
             {/* all-day strip */}
             {eventsOn(selectedDay).filter((e) => e.allDay).length > 0 && (
               <div className="sticky top-0 z-10 border-b border-line bg-card px-14 py-1.5 space-y-1">
@@ -429,7 +429,7 @@ export default function EventsPage() {
       {popover && (
         <div className="fixed inset-0 z-50" onClick={() => setPopover(null)}>
           <div
-            className="absolute w-[380px] max-w-[92vw] rounded-2xl border border-line bg-card shadow-xl p-4"
+            className="glass absolute w-[380px] max-w-[92vw] rounded-2xl p-4"
             style={{ left: popover.x, top: popover.y }}
             onClick={(e) => e.stopPropagation()}
           >

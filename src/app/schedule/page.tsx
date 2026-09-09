@@ -154,7 +154,7 @@ export default function SchedulePage() {
       )}
 
       {model && (
-        <div className="rounded-xl border border-line bg-card p-4 overflow-x-auto">
+        <div className="glass-panel rounded-xl border border-line p-4 overflow-x-auto">
           <div className="min-w-[44rem] relative">
             {/* Zoom controls */}
             <div className="flex items-center justify-end gap-1 mb-1">

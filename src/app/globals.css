@@ -228,3 +228,24 @@ html.dark .glass {
     0 14px 40px rgba(0, 0, 0, 0.5),
     inset 0 1px 0 rgba(255, 255, 255, 0.13);
 }
+
+/* Glass for CONTENT containers (team table, project cards, schedule chart,
+   calendar). Lighter than chrome .glass and deliberately WITHOUT a border of
+   its own — elements keep their tailwind border classes, so pinned/done/beta
+   accent borders survive. */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  box-shadow:
+    0 8px 24px rgba(23, 43, 99, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+html.dark .glass-panel {
+  background: rgba(28, 32, 40, 0.45);
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}

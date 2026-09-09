@@ -333,7 +333,7 @@ export default function ProjectsPage() {
         <Link
           prefetch={false}
           href={`/projects/${p.id}`}
-          className={`block rounded-xl border bg-card p-5 transition-colors ${
+          className={`glass-panel block rounded-xl border p-5 transition-colors ${
             isPinned ? "border-amber-500/40 hover:border-amber-500/70" : "border-line hover:border-ink-faint"
           }`}
         >
