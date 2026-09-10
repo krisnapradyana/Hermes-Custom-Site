@@ -59,6 +59,9 @@ const fmtH = (ms: number): string => {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 };
 
+/** Viewer-local time on purpose — simplest mental model. The column header
+ *  shows the browser's OWN zone name (WIB, GMT+8, …) so the label is always
+ *  truthful for whoever is looking. */
 const fmtSince = (iso: string): string =>
   new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 
@@ -193,6 +196,18 @@ export default function TeamPage() {
     month: "short",
   });
 
+  // The browser's own name for its timezone — set after mount so the
+  // server-rendered HTML (server zone) never mismatches on hydration.
+  const [tzLabel, setTzLabel] = useState("local");
+  useEffect(() => {
+    try {
+      const part = new Intl.DateTimeFormat(undefined, { timeZoneName: "short" })
+        .formatToParts(new Date())
+        .find((p) => p.type === "timeZoneName");
+      if (part?.value) setTzLabel(part.value);
+    } catch {}
+  }, []);
+
   return (
     <div className="mx-auto max-w-5xl px-8 py-10">
       {/* Title row */}
@@ -245,7 +260,7 @@ export default function TeamPage() {
                   <th className="font-medium px-4 py-2.5">Team member</th>
                   <th className="font-medium px-3 py-2.5">Department</th>
                   <th className="font-medium px-3 py-2.5">Status</th>
-                  <th className="font-medium px-3 py-2.5">Since · WITA</th>
+                  <th className="font-medium px-3 py-2.5">Since · {tzLabel}</th>
                   <th className="font-medium px-3 py-2.5">Current activity</th>
                   <th className="font-medium px-3 py-2.5 text-right">Today · week</th>
                   <th className="w-8" />
