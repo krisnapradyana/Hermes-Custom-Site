@@ -281,19 +281,14 @@ html.dark .glass-panel {
   .group .opacity-0 {
     opacity: 0.7;
   }
-  /* Resize handles: 4px is a mouse target. Fingers get a 16px hit area
-     (negative margins keep the layout identical) and a visible grab line. */
+  /* Resize handles: 4px is a mouse target. Fingers get an invisible 16px
+     hit area (negative margins keep the layout identical) — no permanent
+     line (looked ugly, field report); the accent tint on active drag is
+     the only visual feedback. */
   .resize-handle {
     width: 16px;
     margin: 0 -6px;
     z-index: 20;
-    background: linear-gradient(
-      to right,
-      transparent 6px,
-      var(--color-line) 7px,
-      var(--color-line) 9px,
-      transparent 10px
-    );
   }
 }
 
