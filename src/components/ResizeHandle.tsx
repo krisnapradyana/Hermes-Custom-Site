@@ -39,6 +39,7 @@ export function useResizableWidth(
     const up = () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
       document.body.classList.remove("resizing");
@@ -46,6 +47,9 @@ export function useResizableWidth(
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
+    // Touch: the browser may still cancel the stream (system gestures) —
+    // without this, the body stayed stuck in "resizing" state on tablets.
+    window.addEventListener("pointercancel", up);
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
     // Iframes (HTML/PDF previews) would swallow pointer events mid-drag.
@@ -66,7 +70,11 @@ export function ResizeHandle({
     <div
       onPointerDown={onPointerDown}
       title={title}
-      className="w-1 shrink-0 cursor-col-resize bg-transparent hover:bg-accent/40 active:bg-accent/60 transition-colors"
+      // touch-action:none is THE fix for touch dragging: without it the
+      // browser claims the gesture for scrolling ~10px in and cancels the
+      // pointer stream ("drags a few frames then stops", field report).
+      style={{ touchAction: "none" }}
+      className="resize-handle w-1 shrink-0 cursor-col-resize bg-transparent hover:bg-accent/40 active:bg-accent/60 transition-colors"
     />
   );
 }
