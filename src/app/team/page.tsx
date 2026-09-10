@@ -86,7 +86,7 @@ const STATUS_TASK_CLS: Record<MemberTask["status"], string> = {
 function StatusChip({ s }: { s: Status }) {
   if (s === "duty")
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-parchment-dark/70 px-2.5 py-1 text-[11.5px] font-medium">
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-parchment-dark/70 px-2.5 py-1 text-[11.5px] font-medium whitespace-nowrap">
         <span className="relative flex h-1.5 w-1.5">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-60" />
           <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500" />
@@ -253,14 +253,16 @@ export default function TeamPage() {
           </div>
 
           {/* Table */}
-          <div className="glass-panel rounded-2xl border border-line overflow-hidden">
-            <table className="w-full text-[13px]">
+          {/* overflow-x-auto = safety net; below xl the Department ("—") and
+              Since columns hide so the table fits a tablet without squeezing. */}
+          <div className="glass-panel rounded-2xl border border-line overflow-x-auto">
+            <table className="w-full min-w-[600px] text-[13px]">
               <thead>
                 <tr className="text-left text-[10.5px] uppercase tracking-wide text-ink-faint border-b border-line">
                   <th className="font-medium px-4 py-2.5">Team member</th>
-                  <th className="font-medium px-3 py-2.5">Department</th>
+                  <th className="font-medium px-3 py-2.5 hidden xl:table-cell">Department</th>
                   <th className="font-medium px-3 py-2.5">Status</th>
-                  <th className="font-medium px-3 py-2.5">Since · {tzLabel}</th>
+                  <th className="font-medium px-3 py-2.5 hidden xl:table-cell">Since · {tzLabel}</th>
                   <th className="font-medium px-3 py-2.5">Current activity</th>
                   <th className="font-medium px-3 py-2.5 text-right">Today · week</th>
                   <th className="w-8" />
@@ -288,11 +290,13 @@ export default function TeamPage() {
                             <span className="font-medium truncate">{m.name}</span>
                           </span>
                         </td>
-                        <td className="px-3 py-2.5 text-ink-soft">—</td>
+                        <td className="px-3 py-2.5 text-ink-soft hidden xl:table-cell">—</td>
                         <td className="px-3 py-2.5">
                           <StatusChip s={s} />
                         </td>
-                        <td className="px-3 py-2.5 text-ink-soft tabular-nums">{sinceLabel(m)}</td>
+                        <td className="px-3 py-2.5 text-ink-soft tabular-nums hidden xl:table-cell">
+                          {sinceLabel(m)}
+                        </td>
                         <td className="px-3 py-2.5 max-w-[16rem]">
                           <span
                             className="block truncate"
@@ -408,7 +412,7 @@ function Stat({
   return (
     <div className="flex items-baseline gap-2.5">
       <span
-        className={`text-[40px] font-semibold leading-none tabular-nums tracking-tight ${
+        className={`text-3xl xl:text-[40px] font-semibold leading-none tabular-nums tracking-tight ${
           accent ? "text-accent" : faint ? "text-ink-faint" : ""
         }`}
       >

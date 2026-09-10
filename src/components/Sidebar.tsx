@@ -43,6 +43,23 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const { width, startResize } = useResizableWidth("hermes-sidebar-w", 288, 208, 480);
 
+  // IF the viewport is tablet-sized (<1280px): the sidebar defaults to the
+  // icon rail, and expanding opens it as an OVERLAY drawer above the content.
+  // ELSE (laptop/desktop): exactly the behavior shipped today — inline
+  // column, resizable, pushes content. Nothing changes for PCs.
+  const [isTablet, setIsTablet] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1279px)");
+    const apply = () => setIsTablet(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+  useEffect(() => {
+    // Crossing the breakpoint resets to that mode's default state.
+    setCollapsed(isTablet);
+  }, [isTablet]);
+
   // Collapsible nav groups — folding them gives the chat list more room.
   const [navFold, setNavFold] = useState<{ team: boolean; personal: boolean }>({
     team: false,
@@ -252,9 +269,19 @@ export function Sidebar() {
 
   return (
     <>
+      {/* Tablet drawer mode: scrim closes on tap; the aside floats above. */}
+      {isTablet && (
+        <div
+          className="fixed inset-0 z-30 bg-black/25"
+          onClick={() => setCollapsed(true)}
+          aria-hidden
+        />
+      )}
       <aside
         key="expanded"
-        className="glass anim-slide shrink-0 my-3 ml-3 rounded-2xl flex flex-col overflow-hidden"
+        className={`glass anim-slide rounded-2xl flex flex-col overflow-hidden ${
+          isTablet ? "fixed left-3 top-3 bottom-3 z-40" : "shrink-0 my-3 ml-3"
+        }`}
         style={{ width }}
       >
         {/* Header — wordmark per the refresh (blue x). */}
@@ -454,7 +481,7 @@ export function Sidebar() {
           <ThemeToggle />
         </div>
       </aside>
-      <ResizeHandle onPointerDown={startResize} />
+      {!isTablet && <ResizeHandle onPointerDown={startResize} />}
     </>
   );
 }

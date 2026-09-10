@@ -159,16 +159,18 @@ export default function SchedulePage() {
             {/* Zoom controls */}
             <div className="flex items-center justify-end gap-1 mb-1">
               <span className="text-[10px] text-ink-faint mr-1.5">{TIMELINE_HINT}</span>
+              {/* Below xl the pads grow to ~40px touch targets (tablets have
+                  no wheel-zoom); desktop keeps the compact cluster. */}
               <button
                 onClick={() => view.zoom(1.4)}
-                className="p-1 rounded-md text-ink-faint hover:text-ink hover:bg-parchment-dark"
+                className="p-2.5 xl:p-1 rounded-md text-ink-faint hover:text-ink hover:bg-parchment-dark"
                 title="Zoom out"
               >
                 <ZoomOut size={13} />
               </button>
               <button
                 onClick={() => view.zoom(1 / 1.4)}
-                className="p-1 rounded-md text-ink-faint hover:text-ink hover:bg-parchment-dark"
+                className="p-2.5 xl:p-1 rounded-md text-ink-faint hover:text-ink hover:bg-parchment-dark"
                 title="Zoom in"
               >
                 <ZoomIn size={13} />
@@ -176,7 +178,7 @@ export default function SchedulePage() {
               <button
                 onClick={view.fit}
                 disabled={view.isFit}
-                className="p-1 rounded-md text-ink-faint hover:text-ink hover:bg-parchment-dark disabled:opacity-30"
+                className="p-2.5 xl:p-1 rounded-md text-ink-faint hover:text-ink hover:bg-parchment-dark disabled:opacity-30"
                 title="Fit everything"
               >
                 <Maximize size={13} />
