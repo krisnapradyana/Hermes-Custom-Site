@@ -1,11 +1,30 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { LogOut } from "lucide-react";
 
 /** Shows the signed-in Slack user in the sidebar footer. Renders nothing when auth is off. */
 export function UserBadge() {
   const { data } = useSession();
+
+  // Role from the Member Directory (matched by Slack id) — null until the
+  // person's record is linked, in which case the line simply doesn't render.
+  const [role, setRole] = useState<string | null>(null);
+  useEffect(() => {
+    if (!data?.user) return;
+    let dead = false;
+    fetch("/api/directory/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!dead && d?.role) setRole(d.role as string);
+      })
+      .catch(() => {});
+    return () => {
+      dead = true;
+    };
+  }, [data?.user]);
+
   if (!data?.user) return null;
 
   return (
@@ -20,6 +39,7 @@ export function UserBadge() {
       )}
       <div className="min-w-0 flex-1">
         <p className="text-sm truncate">{data.user.name}</p>
+        {role && <p className="text-[11px] text-accent truncate">{role}</p>}
         <p className="text-[11px] text-ink-faint truncate">
           Slack · {data.user.slackId ?? "unknown id"}
         </p>

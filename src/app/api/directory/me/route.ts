@@ -15,5 +15,7 @@ export async function GET() {
     allowed: viewer.isAdmin,
     name: viewer.member?.name ?? viewer.name,
     type: viewer.member?.type ?? null,
+    // The sidebar UserBadge shows this under the display name.
+    role: viewer.member?.primaryRole ?? null,
   });
 }

@@ -50,6 +50,13 @@ interface TeamData {
   projects: Record<string, { name: string; color: string }>;
 }
 
+/** Directory role + Slack avatar, keyed by Slack id (= userKey). */
+interface Profile {
+  role?: string;
+  type?: string;
+  avatar?: string;
+}
+
 type Status = "duty" | "standby" | "break" | "off";
 
 const fmtH = (ms: number): string => {
@@ -121,6 +128,7 @@ function StatusChip({ s }: { s: Status }) {
 
 export default function TeamPage() {
   const [data, setData] = useState<TeamData | null>(null);
+  const [profiles, setProfiles] = useState<Record<string, Profile>>({});
   const [error, setError] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | Status>("all");
@@ -131,6 +139,16 @@ export default function TeamPage() {
       setData(res.data);
       setError("");
     } else setError(res.error);
+  }, []);
+
+  // Once per visit is enough — roles and avatars don't move like the clock does.
+  useEffect(() => {
+    fetch("/api/team/profiles")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.profiles) setProfiles(d.profiles as Record<string, Profile>);
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -260,7 +278,7 @@ export default function TeamPage() {
               <thead>
                 <tr className="text-left text-[10.5px] uppercase tracking-wide text-ink-faint border-b border-line">
                   <th className="font-medium px-4 py-2.5">Team member</th>
-                  <th className="font-medium px-3 py-2.5 hidden xl:table-cell">Department</th>
+                  <th className="font-medium px-3 py-2.5 hidden xl:table-cell">Role</th>
                   <th className="font-medium px-3 py-2.5">Status</th>
                   <th className="font-medium px-3 py-2.5 hidden xl:table-cell">Since · {tzLabel}</th>
                   <th className="font-medium px-3 py-2.5">Current activity</th>
@@ -284,13 +302,27 @@ export default function TeamPage() {
                       >
                         <td className="px-4 py-2.5">
                           <span className="flex items-center gap-2.5 min-w-0">
-                            <span className="w-7 h-7 rounded-lg bg-accent-soft text-accent flex items-center justify-center text-[10px] font-bold shrink-0">
-                              {initials(m.name)}
-                            </span>
+                            {profiles[m.userKey]?.avatar ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={profiles[m.userKey].avatar}
+                                alt=""
+                                className="w-7 h-7 rounded-lg object-cover shrink-0"
+                              />
+                            ) : (
+                              <span className="w-7 h-7 rounded-lg bg-accent-soft text-accent flex items-center justify-center text-[10px] font-bold shrink-0">
+                                {initials(m.name)}
+                              </span>
+                            )}
                             <span className="font-medium truncate">{m.name}</span>
                           </span>
                         </td>
-                        <td className="px-3 py-2.5 text-ink-soft hidden xl:table-cell">—</td>
+                        <td
+                          className="px-3 py-2.5 text-ink-soft hidden xl:table-cell max-w-[13rem] truncate"
+                          title={profiles[m.userKey]?.role}
+                        >
+                          {profiles[m.userKey]?.role ?? "—"}
+                        </td>
                         <td className="px-3 py-2.5">
                           <StatusChip s={s} />
                         </td>
