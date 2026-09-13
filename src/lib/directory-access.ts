@@ -13,6 +13,14 @@ import { canEditDirectory, findBySlackId, Member } from "@/lib/members-store";
  * Auth-off dev mode is treated as an admin so the UI is workable locally.
  */
 
+/**
+ * ALPHA SWITCH: while true, every signed-in workspace member may view and
+ * edit the directory — the leadership-type gate and ADMIN_SLACK_IDS are
+ * bypassed (sign-in itself is still required). Flip back to false once
+ * Slack ids are linked and the type gate can actually identify people.
+ */
+const OPEN_ALPHA = true;
+
 export interface DirectoryViewer {
   slackId: string;
   name: string;
@@ -36,7 +44,8 @@ export async function getDirectoryViewer(): Promise<DirectoryViewer | null> {
     const slackId = session?.user?.slackId;
     if (!slackId) return null;
     const member = await findBySlackId(slackId);
-    const isAdmin = adminIds().includes(slackId) || canEditDirectory(member?.type);
+    const isAdmin =
+      OPEN_ALPHA || adminIds().includes(slackId) || canEditDirectory(member?.type);
     return { slackId, name: session?.user?.name ?? "Member", member, isAdmin };
   } catch {
     return null;
