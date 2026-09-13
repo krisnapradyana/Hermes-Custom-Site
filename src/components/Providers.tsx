@@ -17,8 +17,12 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * Public client pages (/share/*) render bare: no auth gate, no sidebar —
- * the tokenized URL is the access control (API side is allowlisted too).
+ * Bare-rendered routes — no app shell (sidebar/status bar):
+ *   /share/*    — public client share pages; the tokenized URL is the access
+ *                 control (API side is allowlisted too).
+ *   /directory  — the Member Directory sub-app. It brings its OWN sign-in
+ *                 gate and canvas, and is also served on its own subdomain
+ *                 (middleware rewrites every path on directory.* to it).
  */
 export function PublicRouteSwitch({
   app,
@@ -28,7 +32,9 @@ export function PublicRouteSwitch({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  if (pathname?.startsWith("/share/")) return <>{children}</>;
+  if (pathname?.startsWith("/share/") || pathname?.startsWith("/directory")) {
+    return <>{children}</>;
+  }
   return <>{app}</>;
 }
 
