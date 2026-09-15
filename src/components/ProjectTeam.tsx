@@ -6,6 +6,8 @@ import { Users, Coffee, ArrowUpRight, Armchair } from "lucide-react";
 
 /** Clock app's pseudo-project for "present, no project". */
 const STANDBY_ID = "standby";
+/** Clock app's pseudo-project for "working, not on a project" (ops/admin). */
+const GENERAL_ID = "general";
 import { api } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
 import { useFocusRefresh } from "@/lib/use-focus-refresh";
@@ -160,7 +162,9 @@ export function ProjectTeam({ projectId }: { projectId: string }) {
         {sorted.map((m) => {
           const here = m.active?.projectId === projectId;
           const onStandby = m.active?.projectId === STANDBY_ID;
-          const elsewhere = m.active && !here && !onStandby ? m.active.projectId : null;
+          const onGeneral = m.active?.projectId === GENERAL_ID;
+          const elsewhere =
+            m.active && !here && !onStandby && !onGeneral ? m.active.projectId : null;
           const openHere = m.tasks.filter(
             (t) => t.projectId === projectId && t.status !== "done"
           ).length;
@@ -175,6 +179,11 @@ export function ProjectTeam({ projectId }: { projectId: string }) {
                 <span
                   className="inline-flex h-2.5 w-2.5 rounded-full bg-violet-500 shrink-0"
                   title="On standby — available for assignment"
+                />
+              ) : onGeneral ? (
+                <span
+                  className="inline-flex h-2.5 w-2.5 rounded-full bg-teal-500 shrink-0"
+                  title="On general duty — non-project work"
                 />
               ) : elsewhere ? (
                 <span
@@ -197,6 +206,10 @@ export function ProjectTeam({ projectId }: { projectId: string }) {
                   <p className="text-[12px] truncate text-violet-600 dark:text-violet-400">
                     <Armchair size={11} className="inline mr-1 -mt-0.5" />
                     On standby — available for assignment
+                  </p>
+                ) : onGeneral ? (
+                  <p className="text-[12px] truncate text-teal-600 dark:text-teal-400">
+                    On general duty — non-project work
                   </p>
                 ) : elsewhere ? (
                   <Link

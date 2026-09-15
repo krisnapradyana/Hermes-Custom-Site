@@ -85,8 +85,13 @@ export async function updateTeamStatus(): Promise<void> {
         fetchPulse(),
         fetchDaily(),
       ]);
+      // Pseudo-projects from the clock app get readable names in the digest.
       const pname = (id: string) =>
-        projects.find((p) => p.id === id)?.name ?? "a deleted project";
+        id === "standby"
+          ? "Standby (present, no project)"
+          : id === "general"
+            ? "General duty (non-project work: ops/admin/studio management)"
+            : (projects.find((p) => p.id === id)?.name ?? "a deleted project");
 
       const tasksByProject = new Map<string, Task[]>();
       for (const p of projects) {

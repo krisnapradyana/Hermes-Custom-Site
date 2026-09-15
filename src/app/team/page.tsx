@@ -8,6 +8,7 @@ import {
   ListChecks,
   Calendar,
   Armchair,
+  Building2,
   FolderKanban,
 } from "lucide-react";
 import { api } from "@/lib/api";
@@ -24,6 +25,9 @@ import { CountUp } from "@/components/CountUp";
 
 const STANDBY_ID = "standby";
 const STANDBY_COLOR = "#8b5cf6";
+/** Clock app's pseudo-project for "working, not on a project" (ops/admin). */
+const GENERAL_ID = "general";
+const GENERAL_COLOR = "#0d9488";
 
 interface MemberTask {
   id: string;
@@ -57,7 +61,7 @@ interface Profile {
   avatar?: string;
 }
 
-type Status = "duty" | "standby" | "break" | "off";
+type Status = "duty" | "general" | "standby" | "break" | "off";
 
 const fmtH = (ms: number): string => {
   const h = Math.floor(ms / 3600_000);
@@ -80,7 +84,15 @@ const initials = (name: string) =>
     .join("");
 
 const statusOf = (m: MemberPulse): Status =>
-  !m.active ? "off" : m.active.breakAt ? "break" : m.active.projectId === STANDBY_ID ? "standby" : "duty";
+  !m.active
+    ? "off"
+    : m.active.breakAt
+      ? "break"
+      : m.active.projectId === STANDBY_ID
+        ? "standby"
+        : m.active.projectId === GENERAL_ID
+          ? "general"
+          : "duty";
 
 const STATUS_TASK_CLS: Record<MemberTask["status"], string> = {
   todo: "bg-parchment-dark text-ink-soft",
@@ -106,6 +118,13 @@ function StatusChip({ s }: { s: Status }) {
       <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-500/10 px-2.5 py-1 text-[11.5px] font-medium text-violet-600 dark:text-violet-400">
         <Armchair size={11} />
         Standby
+      </span>
+    );
+  if (s === "general")
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-teal-500/10 px-2.5 py-1 text-[11.5px] font-medium text-teal-600 dark:text-teal-400 whitespace-nowrap">
+        <Building2 size={11} />
+        General duty
       </span>
     );
   if (s === "break")
@@ -170,24 +189,32 @@ export default function TeamPage() {
   }, [load]);
 
   const projectName = (id: string) =>
-    id === STANDBY_ID ? "Standby" : (data?.projects[id]?.name ?? "Deleted project");
+    id === STANDBY_ID
+      ? "Standby"
+      : id === GENERAL_ID
+        ? "General duty"
+        : (data?.projects[id]?.name ?? "Deleted project");
   const projectColor = (id: string) =>
-    id === STANDBY_ID ? STANDBY_COLOR : (data?.projects[id]?.color ?? "#888888");
+    id === STANDBY_ID
+      ? STANDBY_COLOR
+      : id === GENERAL_ID
+        ? GENERAL_COLOR
+        : (data?.projects[id]?.color ?? "#888888");
 
   const members = data?.members ?? [];
   const counts = {
     total: members.length,
-    duty: members.filter((m) => statusOf(m) === "duty" || statusOf(m) === "standby").length,
+    duty: members.filter((m) => ["duty", "general", "standby"].includes(statusOf(m))).length,
     break: members.filter((m) => statusOf(m) === "break").length,
     off: members.filter((m) => statusOf(m) === "off").length,
   };
 
-  const rank: Record<Status, number> = { duty: 0, standby: 1, break: 2, off: 3 };
+  const rank: Record<Status, number> = { duty: 0, general: 1, standby: 2, break: 3, off: 4 };
   const rows = members
     .filter((m) => {
       if (filter === "all") return true;
       const s = statusOf(m);
-      return filter === "duty" ? s === "duty" || s === "standby" : s === filter;
+      return filter === "duty" ? ["duty", "general", "standby"].includes(s) : s === filter;
     })
     .sort((a, b) => rank[statusOf(a)] - rank[statusOf(b)] || b.weekMs - a.weekMs);
 
@@ -196,6 +223,8 @@ export default function TeamPage() {
     if (!m.active) return { text: "—" };
     if (m.active.projectId === STANDBY_ID)
       return { text: "Standby — available for assignment", color: STANDBY_COLOR };
+    if (m.active.projectId === GENERAL_ID)
+      return { text: "General duty — non-project work", color: GENERAL_COLOR };
     const doing = m.tasks.find((t) => t.projectId === m.active!.projectId && t.status === "doing");
     const proj = projectName(m.active.projectId);
     return { text: doing ? `${doing.title} · ${proj}` : proj };
