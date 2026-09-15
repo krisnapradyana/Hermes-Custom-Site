@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createTask, Person } from "@/lib/tasks-store";
+import { createTask, listTasks, Person } from "@/lib/tasks-store";
 import { readProjects } from "@/lib/projects-store";
 import { readMembers } from "@/lib/members-store";
 import { notifyTaskAssigned } from "@/lib/slack-notify";
@@ -29,6 +29,43 @@ export const dynamic = "force-dynamic";
  */
 
 const HERMES: Person = { key: "hermes", name: "Hermes" };
+
+/**
+ * The clock app's "My tasks" feed: every OPEN task assigned to one member,
+ * across all non-archived projects. (?assignee=<slack id>)
+ */
+export async function GET(req: NextRequest) {
+  const token = process.env.INTERNAL_TOKEN;
+  if (!token) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (req.headers.get("x-internal-token") !== token) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  const assignee = req.nextUrl.searchParams.get("assignee");
+  if (!assignee) return NextResponse.json({ error: "assignee required" }, { status: 400 });
+
+  const projects = (await readProjects()).filter((p) => !p.archived);
+  const tasks = [];
+  for (const p of projects) {
+    for (const t of await listTasks(p.id)) {
+      if (t.assignee?.key !== assignee) continue;
+      if (t.status === "done" || t.kind === "milestone" || t.archivedAt) continue;
+      tasks.push({
+        id: t.id,
+        projectId: t.projectId,
+        title: t.title,
+        note: t.note,
+        phase: t.phase,
+        status: t.status,
+        statusNote: t.statusNote,
+        dueDate: t.dueDate,
+        updatedAt: t.updatedAt,
+      });
+    }
+  }
+  // Soonest deadline first; undated last.
+  tasks.sort((a, b) => (a.dueDate ?? "9999").localeCompare(b.dueDate ?? "9999"));
+  return NextResponse.json({ tasks });
+}
 
 export async function POST(req: NextRequest) {
   const token = process.env.INTERNAL_TOKEN;
