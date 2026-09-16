@@ -248,7 +248,7 @@ export default function SchedulePage() {
                         <Link
                           prefetch={false}
                           href={`/projects/${encodeURIComponent(p.id)}`}
-                          className="text-[13px] font-medium truncate hover:text-accent transition-colors"
+                          className="text-[13px] font-medium truncate uppercase hover:text-accent transition-colors"
                           title={`Open ${p.name}`}
                         >
                           {p.name}
@@ -385,7 +385,7 @@ export default function SchedulePage() {
               <Link
                 prefetch={false}
                 href={`/projects/${encodeURIComponent(p.id)}`}
-                className="hover:text-ink underline decoration-line"
+                className="uppercase hover:text-ink underline decoration-line"
               >
                 {p.name}
               </Link>
