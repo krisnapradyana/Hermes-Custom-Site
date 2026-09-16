@@ -17,6 +17,13 @@ export function renderMarkdown(md: string): string {
   const out: string[] = [];
   let inList: "ul" | "ol" | false = false;
 
+  // Running number for ordered items. Agent output loves the pattern
+  // "1. Item / <bullets under it> / 1. Next item" — the bullet block splits
+  // the <ol>, and a naive renderer restarts every fragment at 1 ("1. 1. 1.").
+  // The counter survives list interruptions and only resets at real prose,
+  // headings, or tables; resumed fragments carry start="N".
+  let olCounter = 0;
+
   const closeList = () => {
     if (inList) {
       out.push(`</${inList}>`);
@@ -26,7 +33,9 @@ export function renderMarkdown(md: string): string {
   const openList = (kind: "ul" | "ol") => {
     if (inList !== kind) {
       closeList();
-      out.push(`<${kind} class="md-${kind}">`);
+      out.push(
+        kind === "ol" ? `<ol class="md-ol" start="${olCounter + 1}">` : `<ul class="md-ul">`
+      );
       inList = kind;
     }
   };
@@ -47,6 +56,7 @@ export function renderMarkdown(md: string): string {
 
     if (isRow(line) && i + 1 < lines.length && isSep(lines[i + 1])) {
       closeList();
+      olCounter = 0;
       const head = cells(line);
       const rows: string[][] = [];
       let j = i + 2;
@@ -68,6 +78,7 @@ export function renderMarkdown(md: string): string {
     const h = line.match(/^(#{1,4})\s+(.*)/);
     if (h) {
       closeList();
+      olCounter = 0;
       const lvl = h[1].length;
       out.push(`<h${lvl + 2} class="md-h">${inline(h[2])}</h${lvl + 2}>`);
       continue;
@@ -82,6 +93,7 @@ export function renderMarkdown(md: string): string {
     const oli = line.match(/^\s*\d+[.)]\s+(.*)/);
     if (oli) {
       openList("ol");
+      olCounter++;
       out.push(`<li>${inline(oli[1])}</li>`);
       continue;
     }
@@ -103,6 +115,7 @@ export function renderMarkdown(md: string): string {
       continue;
     }
     closeList();
+    olCounter = 0;
     out.push(`<p class="md-p">${inline(line)}</p>`);
   }
   closeList();
