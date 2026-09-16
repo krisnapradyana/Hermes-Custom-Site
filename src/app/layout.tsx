@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import "@fontsource-variable/plus-jakarta-sans";
 import "./globals.css";
 import { Sidebar } from "@/components/Sidebar";
@@ -11,7 +12,13 @@ export const metadata: Metadata = {
   description: "SuperPixel Assistant — chat, projects, artifacts and scheduled jobs.",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // The directory subdomain serves pages bare (no sidebar/shell). The client
+  // router still sees "/" there (middleware rewrites are invisible to it), so
+  // PublicRouteSwitch can't detect this case — the HOST is the truth, and
+  // only the server sees it before first paint.
+  const host = (await headers()).get("host") ?? "";
+  const bareHost = host.startsWith("directory.");
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -24,6 +31,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="antialiased">
         <Providers>
+          {bareHost ? (
+            children
+          ) : (
+            <>
           <UpdateGuard />
           <PublicRouteSwitch
             app={
@@ -40,6 +51,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           >
             {children}
           </PublicRouteSwitch>
+            </>
+          )}
         </Providers>
       </body>
     </html>
