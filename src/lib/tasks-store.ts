@@ -24,6 +24,21 @@ export interface Person {
   name: string;
 }
 
+/**
+ * Reference link on a task — a shared doc, sheet, deck, Figma file, any URL.
+ * Pure pointer: nothing is fetched, no title/favicon lookup. The UI infers an
+ * icon from the hostname; the label falls back to the hostname.
+ */
+export interface TaskLink {
+  id: string;
+  url: string; // http(s) only
+  label?: string;
+  addedBy: Person;
+  addedAt: string;
+}
+
+export const MAX_TASK_LINKS = 10;
+
 export interface Task {
   id: string;
   projectId: string;
@@ -40,12 +55,43 @@ export interface Task {
   createdBy: Person;
   createdAt: string;
   updatedAt: string;
+  /** Reference links (docs, sheets, decks, anything). Absent = none. */
+  links?: TaskLink[];
   /** Set when the task is swept into the project archive. */
   archivedAt?: string;
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const isoDate = (v?: string) => (v && ISO_DATE.test(v) ? v : undefined);
+
+/** Accept only well-formed http(s) URLs; returns the normalized href or null. */
+export function normalizeLinkUrl(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const s = raw.trim();
+  if (!s || s.length > 2048) return null;
+  try {
+    const u = new URL(/^[a-z][a-z0-9+.-]*:/i.test(s) ? s : `https://${s}`);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    if (!u.hostname.includes(".") && u.hostname !== "localhost") return null;
+    return u.href;
+  } catch {
+    return null;
+  }
+}
+
+/** Build a TaskLink from loose input, or null when the URL is unusable. */
+function makeLink(input: { url?: unknown; label?: unknown }, by: Person): TaskLink | null {
+  const url = normalizeLinkUrl(input.url);
+  if (!url) return null;
+  const label = typeof input.label === "string" ? input.label.trim().slice(0, 120) : "";
+  return {
+    id: `link-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    url,
+    label: label || undefined,
+    addedBy: by,
+    addedAt: new Date().toISOString(),
+  };
+}
 
 const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), "data");
 const DIR = path.join(DATA_DIR, "tasks");
@@ -148,11 +194,16 @@ export function createTask(
     startDate?: string;
     dueDate?: string;
     kind?: "task" | "milestone";
+    links?: { url?: unknown; label?: unknown }[];
   }
 ): Promise<Task> {
   return withLock(LOCK, async () => {
     const tasks = await read(projectId);
     const now = new Date().toISOString();
+    const links = (Array.isArray(data.links) ? data.links : [])
+      .map((l) => makeLink(l, by))
+      .filter((l): l is TaskLink => !!l)
+      .slice(0, MAX_TASK_LINKS);
     const task: Task = {
       id: `task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       projectId,
@@ -167,10 +218,60 @@ export function createTask(
       createdBy: by,
       createdAt: now,
       updatedAt: now,
+      links: links.length ? links : undefined,
     };
     tasks.push(task);
     await write(projectId, tasks);
     return task;
+  });
+}
+
+/**
+ * Reference links are collaborative: ANYONE signed in may attach or detach
+ * one (unlike status/edit, which stay with the assignee or creator). They're
+ * pointers, cheap to re-add, and the usual case is a teammate dropping the
+ * sheet or deck the assignee needs. Adding does not bump updatedAt — a link
+ * is context, not progress, and must not restart the 14-day archive clock.
+ */
+export function addTaskLink(
+  projectId: string,
+  taskId: string,
+  by: Person,
+  input: { url?: unknown; label?: unknown }
+): Promise<Task | { error: string; code: number }> {
+  return withLock(LOCK, async () => {
+    const tasks = await read(projectId);
+    const t = tasks.find((x) => x.id === taskId);
+    if (!t) return { error: "Task not found", code: 404 };
+    const link = makeLink(input, by);
+    if (!link) return { error: "That doesn't look like a valid http(s) link", code: 400 };
+    const links = t.links ?? [];
+    if (links.length >= MAX_TASK_LINKS) {
+      return { error: `A task can hold at most ${MAX_TASK_LINKS} links`, code: 400 };
+    }
+    if (links.some((l) => l.url === link.url)) {
+      return { error: "That link is already on this task", code: 409 };
+    }
+    t.links = [...links, link];
+    await write(projectId, tasks);
+    return t;
+  });
+}
+
+export function removeTaskLink(
+  projectId: string,
+  taskId: string,
+  linkId: string
+): Promise<Task | { error: string; code: number }> {
+  return withLock(LOCK, async () => {
+    const tasks = await read(projectId);
+    const t = tasks.find((x) => x.id === taskId);
+    if (!t) return { error: "Task not found", code: 404 };
+    const next = (t.links ?? []).filter((l) => l.id !== linkId);
+    if (next.length === (t.links ?? []).length) return { error: "Link not found", code: 404 };
+    t.links = next.length ? next : undefined;
+    await write(projectId, tasks);
+    return t;
   });
 }
 
