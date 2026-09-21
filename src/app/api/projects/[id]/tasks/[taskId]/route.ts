@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePerson } from "@/lib/user-key";
-import { updateTask, deleteTask, Person, TaskStatus } from "@/lib/tasks-store";
+import {
+  updateTask,
+  deleteTask,
+  addTaskLink,
+  removeTaskLink,
+  Person,
+  TaskStatus,
+} from "@/lib/tasks-store";
 import { readProjects } from "@/lib/projects-store";
 import { notifyTaskAssigned } from "@/lib/slack-notify";
 import { scheduleTeamStatusUpdate } from "@/lib/team-status";
@@ -25,11 +32,32 @@ export async function PATCH(
     statusNote?: string;
     startDate?: string | null;
     dueDate?: string | null;
+    /** Reference links — open to anyone signed in, see tasks-store. */
+    addLink?: { url?: string; label?: string };
+    removeLink?: string;
   };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+  }
+
+  // Link ops are their own verb: no assignee/creator gate, no updatedAt bump.
+  if (body.addLink || body.removeLink) {
+    const { addLink, removeLink, ...rest } = body;
+    if (Object.keys(rest).length > 0) {
+      return NextResponse.json(
+        { error: "Send link changes in their own request" },
+        { status: 400 }
+      );
+    }
+    const linkResult = addLink
+      ? await addTaskLink(id, taskId, gate.person, addLink)
+      : await removeTaskLink(id, taskId, removeLink!);
+    if ("error" in linkResult) {
+      return NextResponse.json({ error: linkResult.error }, { status: linkResult.code });
+    }
+    return NextResponse.json({ task: linkResult });
   }
 
   const result = await updateTask(id, taskId, gate.person.key, body);

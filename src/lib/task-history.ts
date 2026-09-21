@@ -49,6 +49,13 @@ export async function updateTaskHistory(projectId: string): Promise<void> {
           if (t.note) lines.push(`  - Brief: ${t.note.replace(/\s+/g, " ").slice(0, 300)}`);
           if (t.statusNote)
             lines.push(`  - Last feedback: ${t.statusNote.replace(/\s+/g, " ").slice(0, 300)}`);
+          for (const l of t.links ?? []) {
+            let host = "";
+            try {
+              host = new URL(l.url).hostname.replace(/^www\./, "");
+            } catch {}
+            lines.push(`  - Link: [${l.label || host || l.url}](${l.url})`);
+          }
         }
         lines.push("");
       }

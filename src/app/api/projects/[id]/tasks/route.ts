@@ -29,6 +29,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     startDate?: string;
     dueDate?: string;
     kind?: "task" | "milestone";
+    links?: { url?: string; label?: string }[];
   };
   try {
     body = await req.json();
@@ -47,6 +48,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     startDate: body.startDate,
     dueDate: body.dueDate,
     kind: body.kind,
+    links: body.links,
   });
 
   // DM the assignee via the Hermes Slack bot (skip self-assignment).

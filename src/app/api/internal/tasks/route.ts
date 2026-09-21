@@ -26,6 +26,7 @@ export const dynamic = "force-dynamic";
  *   startDate  — optional, YYYY-MM-DD
  *   phase      — optional, e.g. "Animation"
  *   note       — optional description
+ *   links      — optional [{ url, label? }] reference links (docs, sheets, decks…)
  */
 
 const HERMES: Person = { key: "hermes", name: "Hermes" };
@@ -82,6 +83,7 @@ export async function POST(req: NextRequest) {
     startDate?: string;
     phase?: string;
     note?: string;
+    links?: { url?: string; label?: string }[];
   };
   try {
     body = await req.json();
@@ -103,14 +105,15 @@ export async function POST(req: NextRequest) {
   const projects = (await readProjects()).filter((p) => !p.archived);
   const q = projectQuery.toLowerCase();
   let project =
-    projects.find((p) => p.id === projectQuery) ??
-    projects.find((p) => p.name.toLowerCase() === q);
+    projects.find((p) => p.id === projectQuery) ?? projects.find((p) => p.name.toLowerCase() === q);
   if (!project) {
     const partial = projects.filter((p) => p.name.toLowerCase().includes(q));
     if (partial.length === 1) project = partial[0];
     else if (partial.length > 1) {
       return NextResponse.json(
-        { error: `"${projectQuery}" matches several projects: ${partial.map((p) => p.name).join(", ")} — be more specific` },
+        {
+          error: `"${projectQuery}" matches several projects: ${partial.map((p) => p.name).join(", ")} — be more specific`,
+        },
         { status: 400 }
       );
     }
@@ -132,15 +135,15 @@ export async function POST(req: NextRequest) {
     } else {
       const members = await readMembers();
       const aq = rawAssignee.toLowerCase();
-      let member =
-        members.find((m) => m.name.toLowerCase() === aq) ??
-        undefined;
+      let member = members.find((m) => m.name.toLowerCase() === aq) ?? undefined;
       if (!member) {
         const partial = members.filter((m) => m.name.toLowerCase().includes(aq));
         if (partial.length === 1) member = partial[0];
         else if (partial.length > 1) {
           return NextResponse.json(
-            { error: `"${rawAssignee}" matches several members: ${partial.map((m) => m.name).join(", ")}` },
+            {
+              error: `"${rawAssignee}" matches several members: ${partial.map((m) => m.name).join(", ")}`,
+            },
             { status: 400 }
           );
         }
@@ -153,7 +156,9 @@ export async function POST(req: NextRequest) {
       }
       if (!member.slackId) {
         return NextResponse.json(
-          { error: `${member.name} has no Slack account linked in the member directory yet — link it there first, or pass their Slack id directly` },
+          {
+            error: `${member.name} has no Slack account linked in the member directory yet — link it there first, or pass their Slack id directly`,
+          },
           { status: 409 }
         );
       }
@@ -168,6 +173,7 @@ export async function POST(req: NextRequest) {
     assignee,
     startDate: body.startDate,
     dueDate: body.dueDate,
+    links: body.links,
   });
 
   if (task.assignee) {

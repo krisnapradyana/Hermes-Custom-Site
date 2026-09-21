@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { useSession } from "next-auth/react";
 import {
   Plus,
@@ -13,6 +13,7 @@ import {
   ChevronRight,
   RotateCcw,
   Diamond,
+  Link2,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
@@ -31,6 +32,14 @@ interface Person {
   name: string;
 }
 
+export interface TaskLink {
+  id: string;
+  url: string;
+  label?: string;
+  addedBy: Person;
+  addedAt: string;
+}
+
 export interface Task {
   id: string;
   projectId: string;
@@ -46,6 +55,204 @@ export interface Task {
   createdBy: Person;
   createdAt: string;
   updatedAt: string;
+  links?: TaskLink[];
+}
+
+const MAX_LINKS = 10;
+
+// ---- reference links: host → glyph. Purely cosmetic, nothing is fetched. ----
+type LinkKind = {
+  glyph: string;
+  cls: string;
+  short: string;
+};
+const LINK_KINDS: { test: RegExp; kind: LinkKind }[] = [
+  { test: /docs\.google\.com\/document/, kind: { glyph: "D", cls: "bg-[#4285f4]", short: "docs" } },
+  {
+    test: /docs\.google\.com\/spreadsheets/,
+    kind: { glyph: "≣", cls: "bg-[#34a853]", short: "sheets" },
+  },
+  {
+    test: /docs\.google\.com\/presentation/,
+    kind: { glyph: "S", cls: "bg-[#fbbc04] !text-[#1e2433]", short: "slides" },
+  },
+  {
+    test: /docs\.google\.com\/forms/,
+    kind: { glyph: "F", cls: "bg-[#7248b9]", short: "forms" },
+  },
+  {
+    test: /drive\.google\.com/,
+    kind: {
+      glyph: "▲",
+      cls: "bg-[linear-gradient(135deg,#4285f4,#34a853,#fbbc04)]",
+      short: "drive",
+    },
+  },
+  { test: /figma\.com/, kind: { glyph: "F", cls: "bg-[#a259ff]", short: "figma" } },
+  { test: /slack\.com/, kind: { glyph: "#", cls: "bg-[#611f69]", short: "slack" } },
+  { test: /notion\.(so|site)/, kind: { glyph: "N", cls: "bg-[#1e2433]", short: "notion" } },
+  { test: /frame\.io/, kind: { glyph: "▶", cls: "bg-[#5b53ff]", short: "frame.io" } },
+  {
+    test: /(youtube\.com|youtu\.be|vimeo\.com)/,
+    kind: { glyph: "▶", cls: "bg-[#e5484d]", short: "video" },
+  },
+  { test: /\.pdf(\?|#|$)/i, kind: { glyph: "P", cls: "bg-[#e5484d]", short: "pdf" } },
+  { test: /(github\.com|gitlab\.com)/, kind: { glyph: "<>", cls: "bg-[#24292f]", short: "repo" } },
+];
+const GENERIC_KIND: LinkKind = { glyph: "↗", cls: "bg-ink-faint", short: "" };
+
+function linkKind(url: string): LinkKind {
+  return LINK_KINDS.find((k) => k.test.test(url))?.kind ?? GENERIC_KIND;
+}
+function linkHost(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+/** Loose client-side check mirroring the server: http(s), has a dot. */
+function looksLikeUrl(s: string): boolean {
+  const v = s.trim();
+  if (!v) return false;
+  try {
+    const u = new URL(/^[a-z][a-z0-9+.-]*:/i.test(v) ? v : `https://${v}`);
+    return (u.protocol === "http:" || u.protocol === "https:") && u.hostname.includes(".");
+  } catch {
+    return false;
+  }
+}
+
+function LinkChip({
+  link,
+  onRemove,
+}: {
+  link: { url: string; label?: string };
+  /** When given, an ✕ appears on hover and removal is one click. */
+  onRemove?: () => void;
+}) {
+  const kind = linkKind(link.url);
+  const host = linkHost(link.url);
+  return (
+    <span className="group/chip inline-flex max-w-full items-center gap-1.5 rounded-full border border-line bg-parchment pl-1 pr-2 py-[2px] text-[12px] text-ink-soft transition-colors hover:border-accent hover:text-accent">
+      <a
+        href={link.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={link.url}
+        className="inline-flex min-w-0 items-center gap-1.5"
+      >
+        <span
+          className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-[9px] font-bold text-white ${kind.cls}`}
+        >
+          {kind.glyph}
+        </span>
+        <span className="truncate max-w-[16rem]">{link.label || host}</span>
+        {link.label && kind.short && (
+          <span className="text-[11px] text-ink-faint">· {kind.short}</span>
+        )}
+      </a>
+      {onRemove && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            onRemove();
+          }}
+          title="Remove link"
+          className="ml-0.5 hidden text-ink-faint hover:text-red-500 group-hover/chip:inline-flex"
+        >
+          <X size={11} />
+        </button>
+      )}
+    </span>
+  );
+}
+
+/** One-line "paste a link + optional label" entry; Enter or the button submits. */
+function LinkEntry({
+  onAdd,
+  onCancel,
+  autoFocus,
+  disabled,
+  compact,
+  error,
+}: {
+  onAdd: (url: string, label: string) => void | Promise<void>;
+  onCancel?: () => void;
+  autoFocus?: boolean;
+  disabled?: boolean;
+  compact?: boolean;
+  error?: string;
+}) {
+  const [url, setUrl] = useState("");
+  const [label, setLabel] = useState("");
+  const valid = looksLikeUrl(url);
+  const submit = async () => {
+    if (!valid || disabled) return;
+    await onAdd(url.trim(), label.trim());
+    setUrl("");
+    setLabel("");
+  };
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      submit();
+    }
+    if (e.key === "Escape" && onCancel) onCancel();
+  };
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <input
+        autoFocus={autoFocus}
+        value={url}
+        onChange={(e) => setUrl(e.target.value)}
+        onKeyDown={onKey}
+        placeholder="Paste a link — Drive, Sheets, Slides, Figma, PDF, any website…"
+        className={`flex-1 min-w-[14rem] rounded-lg border bg-transparent px-3 py-1.5 text-[13px] outline-none focus:border-ink-faint ${
+          url && !valid ? "border-red-500/50" : "border-line"
+        }`}
+      />
+      <input
+        value={label}
+        onChange={(e) => setLabel(e.target.value)}
+        onKeyDown={onKey}
+        placeholder="Label (optional)"
+        className={`rounded-lg border border-line bg-transparent px-3 py-1.5 text-[13px] outline-none focus:border-ink-faint ${
+          compact ? "w-[9rem]" : "w-[11rem]"
+        }`}
+      />
+      <button
+        type="button"
+        onClick={submit}
+        disabled={!valid || disabled}
+        className={
+          compact
+            ? "rounded-lg bg-accent px-3 py-1.5 text-[12px] text-white hover:bg-accent-hover disabled:opacity-40"
+            : "flex items-center gap-1 rounded-lg border border-line px-2.5 py-1.5 text-[12px] text-ink-soft hover:border-ink-faint hover:text-ink disabled:opacity-40"
+        }
+      >
+        {compact ? (
+          "Attach"
+        ) : (
+          <>
+            <Plus size={12} />
+            Add link
+          </>
+        )}
+      </button>
+      {onCancel && (
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-lg px-2 py-1.5 text-[12px] text-ink-soft hover:bg-parchment-dark"
+        >
+          Cancel
+        </button>
+      )}
+      {error && <span className="basis-full text-[12px] text-red-500">{error}</span>}
+    </div>
+  );
 }
 
 const STATUSES: { id: TaskStatus; label: string; cls: string }[] = [
@@ -131,8 +338,24 @@ export function TaskBoard({
   const [startDate, setStartDate] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [kind, setKind] = useState<"task" | "milestone">("task");
+  const [pendingLinks, setPendingLinks] = useState<{ url: string; label?: string }[]>([]);
   const [creating, setCreating] = useState(false);
   const canCreate = title.trim() && (kind === "task" || dueDate);
+
+  const addPendingLink = (url: string, label: string) => {
+    const href = (() => {
+      try {
+        return new URL(/^[a-z][a-z0-9+.-]*:/i.test(url) ? url : `https://${url}`).href;
+      } catch {
+        return url;
+      }
+    })();
+    setPendingLinks((ls) =>
+      ls.length >= MAX_LINKS || ls.some((l) => l.url === href)
+        ? ls
+        : [...ls, { url: href, label: label || undefined }]
+    );
+  };
 
   const create = async () => {
     if (!canCreate || creating) return;
@@ -148,6 +371,7 @@ export function TaskBoard({
         startDate: kind === "task" ? startDate || undefined : undefined,
         dueDate: dueDate || undefined,
         kind,
+        links: pendingLinks.length ? pendingLinks : undefined,
       }
     );
     if (res.ok) {
@@ -156,6 +380,7 @@ export function TaskBoard({
       setPhase("");
       setStartDate("");
       setDueDate("");
+      setPendingLinks([]);
       load();
     } else setError(res.error);
     setCreating(false);
@@ -184,6 +409,38 @@ export function TaskBoard({
     else setError((res as { error: string }).error);
   };
 
+  // ---- reference links on existing tasks (anyone signed in; see tasks-store) ----
+  const [linkFor, setLinkFor] = useState<string | null>(null);
+  const [linkError, setLinkError] = useState("");
+  const [linkBusy, setLinkBusy] = useState(false);
+
+  const patchLinks = async (
+    t: Task,
+    body: { addLink?: { url: string; label?: string }; removeLink?: string }
+  ) => {
+    const res = await api.patch<{ task: Task }>(
+      `/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(t.id)}`,
+      body
+    );
+    if (res.ok) {
+      // Splice the returned task in place — no full reload, no scroll jump.
+      setTasks((ts) => ts?.map((x) => (x.id === t.id ? res.data.task : x)) ?? ts);
+      return "";
+    }
+    return res.error;
+  };
+  const addLink = async (t: Task, url: string, label: string) => {
+    setLinkBusy(true);
+    const err = await patchLinks(t, { addLink: { url, label: label || undefined } });
+    setLinkBusy(false);
+    setLinkError(err);
+    if (!err) setLinkFor(null);
+  };
+  const removeLink = async (t: Task, linkId: string) => {
+    const err = await patchLinks(t, { removeLink: linkId });
+    if (err) setError(err);
+  };
+
   // ---- filters: search + Mine + Overdue + phase ----
   const [q, setQ] = useState("");
   const [mineOnly, setMineOnly] = useState(false);
@@ -200,7 +457,11 @@ export function TaskBoard({
       return (
         t.title.toLowerCase().includes(s) ||
         (t.note ?? "").toLowerCase().includes(s) ||
-        (t.assignee?.name ?? "").toLowerCase().includes(s)
+        (t.assignee?.name ?? "").toLowerCase().includes(s) ||
+        (t.links ?? []).some(
+          (l) =>
+            (l.label ?? "").toLowerCase().includes(s) || linkHost(l.url).toLowerCase().includes(s)
+        )
       );
     }
     return true;
@@ -244,9 +505,7 @@ export function TaskBoard({
 
   const grouped = STATUSES.map((s) => ({
     ...s,
-    items: (tasks ?? []).filter(
-      (t) => t.kind !== "milestone" && t.status === s.id && matches(t)
-    ),
+    items: (tasks ?? []).filter((t) => t.kind !== "milestone" && t.status === s.id && matches(t)),
   }));
   const visibleCount = grouped.reduce((n, g) => n + g.items.length, 0);
   const archivedShown = (archived ?? []).filter(matches);
@@ -284,6 +543,20 @@ export function TaskBoard({
                   >
                     {m.title}
                   </span>
+                  {(m.links ?? []).map((l) => (
+                    <a
+                      key={l.id}
+                      href={l.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={l.label ? `${l.label} — ${l.url}` : l.url}
+                      className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-[9px] font-bold text-white ${
+                        linkKind(l.url).cls
+                      } opacity-80 hover:opacity-100`}
+                    >
+                      {linkKind(l.url).glyph}
+                    </a>
+                  ))}
                   <span
                     className={`text-[12px] tabular-nums shrink-0 ${
                       overdue ? "text-red-500 font-medium" : "text-ink-faint"
@@ -399,10 +672,34 @@ export function TaskBoard({
               />
             </label>
           </div>
+        </div>
+
+        {/* Reference links — docs, sheets, decks, anything with a URL. Pointers only. */}
+        <div className="rounded-lg border border-dashed border-line px-2.5 py-2 space-y-2">
+          <p className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-ink-faint">
+            <Link2 size={12} />
+            Reference links
+            <span className="normal-case tracking-normal font-normal">— optional, any URL</span>
+          </p>
+          {pendingLinks.length < MAX_LINKS && <LinkEntry onAdd={addPendingLink} />}
+          {pendingLinks.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {pendingLinks.map((l) => (
+                <LinkChip
+                  key={l.url}
+                  link={l}
+                  onRemove={() => setPendingLinks((ls) => ls.filter((x) => x.url !== l.url))}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end">
           <button
             onClick={create}
             disabled={!canCreate || creating}
-            className="flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-sm text-white hover:bg-accent-hover disabled:opacity-40 self-end"
+            className="flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-sm text-white hover:bg-accent-hover disabled:opacity-40"
           >
             <Plus size={14} />
             Add
@@ -417,7 +714,7 @@ export function TaskBoard({
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search tasks — title, description, assignee…"
+            placeholder="Search tasks — title, description, assignee, links…"
             className="w-full rounded-lg border border-line bg-card pl-8 pr-8 py-1.5 text-[13px] outline-none focus:border-ink-faint placeholder:text-ink-faint"
           />
           {q && (
@@ -454,7 +751,9 @@ export function TaskBoard({
           value={phaseFilter}
           onChange={(e) => setPhaseFilter(e.target.value)}
           className={`rounded-full border px-2.5 py-1 text-[12px] outline-none ${
-            phaseFilter ? "border-accent bg-accent-soft text-accent" : "border-line bg-card text-ink-soft"
+            phaseFilter
+              ? "border-accent bg-accent-soft text-accent"
+              : "border-line bg-card text-ink-soft"
           }`}
         >
           <option value="">All phases</option>
@@ -550,6 +849,44 @@ export function TaskBoard({
                             <CornerDownRight size={11} className="mt-0.5 shrink-0 text-red-500" />
                             {t.statusNote}
                           </p>
+                        )}
+
+                        {/* Reference links — chips under the meta line, "+ link" at the end. */}
+                        {(t.links?.length || linkFor !== t.id) && (
+                          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                            {(t.links ?? []).map((l) => (
+                              <LinkChip key={l.id} link={l} onRemove={() => removeLink(t, l.id)} />
+                            ))}
+                            {linkFor !== t.id && (t.links?.length ?? 0) < MAX_LINKS && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setLinkFor(t.id);
+                                  setLinkError("");
+                                }}
+                                className="inline-flex items-center gap-1 rounded-full border border-dashed border-line px-2 py-[2px] text-[12px] text-ink-faint hover:border-accent hover:text-accent transition-colors"
+                                title="Attach a reference link"
+                              >
+                                <Plus size={11} />
+                                link
+                              </button>
+                            )}
+                          </div>
+                        )}
+                        {linkFor === t.id && (
+                          <div className="mt-2">
+                            <LinkEntry
+                              compact
+                              autoFocus
+                              disabled={linkBusy}
+                              error={linkError}
+                              onAdd={(url, label) => addLink(t, url, label)}
+                              onCancel={() => {
+                                setLinkFor(null);
+                                setLinkError("");
+                              }}
+                            />
+                          </div>
                         )}
                       </div>
 
