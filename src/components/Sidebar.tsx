@@ -272,15 +272,18 @@ export function Sidebar() {
       {/* Tablet drawer mode: scrim closes on tap; the aside floats above. */}
       {isTablet && (
         <div
-          className="fixed inset-0 z-30 bg-black/25"
+          className="fixed inset-0 z-30 bg-black/35"
           onClick={() => setCollapsed(true)}
           aria-hidden
         />
       )}
       <aside
         key="expanded"
-        className={`glass anim-slide rounded-2xl flex flex-col overflow-hidden ${
-          isTablet ? "fixed left-3 top-3 bottom-3 z-40" : "shrink-0 my-3 ml-3"
+        // Docked (desktop): airy .glass over the calm canvas. Overlay drawer
+        // (tablet): dense .glass-ice — it floats over BUSY content (tables,
+        // chat), where 42%-transparent glass turns to unreadable soup.
+        className={`anim-slide rounded-2xl flex flex-col overflow-hidden ${
+          isTablet ? "glass-ice fixed left-3 top-3 bottom-3 z-40" : "glass shrink-0 my-3 ml-3"
         }`}
         style={{ width }}
       >
