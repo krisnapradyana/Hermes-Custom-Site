@@ -93,16 +93,24 @@ export function ProjectOverview({
       (m.totalByProject ?? []).some((w) => w.projectId === projectId && w.ms > 0) ||
       m.tasks.some((t) => t.projectId === projectId)
   );
-  const workingNow = involved.filter(
-    (m) => m.active?.projectId === projectId && !m.active.breakAt
+  // "On this now" = clocked into THIS project (break included, stated
+  // separately) — the SAME definition ProjectTeam uses, so numbers agree.
+  const onThis = involved.filter((m) => m.active?.projectId === projectId);
+  const onBreakHere = onThis.filter((m) => m.active!.breakAt).length;
+  const elsewhere = involved.filter(
+    (m) => m.active && m.active.projectId !== projectId && m.active.projectId !== "standby"
   ).length;
-  const onBreakHere = involved.filter(
-    (m) => m.active?.projectId === projectId && m.active.breakAt
-  ).length;
+  const standby = involved.filter((m) => m.active?.projectId === "standby").length;
   const manpowerSub =
     involved.length === 0
       ? "no activity yet"
-      : `${workingNow} working now${onBreakHere > 0 ? ` · ${onBreakHere} on break` : ""}`;
+      : [
+          `${onThis.length} on this${onBreakHere > 0 ? ` (${onBreakHere} break)` : ""}`,
+          elsewhere > 0 ? `${elsewhere} elsewhere` : "",
+          standby > 0 ? `${standby} standby` : "",
+        ]
+          .filter(Boolean)
+          .join(" · ");
 
   // ---- window ----
   const hasWindow = !!(startDate && deadline);

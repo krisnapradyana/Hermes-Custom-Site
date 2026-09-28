@@ -107,36 +107,20 @@ export function ProjectTeam({ projectId }: { projectId: string }) {
 
   return (
     <div className="mb-8">
-      {/* Stat strip — the manager's one-glance answer. */}
+      {/* Man-hours — the one stat the Overview strip doesn't carry.
+          (Contributors / Active-now cards removed: they duplicated the
+          Project-manpower card with subtly different definitions.) */}
       {data && sorted.length > 0 && (
-        <div className="grid grid-cols-3 gap-2.5 mb-3">
-          <div className="rounded-xl border border-line bg-card px-3.5 py-2.5">
-            <p className="text-[10.5px] font-medium uppercase tracking-wide text-ink-faint">
-              Total man-hours
-            </p>
-            <p className="text-xl font-medium leading-tight mt-0.5 tabular-nums">
-              <CountUp value={manHours} format={fmtH} />
-            </p>
-            <p className="text-[10.5px] text-ink-faint mt-0.5">total used</p>
-          </div>
-          <div className="rounded-xl border border-line bg-card px-3.5 py-2.5">
-            <p className="text-[10.5px] font-medium uppercase tracking-wide text-ink-faint">
-              Contributors
-            </p>
-            <p className="text-xl font-medium leading-tight mt-0.5">
-              <CountUp value={contributors} />
-            </p>
-            <p className="text-[10.5px] text-ink-faint mt-0.5">people with recorded time</p>
-          </div>
-          <div className="rounded-xl border border-line bg-card px-3.5 py-2.5">
-            <p className="text-[10.5px] font-medium uppercase tracking-wide text-ink-faint">
-              Active now
-            </p>
-            <p className={`text-xl font-medium leading-tight mt-0.5 ${activeNow > 0 ? "text-green-600 dark:text-green-400" : ""}`}>
-              <CountUp value={activeNow} />
-            </p>
-            <p className="text-[10.5px] text-ink-faint mt-0.5">currently clocked in</p>
-          </div>
+        <div className="mb-3 rounded-xl border border-line bg-card px-3.5 py-2.5">
+          <p className="text-[10.5px] font-medium uppercase tracking-wide text-ink-faint">
+            Total man-hours
+          </p>
+          <p className="text-xl font-medium leading-tight mt-0.5 tabular-nums">
+            <CountUp value={manHours} format={fmtH} />
+          </p>
+          <p className="text-[10.5px] text-ink-faint mt-0.5">
+            all-time on this project · {contributors} contributor{contributors === 1 ? "" : "s"}
+          </p>
         </div>
       )}
 
@@ -146,7 +130,7 @@ export function ProjectTeam({ projectId }: { projectId: string }) {
         <p className="text-sm font-medium">Team on this project</p>
         {data && (
           <span className="text-[12px] text-ink-faint">
-            {activeNow} working now
+            {activeNow} on this now
           </span>
         )}
       </div>
@@ -170,7 +154,13 @@ export function ProjectTeam({ projectId }: { projectId: string }) {
           ).length;
           return (
             <div key={m.userKey} className="flex items-center gap-3 rounded-lg px-2 py-1.5">
-              {here ? (
+              {here && m.active!.breakAt ? (
+                // On break here: amber, no pulse — break must not look like work.
+                <span
+                  className="inline-flex h-2.5 w-2.5 rounded-full bg-amber-500 shrink-0"
+                  title="On a break (clocked into this project)"
+                />
+              ) : here ? (
                 <span className="relative flex h-2.5 w-2.5 shrink-0" title="Working on this now">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-60" />
                   <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
