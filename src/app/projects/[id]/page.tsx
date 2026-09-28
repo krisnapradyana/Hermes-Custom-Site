@@ -22,6 +22,7 @@ import { IconButton } from "@/components/ui";
 import { Composer } from "@/components/Composer";
 import { WorkspacePanel } from "@/components/WorkspacePanel";
 import { ProjectTeam } from "@/components/ProjectTeam";
+import { ProjectOverview } from "@/components/ProjectOverview";
 import { ProductionTracker } from "@/components/ProductionTracker";
 import { useFocusRefresh } from "@/lib/use-focus-refresh";
 import { useResizableWidth, ResizeHandle } from "@/components/ResizeHandle";
@@ -355,6 +356,15 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               <p className="text-ink-soft mb-5">{project.description}</p>
             </>
           )}
+
+          {/* At-a-glance stat strip (reference mock): window, completion,
+              manpower, attention — all from data we already track. */}
+          <ProjectOverview
+            projectId={project.id}
+            startDate={project.startDate}
+            deadline={project.deadline}
+            isDone={!!project.doneAt}
+          />
 
           {/* Task board lives on its own page — tasks are work, not chat. */}
           <Link
