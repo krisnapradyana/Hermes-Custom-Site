@@ -176,8 +176,10 @@ export function ProjectTeam({ projectId }: { projectId: string }) {
                   title="On general duty — non-project work"
                 />
               ) : elsewhere ? (
+                // Sky (option B) — distinct from break's amber; blue family
+                // matches the "Currently working on …" link beside it.
                 <span
-                  className="inline-flex h-2.5 w-2.5 rounded-full bg-amber-500 shrink-0"
+                  className="inline-flex h-2.5 w-2.5 rounded-full bg-sky-500 shrink-0"
                   title="Working on another project"
                 />
               ) : (

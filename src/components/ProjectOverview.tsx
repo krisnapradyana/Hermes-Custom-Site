@@ -97,20 +97,10 @@ export function ProjectOverview({
   // separately) — the SAME definition ProjectTeam uses, so numbers agree.
   const onThis = involved.filter((m) => m.active?.projectId === projectId);
   const onBreakHere = onThis.filter((m) => m.active!.breakAt).length;
-  const elsewhere = involved.filter(
-    (m) => m.active && m.active.projectId !== projectId && m.active.projectId !== "standby"
-  ).length;
-  const standby = involved.filter((m) => m.active?.projectId === "standby").length;
   const manpowerSub =
     involved.length === 0
       ? "no activity yet"
-      : [
-          `${onThis.length} on this${onBreakHere > 0 ? ` (${onBreakHere} break)` : ""}`,
-          elsewhere > 0 ? `${elsewhere} elsewhere` : "",
-          standby > 0 ? `${standby} standby` : "",
-        ]
-          .filter(Boolean)
-          .join(" · ");
+      : `${onThis.length} on this${onBreakHere > 0 ? ` (${onBreakHere} on break)` : ""}`;
 
   // ---- window ----
   const hasWindow = !!(startDate && deadline);
