@@ -79,7 +79,23 @@ export interface Project {
   /** Marked done (ISO datetime): green on the schedule and lists — still
    * fully visible and usable, unlike archived. null in a PATCH = reopen. */
   doneAt?: string | null;
+  /** Classification indicators (leadership request): any subset of
+   * "flagship" | "high-budget" | "retainer" | "first-client".
+   * Flagship gates the wrap-up post-mortem flow. */
+  tags?: ProjectTag[];
+  /** Wrap-up record — set when the responsible person submits the
+   * post-mortem form that finalizes "done" on flagship projects. */
+  wrappedBy?: { name: string; slackId?: string; at: string };
 }
+
+export type ProjectTag = "flagship" | "high-budget" | "retainer" | "first-client";
+
+export const PROJECT_TAGS: { id: ProjectTag; label: string }[] = [
+  { id: "flagship", label: "Flagship" },
+  { id: "high-budget", label: "High budget" },
+  { id: "retainer", label: "Retainer" },
+  { id: "first-client", label: "First-time client" },
+];
 
 /** Shared, project-scoped conversation (readable by all; only creator replies). */
 export interface ConversationMeta {

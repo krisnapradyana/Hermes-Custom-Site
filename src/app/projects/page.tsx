@@ -24,7 +24,7 @@ import { ConfirmDeleteModal } from "@/components/ConfirmDeleteModal";
 import { ServerFolderPicker } from "@/components/ServerFolderPicker";
 import { ProjectCalendar, localDateKey } from "@/components/ProjectCalendar";
 import { useFocusRefresh } from "@/lib/use-focus-refresh";
-import { Project } from "@/lib/types";
+import { Project, ProjectTag, PROJECT_TAGS } from "@/lib/types";
 
 interface Thumb {
   sub: string;
@@ -167,6 +167,7 @@ export default function ProjectsPage() {
   const [workingFolder, setWorkingFolder] = useState("");
   const [startDate, setStartDate] = useState("");
   const [deadline, setDeadline] = useState("");
+  const [newTags, setNewTags] = useState<ProjectTag[]>([]);
   const [picking, setPicking] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
@@ -190,6 +191,7 @@ export default function ProjectsPage() {
     setParentFolder("");
     setStartDate("");
     setDeadline("");
+    setNewTags([]);
     setCreateError("");
   };
 
@@ -204,6 +206,7 @@ export default function ProjectsPage() {
           : { workingFolder: workingFolder.trim() }),
         startDate: startDate || undefined,
         deadline: deadline || undefined,
+        tags: newTags.length > 0 ? newTags : undefined,
       });
       resetForm();
       setShowForm(false);
@@ -345,6 +348,38 @@ export default function ProjectsPage() {
               <FolderKanban size={15} style={{ color: p.color }} />
             </div>
             <h2 className="font-medium">{p.name}</h2>
+            {p.tags?.includes("flagship") && (
+              <span
+                className="rounded-full bg-violet-500/15 px-2 py-0.5 text-[10px] text-violet-600 dark:text-violet-400 shrink-0"
+                title="Flagship — big name, publicity, portfolio; wraps through a post-mortem"
+              >
+                ★ Flagship
+              </span>
+            )}
+            {p.tags?.includes("high-budget") && (
+              <span
+                className="rounded-full bg-green-500/15 px-2 py-0.5 text-[10px] text-green-600 dark:text-green-400 shrink-0"
+                title="High budget — commercial priority"
+              >
+                $
+              </span>
+            )}
+            {p.tags?.includes("retainer") && (
+              <span
+                className="rounded-full bg-sky-500/15 px-2 py-0.5 text-[10px] text-sky-600 dark:text-sky-400 shrink-0"
+                title="Retainer — recurring work"
+              >
+                ↻
+              </span>
+            )}
+            {p.tags?.includes("first-client") && (
+              <span
+                className="rounded-full bg-pink-500/15 px-2 py-0.5 text-[10px] text-pink-600 dark:text-pink-400 shrink-0"
+                title="First-time client — protect the experience"
+              >
+                1st
+              </span>
+            )}
             {p.doneAt && (
               <span className="rounded-full bg-green-500/15 px-2 py-0.5 text-[10px] text-green-600 dark:text-green-400 shrink-0">
                 Done
@@ -596,6 +631,39 @@ export default function ProjectsPage() {
                     className="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:border-ink-faint"
                   />
                 </label>
+              </div>
+              {/* Classification tags (leadership request) — any subset. */}
+              <div>
+                <span className="block text-sm font-medium mb-1.5">
+                  Project type <span className="text-ink-faint font-normal">— pick any that apply</span>
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {PROJECT_TAGS.map((t) => {
+                    const on = newTags.includes(t.id);
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() =>
+                          setNewTags((cur) =>
+                            on ? cur.filter((x) => x !== t.id) : [...cur, t.id]
+                          )
+                        }
+                        className={`rounded-full px-3 py-1 text-[12px] font-medium border transition-colors ${
+                          on
+                            ? "border-accent bg-accent-soft text-accent"
+                            : "border-line text-ink-soft hover:border-ink-faint"
+                        }`}
+                      >
+                        {t.label}
+                        {on ? " ✓" : ""}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-1 text-[11px] text-ink-faint">
+                  Flagship projects wrap through a post-mortem form when marked done.
+                </p>
               </div>
               {/* Permanence warning — the folder choice is forever. */}
               <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-[12.5px] text-amber-600 dark:text-amber-400">

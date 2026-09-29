@@ -19,7 +19,10 @@ const EDITABLE: (keyof Project)[] = [
   "doneAt",
   "startDate",
   "deadline",
+  "tags",
 ];
+
+const TAG_IDS = ["flagship", "high-budget", "retainer", "first-client"];
 
 const isoDate = (v: unknown) =>
   typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined;
@@ -61,6 +64,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     // doneAt: any non-empty string marks done (client sends an ISO datetime);
     // null/empty reopens.
     if (typeof next.doneAt !== "string" || !next.doneAt) next.doneAt = undefined;
+    // tags: whitelist to the known ids; anything else is dropped.
+    next.tags = Array.isArray(next.tags)
+      ? next.tags.filter((t: unknown) => typeof t === "string" && TAG_IDS.includes(t))
+      : undefined;
+    if (Array.isArray(next.tags) && next.tags.length === 0) next.tags = undefined;
     updated = next as unknown as Project;
     return list.map((p, i) => (i === idx ? updated! : p));
   });

@@ -125,6 +125,9 @@ export async function POST(req: NextRequest) {
       startDate: isoDate(body.startDate),
       deadline: isoDate(body.deadline),
       createdBy: by,
+      tags: Array.isArray(body.tags)
+        ? body.tags.filter((t) => ["flagship", "high-budget", "retainer", "first-client"].includes(t))
+        : undefined,
     };
     return [...list, project];
   });

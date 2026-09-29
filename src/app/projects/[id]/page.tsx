@@ -23,6 +23,8 @@ import { Composer } from "@/components/Composer";
 import { WorkspacePanel } from "@/components/WorkspacePanel";
 import { ProjectTeam } from "@/components/ProjectTeam";
 import { ProjectOverview } from "@/components/ProjectOverview";
+import { PostMortemCard } from "@/components/PostMortemCard";
+import { PROJECT_TAGS, ProjectTag } from "@/lib/types";
 import { ProductionTracker } from "@/components/ProductionTracker";
 import { useFocusRefresh } from "@/lib/use-focus-refresh";
 import { useResizableWidth, ResizeHandle } from "@/components/ResizeHandle";
@@ -147,6 +149,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [editDesc, setEditDesc] = useState("");
   const [editStart, setEditStart] = useState("");
   const [editEnd, setEditEnd] = useState("");
+  const [editTags, setEditTags] = useState<ProjectTag[]>([]);
   const [saving, setSaving] = useState(false);
   const saveEdit = async () => {
     if (!editName.trim() || !editStart || !editEnd || saving) return;
@@ -156,6 +159,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       description: editDesc.trim(),
       startDate: editStart,
       deadline: editEnd,
+      tags: editTags,
     });
     setSaving(false);
     setEditing(false);
@@ -218,17 +222,26 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 {summarizing ? "Preparing…" : "Summarize"}
               </button>
               {/* Done: green everywhere (schedule, lists) but stays fully
-                  usable — unlike archive, which hides. Reversible. */}
+                  usable — unlike archive, which hides. Reversible.
+                  FLAGSHIP projects don't finish with a click: Mark done
+                  routes to the wrap-up form, and submitting THAT is what
+                  flips doneAt (leadership post-mortem flow). */}
               <button
-                onClick={() =>
+                onClick={() => {
+                  if (!project.doneAt && project.tags?.includes("flagship")) {
+                    router.push(`/projects/${encodeURIComponent(project.id)}/wrap`);
+                    return;
+                  }
                   updateProject(project.id, {
                     doneAt: project.doneAt ? null : new Date().toISOString(),
-                  })
-                }
+                  });
+                }}
                 title={
                   project.doneAt
                     ? `Done ${new Date(project.doneAt).toLocaleDateString()} — click to reopen`
-                    : "Mark the project as done (green on the schedule)"
+                    : project.tags?.includes("flagship")
+                      ? "Flagship — opens the wrap-up form; the project is done when it's submitted"
+                      : "Mark the project as done (green on the schedule)"
                 }
                 className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] transition-colors ${
                   project.doneAt
@@ -237,7 +250,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 }`}
               >
                 <CheckCircle2 size={13} />
-                {project.doneAt ? "Done — reopen" : "Mark done"}
+                {project.doneAt
+                  ? "Done — reopen"
+                  : project.tags?.includes("flagship")
+                    ? "Wrap up & mark done"
+                    : "Mark done"}
               </button>
               {/* Edit name / description / schedule — always visible. */}
               <button
@@ -246,6 +263,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                   setEditDesc(project.description ?? "");
                   setEditStart(project.startDate ?? "");
                   setEditEnd(project.deadline ?? "");
+                  setEditTags(project.tags ?? []);
                   setEditing(true);
                 }}
                 className="flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-[12px] text-ink-soft hover:border-ink-faint hover:text-ink transition-colors"
@@ -322,6 +340,40 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                   />
                 </label>
               </div>
+              {/* Classification tags (leadership request) — any subset. */}
+              <div>
+                <span className="block text-[12px] font-medium mb-1 text-ink-soft">
+                  Project type — pick any that apply
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {PROJECT_TAGS.map((t) => {
+                    const on = editTags.includes(t.id);
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() =>
+                          setEditTags((cur) =>
+                            on ? cur.filter((x) => x !== t.id) : [...cur, t.id]
+                          )
+                        }
+                        className={`rounded-full px-3 py-1 text-[12px] font-medium border transition-colors ${
+                          on
+                            ? "border-accent bg-accent-soft text-accent"
+                            : "border-line text-ink-soft hover:border-ink-faint"
+                        }`}
+                      >
+                        {t.label}
+                        {on ? " ✓" : ""}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-1 text-[11px] text-ink-faint">
+                  Flagship projects finish through the wrap-up post-mortem instead of a plain
+                  &ldquo;mark done&rdquo;.
+                </p>
+              </div>
               <p className="text-[11px] text-ink-faint">
                 The working folder can&apos;t be changed — name, description and schedule only. The
                 timeline, deadline badges and Task Board follow the new dates immediately.
@@ -344,7 +396,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             </div>
           ) : (
             <>
-              <div className="flex items-center gap-3 mb-2">
+              <div className="flex items-center gap-3 mb-2 flex-wrap">
                 <div
                   className="w-10 h-10 rounded-xl flex items-center justify-center"
                   style={{ backgroundColor: `${project.color}22` }}
@@ -352,6 +404,22 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                   <FolderKanban size={18} style={{ color: project.color }} />
                 </div>
                 <h1 className="font-serif-display text-3xl">{project.name}</h1>
+                {(project.tags ?? []).map((t) => (
+                  <span
+                    key={t}
+                    className={`rounded-full px-2.5 py-1 text-[11.5px] font-medium ${
+                      t === "flagship"
+                        ? "bg-violet-500/10 text-violet-600 dark:text-violet-400"
+                        : t === "high-budget"
+                          ? "bg-green-500/10 text-green-600 dark:text-green-400"
+                          : t === "retainer"
+                            ? "bg-sky-500/10 text-sky-600 dark:text-sky-400"
+                            : "bg-pink-500/10 text-pink-600 dark:text-pink-400"
+                    }`}
+                  >
+                    {PROJECT_TAGS.find((x) => x.id === t)?.label ?? t}
+                  </span>
+                ))}
               </div>
               <p className="text-ink-soft mb-5">{project.description}</p>
             </>
@@ -402,6 +470,14 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
           {/* Who is on this project — scoped Team Pulse with jump-links. */}
           <ProjectTeam projectId={project.id} />
+
+          {/* Post-mortem wisdom — appears once reflections exist (or the
+              wrapped-flagship empty state nudging the team). */}
+          <PostMortemCard
+            projectId={project.id}
+            isFlagship={!!project.tags?.includes("flagship")}
+            isDone={!!project.doneAt}
+          />
 
           {/* Tabs */}
           <div className="flex items-center gap-1 mb-4 border-b border-line">

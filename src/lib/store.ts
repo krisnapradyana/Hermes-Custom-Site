@@ -104,6 +104,7 @@ interface HermesState {
       slackChannel?: string;
       startDate?: string;
       deadline?: string;
+      tags?: import("./types").ProjectTag[];
       /** Brand-new mode: create <parent>/<name> + the standard template. */
       newFolder?: { parent: string; name: string };
     }
