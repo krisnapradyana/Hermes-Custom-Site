@@ -14,6 +14,7 @@ import {
 import { api } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
 import { CountUp } from "@/components/CountUp";
+import { TimeSpentPies } from "@/components/TimeSpentPies";
 
 /**
  * Team availability — UI-refresh revamp modeled on the Figma "Team Frame":
@@ -46,6 +47,7 @@ interface MemberPulse {
   weekMs: number;
   lastSeen: string | null;
   weekByProject: { projectId: string; ms: number }[];
+  todayByProject?: { projectId: string; ms: number }[];
   tasks: MemberTask[];
 }
 
@@ -54,6 +56,8 @@ interface TeamData {
   projects: Record<string, { name: string; color: string }>;
   /** Aggregate month hours (whole studio, current calendar month). */
   studioMonthMs?: number;
+  /** Aggregate month hours per project (studio-wide, no per-member data). */
+  studioMonthByProject?: Record<string, number>;
 }
 
 /** Directory role + Slack avatar, keyed by Slack id (= userKey). */
@@ -312,6 +316,16 @@ export default function TeamPage() {
             monthMs={data.studioMonthMs ?? 0}
           />
 
+          {/* Time-spent pies (leadership request): where the hours go, by
+              project, today/week/month — aggregates only. */}
+          <TimeSpentPies
+            todayByProject={sumByProject(members.map((m) => m.todayByProject ?? []))}
+            weekByProject={sumByProject(members.map((m) => m.weekByProject))}
+            monthByProject={data.studioMonthByProject ?? {}}
+            projectInfo={data.projects}
+            people={members.length}
+          />
+
           {/* Table */}
           {/* overflow-x-auto = safety net; below xl the Department ("—") and
               Since columns hide so the table fits a tablet without squeezing. */}
@@ -468,6 +482,14 @@ export default function TeamPage() {
       )}
     </div>
   );
+}
+
+/** Sum many per-member projectId→ms lists into one aggregate map. */
+function sumByProject(lists: { projectId: string; ms: number }[][]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const list of lists)
+    for (const w of list) out[w.projectId] = (out[w.projectId] ?? 0) + w.ms;
+  return out;
 }
 
 /** Count Mon–Fri days from the 1st (or Monday) through today, inclusive. */
