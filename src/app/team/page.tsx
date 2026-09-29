@@ -52,6 +52,8 @@ interface MemberPulse {
 interface TeamData {
   members: MemberPulse[];
   projects: Record<string, { name: string; color: string }>;
+  /** Aggregate month hours (whole studio, current calendar month). */
+  studioMonthMs?: number;
 }
 
 /** Directory role + Slack avatar, keyed by Slack id (= userKey). */
@@ -299,6 +301,17 @@ export default function TeamPage() {
             </select>
           </div>
 
+          {/* Studio load — AGGREGATE capacity gauges only (deliberately no
+              per-member rings: management asked for a glimpse of load, not
+              surveillance). Capacity = all members × 8h × workdays ELAPSED,
+              so the rings read "are we on pace" even mid-week/mid-month. */}
+          <StudioLoad
+            members={members.length}
+            todayMs={members.reduce((a, m) => a + m.todayMs, 0)}
+            weekMs={members.reduce((a, m) => a + m.weekMs, 0)}
+            monthMs={data.studioMonthMs ?? 0}
+          />
+
           {/* Table */}
           {/* overflow-x-auto = safety net; below xl the Department ("—") and
               Since columns hide so the table fits a tablet without squeezing. */}
@@ -453,6 +466,99 @@ export default function TeamPage() {
           </p>
         </>
       )}
+    </div>
+  );
+}
+
+/** Count Mon–Fri days from the 1st (or Monday) through today, inclusive. */
+function workdaysElapsed(from: Date, to: Date): number {
+  let n = 0;
+  const d = new Date(from);
+  d.setHours(0, 0, 0, 0);
+  while (d <= to) {
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) n++;
+    d.setDate(d.getDate() + 1);
+  }
+  return Math.max(1, n);
+}
+
+function StudioLoad({
+  members,
+  todayMs,
+  weekMs,
+  monthMs,
+}: {
+  members: number;
+  todayMs: number;
+  weekMs: number;
+  monthMs: number;
+}) {
+  if (members === 0) return null;
+  const now = new Date();
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const H8 = 8 * 3600_000;
+
+  const gauges = [
+    { label: "Today", ms: todayMs, cap: members * H8 },
+    { label: "This week", ms: weekMs, cap: members * H8 * workdaysElapsed(monday, now) },
+    {
+      label: now.toLocaleDateString(undefined, { month: "long" }),
+      ms: monthMs,
+      cap: members * H8 * workdaysElapsed(monthStart, now),
+      sub: `${workdaysElapsed(monthStart, now)} workdays so far`,
+    },
+  ];
+
+  return (
+    <div className="glass-panel mb-5 flex flex-wrap items-center gap-x-10 gap-y-4 rounded-2xl border border-line px-5 py-4">
+      {gauges.map((g) => {
+        const pct = g.cap > 0 ? Math.round((g.ms / g.cap) * 100) : 0;
+        const color =
+          pct > 100 ? "#e24b4a" : pct >= 85 ? "#d97706" : pct >= 50 ? "#1d9e75" : "#8a93a3";
+        const r = 26;
+        const c = 2 * Math.PI * r;
+        return (
+          <div key={g.label} className="flex items-center gap-3">
+            <svg width="60" height="60" viewBox="0 0 64 64" className="-rotate-90 shrink-0" aria-hidden>
+              <circle cx="32" cy="32" r={r} fill="none" strokeWidth="8" className="stroke-line" />
+              <circle
+                cx="32"
+                cy="32"
+                r={r}
+                fill="none"
+                strokeWidth="8"
+                strokeLinecap="round"
+                stroke={color}
+                strokeDasharray={c}
+                strokeDashoffset={c - (c * Math.min(100, pct)) / 100}
+                className="transition-[stroke-dashoffset] duration-700 ease-out"
+              />
+              <text
+                x="32"
+                y="32"
+                textAnchor="middle"
+                dominantBaseline="central"
+                transform="rotate(90 32 32)"
+                className="fill-ink text-[15px] font-semibold"
+              >
+                {pct}%
+              </text>
+            </svg>
+            <div>
+              <p className="text-[10.5px] font-semibold uppercase tracking-[0.07em] text-ink-faint">
+                Studio load · {g.label}
+              </p>
+              <p className="mt-0.5 text-[12.5px] text-ink-soft tabular-nums">
+                {fmtH(g.ms)} of {fmtH(g.cap)}
+                {g.sub ? ` · ${g.sub}` : ""}
+              </p>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -57,6 +57,29 @@ export async function GET() {
     );
   }
 
+  // Studio month total (aggregate ONLY — deliberately no per-member month
+  // figures: the load panel is a studio gauge, not individual surveillance).
+  // Summed from the clock's per-day attendance, current calendar month.
+  let monthMs = 0;
+  try {
+    const res = await fetch(`${base}/api/timeclock/daily?days=31`, {
+      headers: { "x-internal-token": token },
+      cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (res.ok) {
+      const { days } = (await res.json()) as {
+        days: { date: string; members: { ms: number }[] }[];
+      };
+      const ym = new Date().toISOString().slice(0, 7); // server ~UTC; studio month
+      monthMs = (days ?? [])
+        .filter((d) => d.date.startsWith(ym))
+        .reduce((acc, d) => acc + d.members.reduce((a, m) => a + m.ms, 0), 0);
+    }
+  } catch {
+    /* month gauge degrades to 0 — the page still works */
+  }
+
   // Resolve project ids → names/colors so the page never shows raw ids.
   const projects = await readProjects();
   const projectInfo = Object.fromEntries(
@@ -78,7 +101,7 @@ export async function GET() {
     }))
   );
 
-  const body = { members: withTasks, projects: projectInfo };
+  const body = { members: withTasks, projects: projectInfo, studioMonthMs: monthMs };
   cache = { at: Date.now(), body };
   return NextResponse.json(body);
 }
