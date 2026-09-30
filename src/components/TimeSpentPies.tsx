@@ -88,17 +88,19 @@ function Donut({
   const C = 2 * Math.PI * 15.9; // ≈ 99.9 — dasharray practically in percent
 
   const focused = slices.find((s) => s.id === focus);
-  const centerTop = focused ? fmtH(focused.ms) : fmtH(total);
-  const centerMid = focused
-    ? `${total > 0 ? Math.round((focused.ms / total) * 100) : 0}%`
-    : title;
-  const centerBot = focused
-    ? focused.name.length > 20
-      ? `${focused.name.slice(0, 20)}…`
-      : focused.name
-    : people > 0 && total > 0
-      ? `≈ ${fmtH(Math.round(total / people))} / person`
-      : "";
+  const centerMs = focused ? focused.ms : total;
+  const centerPct = focused && total > 0 ? `${Math.round((focused.ms / total) * 100)}%` : null;
+
+  // A2 center style: digits carry the weight, unit letters small and faint.
+  // Big totals (the cumulative month) drop minutes so the hole never crowds.
+  const h = Math.floor(centerMs / 3600_000);
+  const m = Math.floor((centerMs % 3600_000) / 60_000);
+  const parts: { t: string; unit?: boolean }[] =
+    h >= 100
+      ? [{ t: String(h) }, { t: "h", unit: true }]
+      : h > 0
+        ? [{ t: String(h) }, { t: "h ", unit: true }, { t: String(m) }, { t: "m", unit: true }]
+        : [{ t: String(m) }, { t: "m", unit: true }];
 
   let acc = 0;
   return (
@@ -153,24 +155,39 @@ function Donut({
             acc += s.ms;
             return el;
           })}
-          <text
-            x="21"
-            y={centerBot ? 19 : 21.5}
-            textAnchor="middle"
-            className="fill-ink"
-            style={{ fontSize: "6.2px", fontWeight: 600 }}
-          >
-            {centerTop}
+          <text x="21" y={centerPct ? 21 : 22.6} textAnchor="middle" className="fill-ink">
+            {parts.map((p, i) => (
+              <tspan
+                key={i}
+                style={
+                  p.unit
+                    ? { fontSize: "3.4px", fontWeight: 400 }
+                    : { fontSize: "5.4px", fontWeight: 600 }
+                }
+                className={p.unit ? "fill-ink-faint" : "fill-ink"}
+              >
+                {p.t}
+              </tspan>
+            ))}
           </text>
-          <text x="21" y="24.5" textAnchor="middle" className="fill-ink-faint" style={{ fontSize: "3.1px" }}>
-            {centerMid}
-          </text>
-          {centerBot && (
-            <text x="21" y="28.5" textAnchor="middle" className="fill-ink-faint" style={{ fontSize: "3.1px" }}>
-              {centerBot}
+          {centerPct && (
+            <text
+              x="21"
+              y="25.8"
+              textAnchor="middle"
+              className="fill-ink-faint"
+              style={{ fontSize: "3px" }}
+            >
+              {centerPct} of {title.toLowerCase().split(" ·")[0]}
             </text>
           )}
         </svg>
+      )}
+      {/* Caption below (option A): never clips, whatever the numbers. */}
+      {total > 0 && people > 0 && (
+        <p className="mt-1.5 text-[11px] text-ink-faint">
+          ≈ {fmtH(Math.round(total / people))} per person
+        </p>
       )}
     </div>
   );
