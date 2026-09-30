@@ -63,6 +63,15 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
   const { key } = use(params);
   const [focusKey, setFocusKey] = useState(decodeURIComponent(key));
 
+  // Entry choreography (approved combo): warp-dive on open, unfurl on travel.
+  // Whole timeline ≤ 500ms; reduced-motion skips straight to the final frame.
+  const firstRun = useRef(true);
+  const introRef = useRef<{ mode: "open" | "travel"; start: number }>({ mode: "open", start: 0 });
+  useEffect(() => {
+    introRef.current = { mode: firstRun.current ? "open" : "travel", start: performance.now() };
+    firstRun.current = false;
+  }, [focusKey]);
+
   const [members, setMembers] = useState<Pulse[]>([]);
   const [projectInfo, setProjectInfo] = useState<Record<string, { name: string; color: string }>>({});
   const [projects, setProjects] = useState<ProjectMeta[]>([]);
@@ -218,6 +227,36 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
     return { x, y, depth, scale: 0.7 + 0.45 * depth, opacity: 0.4 + 0.6 * depth };
   };
 
+  // ---- intro animation factors (t normalized over 500ms) -------------------
+  const reduced =
+    typeof window !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const it = reduced || typeof performance === "undefined"
+    ? 1
+    : Math.min(1, (performance.now() - introRef.current.start) / 500);
+  const mode = introRef.current.mode;
+  const stag = (d: number, dur: number) => (it >= 1 ? 1 : Math.min(1, Math.max(0, (it - d) / dur)));
+  const easeO = (t: number) => 1 - Math.pow(1 - t, 3);
+  const over = (t: number) => {
+    const s2 = 1.7;
+    const u = t - 1;
+    return 1 + u * u * ((s2 + 1) * u + s2);
+  };
+  const projF = (i: number) => (mode === "travel" ? easeO(stag(i * 0.05, 0.55)) : 1);
+  const projO = (i: number) =>
+    mode === "open" ? easeO(stag(0.3 + i * 0.05, 0.3)) : easeO(stag(i * 0.05, 0.55));
+  const projPop = (i: number) =>
+    mode === "open" ? Math.min(1.15, over(easeO(stag(0.3 + i * 0.05, 0.3)))) : 1;
+  const collabF = (i: number) => (mode === "travel" ? easeO(stag(0.3 + i * 0.05, 0.5)) : 1);
+  const collabO = (i: number) =>
+    mode === "open" ? easeO(stag(0.55 + i * 0.05, 0.3)) : easeO(stag(0.3 + i * 0.05, 0.5));
+  const orbitO = stag(0.25, 0.35);
+  const coreK =
+    mode === "open" ? Math.min(1.2, over(easeO(stag(0.05, 0.35)))) : 0.9 + 0.1 * over(easeO(stag(0, 0.3)));
+  const starsK =
+    mode === "open"
+      ? { s: 0.78 + 0.22 * easeO(stag(0, 0.5)), o: 0.35 + 0.65 * stag(0, 0.4) }
+      : { s: 1, o: 1 };
+
   const selectedProject = selected ? projects.find((p) => p.id === selected.id) : null;
   const dirRec = directory.find((d) => d.slackId === focusKey);
   const statusLine = !focus?.active
@@ -262,15 +301,21 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
         {focus && graph && (
           <svg viewBox="0 0 620 500" className="h-full w-full" role="img">
             <title>Constellation for {focus.name}</title>
-            {stars.map((s, i) => (
-              <circle key={i} cx={`${s.x}%`} cy={`${s.y}%`} r={s.r} fill={s.tint} opacity={s.o} className={s.cls} />
-            ))}
-            <ellipse cx={CX} cy={CY} rx={185} ry={64} fill="none" stroke="rgba(76,138,245,0.18)" strokeWidth="1" />
-            <ellipse cx={CX} cy={CY} rx={278} ry={110} fill="none" stroke="rgba(139,92,246,0.12)" strokeWidth="1" strokeDasharray="2 6" />
+            <g
+              opacity={starsK.o}
+              transform={`translate(${CX} ${CY}) scale(${starsK.s}) translate(${-CX} ${-CY})`}
+            >
+              {stars.map((s, i) => (
+                <circle key={i} cx={`${s.x}%`} cy={`${s.y}%`} r={s.r} fill={s.tint} opacity={s.o} className={s.cls} />
+              ))}
+            </g>
+            <ellipse cx={CX} cy={CY} rx={185} ry={64} fill="none" stroke="rgba(76,138,245,0.18)" strokeWidth="1" opacity={orbitO} />
+            <ellipse cx={CX} cy={CY} rx={278} ry={110} fill="none" stroke="rgba(139,92,246,0.12)" strokeWidth="1" strokeDasharray="2 6" opacity={orbitO} />
 
             {/* edges first, then nodes sorted far→near so depth stacks right */}
-            {graph.projs.map((p) => {
-              const q = pos(p.angle, 185, 64);
+            {graph.projs.map((p, pi) => {
+              const f = projF(pi);
+              const q = pos(p.angle, 185 * f, 64 * f);
               const color = projectInfo[p.id]?.color ?? "#8a93a3";
               return (
                 <line
@@ -280,16 +325,21 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
                   x2={q.x}
                   y2={q.y}
                   stroke={color}
-                  strokeOpacity={0.16 + 0.3 * q.depth}
+                  strokeOpacity={(0.16 + 0.3 * q.depth) * projO(pi)}
                   strokeWidth={1 + 2.2 * p.share * q.scale}
                 />
               );
             })}
-            {graph.collabs.map((c) => {
-              const q = pos(c.angle, 278, 110);
+            {graph.collabs.map((c, ci) => {
+              const fc = collabF(ci);
+              const q = pos(c.angle, 278 * fc, 110 * fc);
               // Mock behavior: the person attaches to their strongest SHARED
               // PROJECT, not straight to the core.
-              const anchor = c.topProjectId ? pos(graph.projs.find((p) => p.id === c.topProjectId)!.angle, 185, 64) : { x: CX, y: CY };
+              const api2 = graph.projs.findIndex((p) => p.id === c.topProjectId);
+              const anchor =
+                api2 >= 0
+                  ? pos(graph.projs[api2].angle, 185 * projF(api2), 64 * projF(api2))
+                  : { x: CX, y: CY };
               return (
                 <line
                   key={`ce-${c.member.userKey}`}
@@ -298,19 +348,20 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
                   x2={q.x}
                   y2={q.y}
                   stroke="rgba(255,255,255,0.13)"
+                  strokeOpacity={collabO(ci)}
                   strokeWidth={0.9}
                 />
               );
             })}
 
-            {[...graph.projs.map((p) => ({ kind: "proj" as const, p, q: pos(p.angle, 185, 64) })),
-              ...graph.collabs.map((c) => ({ kind: "collab" as const, c, q: pos(c.angle, 278, 110) })),
+            {[...graph.projs.map((p, pi) => ({ kind: "proj" as const, p, pi, q: pos(p.angle, 185 * projF(pi), 64 * projF(pi)) })),
+              ...graph.collabs.map((c, ci) => ({ kind: "collab" as const, c, ci, q: pos(c.angle, 278 * collabF(ci), 110 * collabF(ci)) })),
               { kind: "core" as const, q: { x: CX, y: CY, depth: 0.5, scale: 1, opacity: 1 } }]
               .sort((a, b) => a.q.depth - b.q.depth)
               .map((n) => {
                 if (n.kind === "core") {
                   return (
-<g key="core">
+<g key="core" transform={`translate(${CX} ${CY}) scale(${coreK}) translate(${-CX} ${-CY})`}>
               <circle cx={CX} cy={CY} r={44} fill="rgba(76,138,245,0.10)" />
               {profiles[focusKey]?.avatar ? (
                 <>
@@ -339,7 +390,7 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
                   const { p, q } = n;
                   const meta = projects.find((x) => x.id === p.id);
                   const color = projectInfo[p.id]?.color ?? "#8a93a3";
-                  const r = (11 + 17 * Math.sqrt(p.share)) * q.scale;
+                  const r = (11 + 17 * Math.sqrt(p.share)) * q.scale * projPop(n.pi);
                   const isSel = selected?.id === p.id;
                   const overdue = !!meta?.deadline && !meta.doneAt && toDate(meta.deadline) < today;
                   const busFactor = p.contributors.length === 1;
@@ -350,7 +401,7 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
                   return (
                     <g
                       key={`p-${p.id}`}
-                      opacity={q.opacity}
+                      opacity={q.opacity * projO(n.pi)}
                       className="cursor-pointer"
                       // pointerdown, NOT click: the drift re-sorts DOM nodes
                       // every frame, and a moved element cancels a click.
@@ -405,7 +456,7 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
                 return (
                   <g
                     key={`c-${c.member.userKey}`}
-                    opacity={q.opacity * 0.95}
+                    opacity={q.opacity * 0.95 * collabO(n.ci)}
                     className="cursor-pointer"
                     onPointerDown={() => setFocusKey(c.member.userKey)}
                   >
