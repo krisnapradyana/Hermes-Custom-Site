@@ -125,14 +125,30 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
         angle: projAngle.get(p.projectId)!,
         contributors: contributors(p.projectId),
       })),
-      // Evenly spread on the outer orbit, phase-offset from the projects —
-      // clustering them near shared projects piled labels on top of labels.
-      collabs: collabs.map((c, i) => ({
-        member: c.m,
-        sharedCount: c.shared.length,
-        topProjectId: c.shared[0],
-        angle: (i / collabs.length) * Math.PI * 2 + Math.PI / Math.max(projs.length, 1),
-      })),
+      // Moons around their planet (field feedback): each collaborator sits on
+      // the outer orbit NEXT TO their strongest shared project, and siblings
+      // of the same project fan out with CONSTANT spacing, centered on it.
+      collabs: (() => {
+        const byProject = new Map<string, typeof collabs>();
+        for (const c of collabs) {
+          const pid = c.shared[0];
+          byProject.set(pid, [...(byProject.get(pid) ?? []), c]);
+        }
+        const SPACING = 0.42; // rad between sibling moons
+        const out: { member: Pulse; sharedCount: number; topProjectId: string; angle: number }[] = [];
+        for (const [pid, group] of byProject) {
+          const base = projAngle.get(pid) ?? 0;
+          group.forEach((c, k) => {
+            out.push({
+              member: c.m,
+              sharedCount: c.shared.length,
+              topProjectId: pid,
+              angle: base + (k - (group.length - 1) / 2) * SPACING,
+            });
+          });
+        }
+        return out;
+      })(),
       totalAll,
     };
   }, [focus, members]);
@@ -250,7 +266,7 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
               <circle key={i} cx={`${s.x}%`} cy={`${s.y}%`} r={s.r} fill={s.tint} opacity={s.o} className={s.cls} />
             ))}
             <ellipse cx={CX} cy={CY} rx={185} ry={64} fill="none" stroke="rgba(76,138,245,0.18)" strokeWidth="1" />
-            <ellipse cx={CX} cy={CY} rx={300} ry={122} fill="none" stroke="rgba(139,92,246,0.12)" strokeWidth="1" strokeDasharray="2 6" />
+            <ellipse cx={CX} cy={CY} rx={278} ry={110} fill="none" stroke="rgba(139,92,246,0.12)" strokeWidth="1" strokeDasharray="2 6" />
 
             {/* edges first, then nodes sorted far→near so depth stacks right */}
             {graph.projs.map((p) => {
@@ -270,7 +286,7 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
               );
             })}
             {graph.collabs.map((c) => {
-              const q = pos(c.angle, 300, 122);
+              const q = pos(c.angle, 278, 110);
               // Mock behavior: the person attaches to their strongest SHARED
               // PROJECT, not straight to the core.
               const anchor = c.topProjectId ? pos(graph.projs.find((p) => p.id === c.topProjectId)!.angle, 185, 64) : { x: CX, y: CY };
@@ -288,7 +304,7 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
             })}
 
             {[...graph.projs.map((p) => ({ kind: "proj" as const, p, q: pos(p.angle, 185, 64) })),
-              ...graph.collabs.map((c) => ({ kind: "collab" as const, c, q: pos(c.angle, 300, 122) }))]
+              ...graph.collabs.map((c) => ({ kind: "collab" as const, c, q: pos(c.angle, 278, 110) }))]
               .sort((a, b) => a.q.depth - b.q.depth)
               .map((n) => {
                 if (n.kind === "proj") {
