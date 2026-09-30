@@ -97,7 +97,9 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
     const collabs = members
       .filter((m) => m.userKey !== focus.userKey)
       .map((m) => {
-        const shared = (m.totalByProject ?? []).filter((w) => projIds.has(w.projectId) && w.ms > 0);
+        const shared = (m.totalByProject ?? [])
+          .filter((w) => projIds.has(w.projectId) && w.ms > 0)
+          .sort((a, b) => b.ms - a.ms);
         return {
           m,
           shared: shared.map((s) => s.projectId),
@@ -128,6 +130,7 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
       collabs: collabs.map((c, i) => ({
         member: c.m,
         sharedCount: c.shared.length,
+        topProjectId: c.shared[0],
         angle: (i / collabs.length) * Math.PI * 2 + Math.PI / Math.max(projs.length, 1),
       })),
       totalAll,
@@ -246,12 +249,12 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
             {stars.map((s, i) => (
               <circle key={i} cx={`${s.x}%`} cy={`${s.y}%`} r={s.r} fill={s.tint} opacity={s.o} className={s.cls} />
             ))}
-            <ellipse cx={CX} cy={CY} rx={205} ry={72} fill="none" stroke="rgba(76,138,245,0.18)" strokeWidth="1" />
-            <ellipse cx={CX} cy={CY} rx={282} ry={102} fill="none" stroke="rgba(139,92,246,0.12)" strokeWidth="1" strokeDasharray="2 6" />
+            <ellipse cx={CX} cy={CY} rx={185} ry={64} fill="none" stroke="rgba(76,138,245,0.18)" strokeWidth="1" />
+            <ellipse cx={CX} cy={CY} rx={300} ry={122} fill="none" stroke="rgba(139,92,246,0.12)" strokeWidth="1" strokeDasharray="2 6" />
 
             {/* edges first, then nodes sorted far→near so depth stacks right */}
             {graph.projs.map((p) => {
-              const q = pos(p.angle, 205, 72);
+              const q = pos(p.angle, 185, 64);
               const color = projectInfo[p.id]?.color ?? "#8a93a3";
               return (
                 <line
@@ -267,22 +270,25 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
               );
             })}
             {graph.collabs.map((c) => {
-              const q = pos(c.angle, 282, 102);
+              const q = pos(c.angle, 300, 122);
+              // Mock behavior: the person attaches to their strongest SHARED
+              // PROJECT, not straight to the core.
+              const anchor = c.topProjectId ? pos(graph.projs.find((p) => p.id === c.topProjectId)!.angle, 185, 64) : { x: CX, y: CY };
               return (
                 <line
                   key={`ce-${c.member.userKey}`}
-                  x1={CX}
-                  y1={CY}
+                  x1={anchor.x}
+                  y1={anchor.y}
                   x2={q.x}
                   y2={q.y}
-                  stroke="rgba(255,255,255,0.10)"
-                  strokeWidth={0.8}
+                  stroke="rgba(255,255,255,0.13)"
+                  strokeWidth={0.9}
                 />
               );
             })}
 
-            {[...graph.projs.map((p) => ({ kind: "proj" as const, p, q: pos(p.angle, 205, 72) })),
-              ...graph.collabs.map((c) => ({ kind: "collab" as const, c, q: pos(c.angle, 282, 102) }))]
+            {[...graph.projs.map((p) => ({ kind: "proj" as const, p, q: pos(p.angle, 185, 64) })),
+              ...graph.collabs.map((c) => ({ kind: "collab" as const, c, q: pos(c.angle, 300, 122) }))]
               .sort((a, b) => a.q.depth - b.q.depth)
               .map((n) => {
                 if (n.kind === "proj") {
@@ -302,7 +308,9 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
                       key={`p-${p.id}`}
                       opacity={q.opacity}
                       className="cursor-pointer"
-                      onClick={() => setSelected({ type: "project", id: p.id })}
+                      // pointerdown, NOT click: the drift re-sorts DOM nodes
+                      // every frame, and a moved element cancels a click.
+                      onPointerDown={() => setSelected({ type: "project", id: p.id })}
                     >
                       {/* Tinted planet fill — a dark disc read as an empty ring. */}
                       <circle cx={q.x} cy={q.y} r={r} fill={`${color}30`} stroke={color} strokeWidth={2 * q.scale} />
@@ -355,7 +363,7 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
                     key={`c-${c.member.userKey}`}
                     opacity={q.opacity * 0.95}
                     className="cursor-pointer"
-                    onClick={() => setFocusKey(c.member.userKey)}
+                    onPointerDown={() => setFocusKey(c.member.userKey)}
                   >
                     {av ? (
                       <>
