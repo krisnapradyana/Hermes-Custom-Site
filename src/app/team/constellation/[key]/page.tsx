@@ -235,7 +235,7 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
       {/* ---- cosmos ---- */}
       <div className="relative min-w-0 flex-1 overflow-hidden">
         <div
-          className="absolute inset-0"
+          className="pointer-events-none absolute inset-0"
           style={{
             background:
               "radial-gradient(700px 340px at 30% 60%, rgba(76,138,245,0.10), transparent 65%)," +
@@ -304,9 +304,37 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
             })}
 
             {[...graph.projs.map((p) => ({ kind: "proj" as const, p, q: pos(p.angle, 185, 64) })),
-              ...graph.collabs.map((c) => ({ kind: "collab" as const, c, q: pos(c.angle, 278, 110) }))]
+              ...graph.collabs.map((c) => ({ kind: "collab" as const, c, q: pos(c.angle, 278, 110) })),
+              { kind: "core" as const, q: { x: CX, y: CY, depth: 0.5, scale: 1, opacity: 1 } }]
               .sort((a, b) => a.q.depth - b.q.depth)
               .map((n) => {
+                if (n.kind === "core") {
+                  return (
+<g key="core">
+              <circle cx={CX} cy={CY} r={44} fill="rgba(76,138,245,0.10)" />
+              {profiles[focusKey]?.avatar ? (
+                <>
+                  <clipPath id="clip-core">
+                    <circle cx={CX} cy={CY} r={33} />
+                  </clipPath>
+                  <image href={profiles[focusKey].avatar} x={CX - 33} y={CY - 33} width={66} height={66} clipPath="url(#clip-core)" />
+                </>
+              ) : (
+                <>
+                  <circle cx={CX} cy={CY} r={33} fill="#1a2233" />
+                  <text x={CX} y={CY + 6} textAnchor="middle" fill="#e8eaef" style={{ fontSize: "16px", fontWeight: 600 }}>
+                    {focus.name.slice(0, 2).toUpperCase()}
+                  </text>
+                </>
+              )}
+              <circle cx={CX} cy={CY} r={33} fill="none" stroke="#4c8af5" strokeWidth={2.4} />
+              <circle cx={CX} cy={CY} r={41} fill="none" stroke="rgba(76,138,245,0.4)" strokeWidth={1} />
+              <text x={CX} y={CY + 58} textAnchor="middle" fill="#cdd3dd" style={{ fontSize: "12px", fontWeight: 500 }}>
+                {focus.name}
+              </text>
+            </g>
+                  );
+                }
                 if (n.kind === "proj") {
                   const { p, q } = n;
                   const meta = projects.find((x) => x.id === p.id);
@@ -417,30 +445,7 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
                 );
               })}
 
-            {/* the core, always on top */}
-            <g>
-              <circle cx={CX} cy={CY} r={44} fill="rgba(76,138,245,0.10)" />
-              {profiles[focusKey]?.avatar ? (
-                <>
-                  <clipPath id="clip-core">
-                    <circle cx={CX} cy={CY} r={33} />
-                  </clipPath>
-                  <image href={profiles[focusKey].avatar} x={CX - 33} y={CY - 33} width={66} height={66} clipPath="url(#clip-core)" />
-                </>
-              ) : (
-                <>
-                  <circle cx={CX} cy={CY} r={33} fill="#1a2233" />
-                  <text x={CX} y={CY + 6} textAnchor="middle" fill="#e8eaef" style={{ fontSize: "16px", fontWeight: 600 }}>
-                    {focus.name.slice(0, 2).toUpperCase()}
-                  </text>
-                </>
-              )}
-              <circle cx={CX} cy={CY} r={33} fill="none" stroke="#4c8af5" strokeWidth={2.4} />
-              <circle cx={CX} cy={CY} r={41} fill="none" stroke="rgba(76,138,245,0.4)" strokeWidth={1} />
-              <text x={CX} y={CY + 58} textAnchor="middle" fill="#cdd3dd" style={{ fontSize: "12px", fontWeight: 500 }}>
-                {focus.name}
-              </text>
-            </g>
+
           </svg>
         )}
         <p className="absolute bottom-2.5 left-4 z-10 text-[10px] text-[#6e7684]">
