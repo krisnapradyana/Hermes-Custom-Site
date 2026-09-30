@@ -261,9 +261,9 @@ export default function TeamPage() {
     } catch {}
   }, []);
 
+  // Wide container: the table is the longest content (7 columns incl.
+  // Today·Week) — the page follows it instead of clipping it at 5xl.
   return (
-    {/* Wide container: the table is the longest content (7 columns incl.
-        Today·Week) — the page follows it instead of clipping it at 5xl. */}
     <div className="mx-auto w-full max-w-[1400px] px-8 py-10">
       {/* Title row */}
       <div className="flex items-start gap-3 mb-1">
