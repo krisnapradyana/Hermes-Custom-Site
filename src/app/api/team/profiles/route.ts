@@ -49,7 +49,7 @@ async function slackAvatars(): Promise<Record<string, string>> {
         members?: SlackApiUser[];
         response_metadata?: { next_cursor?: string };
       };
-      if (!data.ok) break;
+      if (!data.ok) return avatarCache?.map ?? {}; // don't cache failures
       for (const u of data.members ?? []) {
         if (u.deleted || u.is_bot) continue;
         const img = u.profile?.image_192 || u.profile?.image_72;
@@ -58,9 +58,12 @@ async function slackAvatars(): Promise<Record<string, string>> {
       cursor = data.response_metadata?.next_cursor || undefined;
     } while (cursor);
   } catch {
-    /* Slack unreachable — the UI falls back to initials */
+    // Slack unreachable — serve the last good map, never cache the failure.
+    return avatarCache?.map ?? {};
   }
-  avatarCache = { at: Date.now(), map };
+  // Cache only real results: one rate-limited call at container boot must
+  // never blank every avatar for 10 minutes (field incident, Sep 30).
+  if (Object.keys(map).length > 0) avatarCache = { at: Date.now(), map };
   return map;
 }
 
