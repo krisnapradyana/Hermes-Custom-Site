@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/user-key";
 import { readProjects } from "@/lib/projects-store";
 import { tasksForAssignee } from "@/lib/tasks-store";
@@ -24,14 +24,18 @@ interface MemberPulse {
   monthByProject?: { projectId: string; ms: number }[];
 }
 
-let cache: { at: number; body: unknown } | null = null;
+let cache: { at: number; key: string; body: unknown } | null = null;
 const TTL = 5_000;
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const gate = await requireUser();
   if (gate.denied) return gate.denied;
 
-  if (cache && Date.now() - cache.at < TTL) return NextResponse.json(cache.body);
+  const monthQ = req.nextUrl.searchParams.get("month");
+  const month = monthQ && /^\d{4}-\d{2}$/.test(monthQ) ? monthQ : "";
+  if (cache && cache.key === month && Date.now() - cache.at < TTL) {
+    return NextResponse.json(cache.body);
+  }
 
   const base = (process.env.TIMECLOCK_URL ?? "http://attendee-ui:3000").replace(/\/$/, "");
   const token = process.env.INTERNAL_TOKEN;
@@ -44,7 +48,7 @@ export async function GET() {
 
   let members: MemberPulse[] = [];
   try {
-    const res = await fetch(`${base}/api/timeclock/overview`, {
+    const res = await fetch(`${base}/api/timeclock/overview${month ? `?month=${month}` : ""}`, {
       headers: { "x-internal-token": token },
       cache: "no-store",
       signal: AbortSignal.timeout(10_000),
@@ -98,6 +102,6 @@ export async function GET() {
     studioMonthMs: monthMs,
     studioMonthByProject,
   };
-  cache = { at: Date.now(), body };
+  cache = { at: Date.now(), key: month, body };
   return NextResponse.json(body);
 }
