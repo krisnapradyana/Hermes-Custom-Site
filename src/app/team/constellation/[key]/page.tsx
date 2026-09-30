@@ -123,10 +123,12 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
         angle: projAngle.get(p.projectId)!,
         contributors: contributors(p.projectId),
       })),
+      // Evenly spread on the outer orbit, phase-offset from the projects —
+      // clustering them near shared projects piled labels on top of labels.
       collabs: collabs.map((c, i) => ({
         member: c.m,
         sharedCount: c.shared.length,
-        angle: (projAngle.get(c.shared[0]) ?? 0) + 0.55 + (i % 3) * 0.35,
+        angle: (i / collabs.length) * Math.PI * 2 + Math.PI / Math.max(projs.length, 1),
       })),
       totalAll,
     };
@@ -291,6 +293,10 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
                   const isSel = selected?.id === p.id;
                   const overdue = !!meta?.deadline && !meta.doneAt && toDate(meta.deadline) < today;
                   const busFactor = p.contributors.length === 1;
+                  // Labels flip to the free side: below when the node rides the
+                  // lower arc, above on the upper arc — kills orbit collisions.
+                  const below = q.y >= CY;
+                  const ly = below ? q.y + r + 13 : q.y - r - 17;
                   return (
                     <g
                       key={`p-${p.id}`}
@@ -298,7 +304,19 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
                       className="cursor-pointer"
                       onClick={() => setSelected({ type: "project", id: p.id })}
                     >
-                      <circle cx={q.x} cy={q.y} r={r} fill="#161b26" stroke={color} strokeWidth={2 * q.scale} />
+                      {/* Tinted planet fill — a dark disc read as an empty ring. */}
+                      <circle cx={q.x} cy={q.y} r={r} fill={`${color}30`} stroke={color} strokeWidth={2 * q.scale} />
+                      {r > 15 && (
+                        <text
+                          x={q.x}
+                          y={q.y + 3.5 * q.scale}
+                          textAnchor="middle"
+                          fill="#e8eaef"
+                          style={{ fontSize: `${9 * q.scale}px`, fontWeight: 600 }}
+                        >
+                          {fmtH(p.ms)}
+                        </text>
+                      )}
                       {meta?.doneAt && (
                         <circle cx={q.x} cy={q.y} r={r + 5} fill="none" stroke="#22c55e" strokeWidth={1.2} opacity={0.8} />
                       )}
@@ -311,13 +329,21 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
                       {isSel && (
                         <circle cx={q.x} cy={q.y} r={r + 13} fill="none" stroke="rgba(255,255,255,0.75)" strokeWidth={1.2} strokeDasharray="4 4" />
                       )}
-                      <text x={q.x} y={q.y + r + 13} textAnchor="middle" fill={color} style={{ fontSize: `${10 * q.scale}px` }}>
+                      <text x={q.x} y={ly} textAnchor="middle" fill={color} style={{ fontSize: `${10 * q.scale}px` }}>
                         {(projectInfo[p.id]?.name ?? "?").slice(0, 24)}
                       </text>
-                      <text x={q.x} y={q.y + r + 24} textAnchor="middle" fill="#8a93a3" style={{ fontSize: `${8.5 * q.scale}px` }}>
-                        {fmtH(p.ms)}
-                        {busFactor ? " · ⚠ only them" : ""}
-                      </text>
+                      {(busFactor || r <= 15) && (
+                        <text
+                          x={q.x}
+                          y={below ? ly + 11 : ly - 10}
+                          textAnchor="middle"
+                          fill={busFactor ? "#e88a8a" : "#8a93a3"}
+                          style={{ fontSize: `${8.5 * q.scale}px` }}
+                        >
+                          {r <= 15 ? `${fmtH(p.ms)}${busFactor ? " · " : ""}` : ""}
+                          {busFactor ? "⚠ only them" : ""}
+                        </text>
+                      )}
                     </g>
                   );
                 }
@@ -354,7 +380,13 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
                         </text>
                       </>
                     )}
-                    <text x={q.x} y={q.y + r + 11} textAnchor="middle" fill="#8a93a3" style={{ fontSize: `${8.5 * q.scale}px` }}>
+                    <text
+                      x={q.x}
+                      y={q.y >= CY ? q.y + r + 11 : q.y - r - 6}
+                      textAnchor="middle"
+                      fill="#8a93a3"
+                      style={{ fontSize: `${8.5 * q.scale}px` }}
+                    >
                       {c.member.name.split(" ")[0]} · {c.sharedCount}
                     </text>
                   </g>
