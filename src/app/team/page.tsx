@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import {
   Users,
   ChevronDown,
@@ -10,6 +11,7 @@ import {
   Armchair,
   Building2,
   FolderKanban,
+  Orbit,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
@@ -342,7 +344,7 @@ export default function TeamPage() {
                     <Fragment key={m.userKey}>
                       <tr
                         onClick={() => setExpanded(open ? null : m.userKey)}
-                        className={`border-b border-line/60 cursor-pointer hover:bg-parchment-dark/30 transition-colors ${
+                        className={`group border-b border-line/60 cursor-pointer hover:bg-parchment-dark/30 transition-colors ${
                           s === "off" ? "opacity-70" : ""
                         }`}
                         title="Click for details"
@@ -362,6 +364,15 @@ export default function TeamPage() {
                               </span>
                             )}
                             <span className="font-medium truncate">{m.name}</span>
+                            <Link
+                              prefetch={false}
+                              href={`/team/constellation/${encodeURIComponent(m.userKey)}`}
+                              onClick={(e) => e.stopPropagation()}
+                              title={`Open ${m.name}'s constellation`}
+                              className="shrink-0 rounded-md p-1 text-ink-faint opacity-0 transition-opacity hover:text-accent group-hover:opacity-100"
+                            >
+                              <Orbit size={13} />
+                            </Link>
                           </span>
                         </td>
                         <td

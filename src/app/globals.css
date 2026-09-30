@@ -254,6 +254,26 @@ html.dark .glass-panel {
    .anim-pop   — floating windows/popovers: scale+fade, snappy ease-out
    .anim-slide — sidebar states mounting: slide in from the left + fade
    All motion respects the OS reduce-motion preference. */
+/* Constellation view: subtle random star drift — three phase-shifted loops
+   assigned round-robin so the field shimmers without per-star JS. */
+@keyframes star-float-a {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(1.6px, -2.1px); }
+}
+@keyframes star-float-b {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(-2.2px, 1.4px); }
+}
+@keyframes star-float-c {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(1.2px, 2.4px); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .star-drift-1 { animation: star-float-a 14s ease-in-out infinite; }
+  .star-drift-2 { animation: star-float-b 19s ease-in-out infinite; }
+  .star-drift-3 { animation: star-float-c 23s ease-in-out infinite; }
+}
+
 @keyframes ui-pop {
   from {
     opacity: 0;
