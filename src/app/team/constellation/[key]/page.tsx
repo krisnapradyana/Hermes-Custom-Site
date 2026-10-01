@@ -204,7 +204,9 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
     const contributors = (pid: string) =>
       members.filter((m) => src(m).some((w) => w.projectId === pid && w.ms > 0));
 
+    const generalMs = src(focus).find((w) => w.projectId === GENERAL_ID)?.ms ?? 0;
     return {
+      generalMs,
       projs: projs.map((p) => ({
         id: p.projectId,
         ms: p.ms,
@@ -224,7 +226,7 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
   }, [focus, members, dataMonth, projectInfo]);
 
   // ---- selection -----------------------------------------------------------
-  const [selected, setSelected] = useState<{ type: "project"; id: string } | null>(null);
+  const [selected, setSelected] = useState<{ type: "project"; id: string } | { type: "general" } | null>(null);
   useEffect(() => setSelected(null), [focusKey]);
 
   // Project dossier extras, fetched on selection.
@@ -233,7 +235,7 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
   useEffect(() => {
     setProjTasks(null);
     setHasWisdom(false);
-    if (!selected) return;
+    if (!selected || selected.type !== "project") return;
     api
       .get<{ tasks: { status: string; kind?: string; dueDate?: string; archivedAt?: string }[] }>(
         `/api/projects/${encodeURIComponent(selected.id)}/tasks`
@@ -315,7 +317,7 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
       ? { s: 0.78 + 0.22 * easeO(stag(0, 0.5)), o: 0.35 + 0.65 * stag(0, 0.4) }
       : { s: 1, o: 1 };
 
-  const selectedProject = selected ? projects.find((p) => p.id === selected.id) : null;
+  const selectedProject = selected?.type === "project" ? projects.find((p) => p.id === selected.id) : null;
   const dirRec = directory.find((d) => d.slackId === focusKey);
   const statusLine = !focus?.active
     ? { text: "Off — clocked out", color: "text-ink-faint" }
@@ -453,7 +455,7 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
                   const meta = projects.find((x) => x.id === p.id);
                   const color = projectInfo[p.id]?.color ?? "#8a93a3";
                   const r = (11 + 17 * Math.sqrt(p.share)) * q.scale * projPop(n.pi);
-                  const isSel = selected?.id === p.id;
+                  const isSel = selected?.type === "project" && selected.id === p.id;
                   const overdue = !!meta?.deadline && !meta.doneAt && toDate(meta.deadline) < today;
                   const busFactor = p.contributors.length === 1;
                   // Labels flip to the free side: below when the node rides the
@@ -609,17 +611,103 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
                 return null;
               })}
 
+            {/* General duty — a lensed singularity (option B): static in clear
+                space, photon ring spun by the same drift, core scales with
+                the member's general-duty hours in this window. */}
+            {graph.generalMs > 0 &&
+              (() => {
+                const gx = 506, gy = 96;
+                const k = 0.72 + 0.45 * Math.min(1, graph.generalMs / (40 * 3600_000));
+                const spin = ((phase * 160) % 360).toFixed(1);
+                const sel = selected?.type === "general";
+                return (
+                  <g
+                    className="cursor-pointer"
+                    opacity={orbitO}
+                    transform={`translate(${gx} ${gy}) scale(${k}) translate(${-gx} ${-gy})`}
+                    onPointerDown={() => setSelected({ type: "general" })}
+                  >
+                    <title>General duty — non-project work</title>
+                    <defs>
+                      <radialGradient id="wh-glow" cx="50%" cy="50%" r="50%">
+                        <stop offset="0%" stopColor="#14b8a6" stopOpacity="0.3" />
+                        <stop offset="100%" stopColor="#14b8a6" stopOpacity="0" />
+                      </radialGradient>
+                    </defs>
+                    <ellipse cx={gx} cy={gy} rx={74} ry={60} fill="url(#wh-glow)" />
+                    <g transform={`rotate(${spin} ${gx} ${gy})`}>
+                      <ellipse cx={gx} cy={gy} rx={52} ry={13} fill="none" stroke="#2dd4bf" strokeWidth={2.6} opacity={0.75} />
+                      <ellipse cx={gx} cy={gy} rx={52} ry={13} fill="none" stroke="#99f6e4" strokeWidth={1} opacity={0.9} strokeDasharray="42 68" />
+                    </g>
+                    <path d={`M ${gx - 42} ${gy - 20} A 47 38 0 0 1 ${gx + 42} ${gy - 20}`} fill="none" stroke="#5eead4" strokeWidth={2.2} strokeLinecap="round" opacity={0.85} />
+                    <path d={`M ${gx - 36} ${gy + 27} A 44 34 0 0 0 ${gx + 36} ${gy + 27}`} fill="none" stroke="#0f766e" strokeWidth={1.8} strokeLinecap="round" opacity={0.6} />
+                    <circle cx={gx} cy={gy} r={21} fill="#010607" />
+                    <circle cx={gx} cy={gy} r={21} fill="none" stroke="#5eead4" strokeWidth={1.7} />
+                    <circle cx={gx} cy={gy} r={25} fill="none" stroke="#14b8a6" strokeWidth={0.7} opacity={0.5} />
+                    {sel && (
+                      <circle cx={gx} cy={gy} r={29} fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth={1.1} strokeDasharray="4 4" />
+                    )}
+                    <text x={gx} y={gy + 3.5} textAnchor="middle" fill="#99f6e4" style={{ fontSize: "10.5px", fontWeight: 600 }}>
+                      {fmtH(graph.generalMs)}
+                    </text>
+                    <text x={gx} y={gy + 44} textAnchor="middle" fill="#2dd4bf" style={{ fontSize: "10px" }}>
+                      General duty
+                    </text>
+                  </g>
+                );
+              })()}
+
 
           </svg>
         )}
         <p className="absolute bottom-2.5 left-4 z-10 text-[10px] text-[#6e7684]">
-          node size = hours together · moons = the project\u2019s people (click one to travel) · green moon ring = on it now · red dashed = bus factor
+          node size = hours together · moons = the project\u2019s people (click one to travel) \u00b7 teal wormhole = general duty · green moon ring = on it now · red dashed = bus factor
         </p>
       </div>
 
       {/* ---- sidebar ---- */}
       <div className="w-[264px] shrink-0 overflow-y-auto border-l border-white/10 bg-[#10131a]/95 px-4 py-5">
-        {selectedProject ? (
+        {selected?.type === "general" && focus && graph ? (
+          <>
+            <p className="mb-0.5 text-[10.5px] font-semibold uppercase tracking-[0.07em] text-teal-400">General duty · wormhole</p>
+            <p className="text-[15px] font-semibold leading-snug">Non-project work</p>
+            <p className="mt-2 text-[11.5px] leading-relaxed text-[#a6adba]">
+              Ops, admin, studio management — real work that doesn&apos;t belong to any single project.
+            </p>
+            <Hr />
+            <SideLabel>{focus.name.split(" ")[0]}&apos;s hours here</SideLabel>
+            <p className="text-[18px] font-semibold text-teal-300">
+              {fmtH(graph.generalMs)}{" "}
+              <span className="text-[11px] font-normal text-[#6e7684]">
+                {dataMonth ? `in ${monthLabel(dataMonth).split(" ")[0]}` : "all-time"}
+              </span>
+            </p>
+            <Hr />
+            <SideLabel>On general duty right now</SideLabel>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {members.filter((m) => m.active?.projectId === GENERAL_ID).length === 0 && (
+                <p className="text-[11.5px] text-[#6e7684]">nobody at the moment</p>
+              )}
+              {members
+                .filter((m) => m.active?.projectId === GENERAL_ID)
+                .map((m) => (
+                  <button
+                    key={m.userKey}
+                    onClick={() => setFocusKey(m.userKey)}
+                    title={m.name}
+                    className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-lg border-[1.5px] border-teal-500 bg-[#2a3142] text-[10px]"
+                  >
+                    {profiles[m.userKey]?.avatar ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={profiles[m.userKey].avatar} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      m.name.slice(0, 2).toUpperCase()
+                    )}
+                  </button>
+                ))}
+            </div>
+          </>
+        ) : selectedProject ? (
           <>
             <p className="mb-0.5 text-[10.5px] font-semibold uppercase tracking-[0.07em] text-amber-400/90">Project · selected</p>
             <p className="text-[15px] font-semibold leading-snug">{selectedProject.name}</p>
