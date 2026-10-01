@@ -458,6 +458,56 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
                   const busFactor = p.contributors.length === 1;
                   // Labels flip to the free side: below when the node rides the
                   // lower arc, above on the upper arc — kills orbit collisions.
+                  // Moons: computed up front so back-half ones can paint
+                  // BEHIND the planet (they were always on top — field bug).
+                  const moonData = p.moons.map((mo, mi) => {
+                    const n2 = p.moons.length;
+                    const ma = (mi / n2) * Math.PI * 2 + (hashStr(p.id) % 100) / 16 + phase * 2.2;
+                    const mr = (isSel ? 10 : 5.5 * q.scale) * 1;
+                    const dist = r + (isSel ? 24 : 11) + mr;
+                    return {
+                      mo,
+                      mr,
+                      mx: q.x + dist * Math.cos(ma),
+                      my: q.y + dist * 0.55 * Math.sin(ma),
+                      behind: Math.sin(ma) < 0,
+                    };
+                  });
+                  const renderMoon = (d: (typeof moonData)[number]) => {
+                    const av = profiles[d.mo.member.userKey]?.avatar;
+                    const onIt = d.mo.member.active?.projectId === p.id;
+                    const mid = `mn-${p.id}-${d.mo.member.userKey}`.replace(/[^\w-]/g, "_");
+                    const mr2 = d.behind ? d.mr * 0.85 : d.mr;
+                    return (
+                      <g
+                        key={d.mo.member.userKey}
+                        className="cursor-pointer"
+                        opacity={d.behind ? 0.6 : 1}
+                        onPointerDown={(e) => {
+                          e.stopPropagation();
+                          setFocusKey(d.mo.member.userKey);
+                        }}
+                      >
+                        <title>{`${d.mo.member.name} · ${d.mo.sharedCount} shared`}</title>
+                        {av ? (
+                          <>
+                            <clipPath id={mid}>
+                              <circle cx={d.mx} cy={d.my} r={mr2} />
+                            </clipPath>
+                            <image href={av} x={d.mx - mr2} y={d.my - mr2} width={mr2 * 2} height={mr2 * 2} clipPath={`url(#${mid})`} />
+                          </>
+                        ) : (
+                          <circle cx={d.mx} cy={d.my} r={mr2} fill="#1c2027" />
+                        )}
+                        <circle cx={d.mx} cy={d.my} r={mr2} fill="none" stroke={onIt ? "#22c55e" : "#aab3c2"} strokeWidth={onIt ? 1.6 : 1} />
+                        {isSel && !d.behind && (
+                          <text x={d.mx} y={d.my + mr2 + 10} textAnchor="middle" fill="#cdd3dd" style={{ fontSize: "8.5px" }}>
+                            {d.mo.member.name.split(" ")[0]} · {d.mo.sharedCount}
+                          </text>
+                        )}
+                      </g>
+                    );
+                  };
                   const below = q.y >= CY;
                   const ly = below ? q.y + r + 13 : q.y - r - 17;
                   return (
@@ -469,6 +519,10 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
                       // every frame, and a moved element cancels a click.
                       onPointerDown={() => setSelected({ type: "project", id: p.id })}
                     >
+                      {isSel && p.moons.length > 0 && (
+                        <ellipse cx={q.x} cy={q.y} rx={r + 34} ry={(r + 34) * 0.55} fill="none" stroke="rgba(255,255,255,0.14)" strokeWidth={0.8} />
+                      )}
+                      {moonData.filter((d) => d.behind).map(renderMoon)}
                       {/* Planet skin: seeded bands + craters + light shading. */}
                       {(() => {
                         const pat = patternOf(p.id);
@@ -548,69 +602,7 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
                           {busFactor ? "⚠ only them" : ""}
                         </text>
                       )}
-                      {/* Satellite moons — the project's people, hugging it.
-                          Evenly spaced on a mini-orbit with local drift;
-                          labels bloom only while this project is selected. */}
-                      {p.moons.map((mo, mi) => {
-                        const n2 = p.moons.length;
-                        const ma =
-                          (mi / n2) * Math.PI * 2 +
-                          (hashStr(p.id) % 100) / 16 +
-                          phase * 2.2;
-                        const mr = isSel ? 10 : 5.5 * q.scale;
-                        const dist = r + (isSel ? 24 : 11) + mr;
-                        const mx = q.x + dist * Math.cos(ma);
-                        const my = q.y + dist * 0.55 * Math.sin(ma);
-                        const av = profiles[mo.member.userKey]?.avatar;
-                        const onIt = mo.member.active?.projectId === p.id;
-                        const mid = `mn-${p.id}-${mo.member.userKey}`.replace(/[^\w-]/g, "_");
-                        return (
-                          <g
-                            key={mo.member.userKey}
-                            className="cursor-pointer"
-                            onPointerDown={(e) => {
-                              e.stopPropagation();
-                              setFocusKey(mo.member.userKey);
-                            }}
-                          >
-                            <title>{`${mo.member.name} · ${mo.sharedCount} shared`}</title>
-                            {av ? (
-                              <>
-                                <clipPath id={mid}>
-                                  <circle cx={mx} cy={my} r={mr} />
-                                </clipPath>
-                                <image href={av} x={mx - mr} y={my - mr} width={mr * 2} height={mr * 2} clipPath={`url(#${mid})`} />
-                              </>
-                            ) : (
-                              <circle cx={mx} cy={my} r={mr} fill="#1c2027" />
-                            )}
-                            <circle
-                              cx={mx}
-                              cy={my}
-                              r={mr}
-                              fill="none"
-                              stroke={onIt ? "#22c55e" : "#aab3c2"}
-                              strokeWidth={onIt ? 1.6 : 1}
-                            />
-                            {isSel && (
-                              <text x={mx} y={my + mr + 10} textAnchor="middle" fill="#cdd3dd" style={{ fontSize: "8.5px" }}>
-                                {mo.member.name.split(" ")[0]} · {mo.sharedCount}
-                              </text>
-                            )}
-                          </g>
-                        );
-                      })}
-                      {isSel && p.moons.length > 0 && (
-                        <ellipse
-                          cx={q.x}
-                          cy={q.y}
-                          rx={r + 34}
-                          ry={(r + 34) * 0.55}
-                          fill="none"
-                          stroke="rgba(255,255,255,0.14)"
-                          strokeWidth={0.8}
-                        />
-                      )}
+                      {moonData.filter((d) => !d.behind).map(renderMoon)}
                     </g>
                   );
                 }
