@@ -211,31 +211,14 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
         share: totalAll > 0 ? p.ms / totalAll : 0,
         angle: projAngle.get(p.projectId)!,
         contributors: contributors(p.projectId),
+        moons: collabs
+          .filter((c) => c.shared[0] === p.projectId)
+          .map((c) => ({ member: c.m, sharedCount: c.shared.length })),
       })),
-      // Moons around their planet (field feedback): each collaborator sits on
-      // the outer orbit NEXT TO their strongest shared project, and siblings
-      // of the same project fan out with CONSTANT spacing, centered on it.
-      collabs: (() => {
-        const byProject = new Map<string, typeof collabs>();
-        for (const c of collabs) {
-          const pid = c.shared[0];
-          byProject.set(pid, [...(byProject.get(pid) ?? []), c]);
-        }
-        const SPACING = 0.42; // rad between sibling moons
-        const out: { member: Pulse; sharedCount: number; topProjectId: string; angle: number }[] = [];
-        for (const [pid, group] of byProject) {
-          const base = projAngle.get(pid) ?? 0;
-          group.forEach((c, k) => {
-            out.push({
-              member: c.m,
-              sharedCount: c.shared.length,
-              topProjectId: pid,
-              angle: base + (k - (group.length - 1) / 2) * SPACING,
-            });
-          });
-        }
-        return out;
-      })(),
+      // Satellite clusters (option A): each collaborator becomes a MOON of
+      // their strongest shared project — stacking is geometrically impossible,
+      // and the resting view stays calm (labels only bloom on focus).
+      collabs: collabs.map((c) => ({ member: c.m, sharedCount: c.shared.length })),
       totalAll,
     };
   }, [focus, members, dataMonth, projectInfo]);
@@ -324,9 +307,6 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
     mode === "open" ? easeO(stag(0.3 + i * 0.05, 0.3)) : easeO(stag(i * 0.05, 0.55));
   const projPop = (i: number) =>
     mode === "open" ? Math.min(1.15, over(easeO(stag(0.3 + i * 0.05, 0.3)))) : 1;
-  const collabF = (i: number) => (mode === "travel" ? easeO(stag(0.3 + i * 0.05, 0.5)) : 1);
-  const collabO = (i: number) =>
-    mode === "open" ? easeO(stag(0.55 + i * 0.05, 0.3)) : easeO(stag(0.3 + i * 0.05, 0.5));
   const orbitO = stag(0.25, 0.35);
   const coreK =
     mode === "open" ? Math.min(1.2, over(easeO(stag(0.05, 0.35)))) : 0.9 + 0.1 * over(easeO(stag(0, 0.3)));
@@ -416,7 +396,6 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
               ))}
             </g>
             <ellipse cx={CX} cy={CY} rx={185} ry={64} fill="none" stroke="rgba(76,138,245,0.18)" strokeWidth="1" opacity={orbitO} />
-            <ellipse cx={CX} cy={CY} rx={278} ry={110} fill="none" stroke="rgba(139,92,246,0.12)" strokeWidth="1" strokeDasharray="2 6" opacity={orbitO} />
 
             {/* edges first, then nodes sorted far→near so depth stacks right */}
             {graph.projs.map((p, pi) => {
@@ -436,32 +415,9 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
                 />
               );
             })}
-            {graph.collabs.map((c, ci) => {
-              const fc = collabF(ci);
-              const q = pos(c.angle, 278 * fc, 110 * fc);
-              // Mock behavior: the person attaches to their strongest SHARED
-              // PROJECT, not straight to the core.
-              const api2 = graph.projs.findIndex((p) => p.id === c.topProjectId);
-              const anchor =
-                api2 >= 0
-                  ? pos(graph.projs[api2].angle, 185 * projF(api2), 64 * projF(api2))
-                  : { x: CX, y: CY };
-              return (
-                <line
-                  key={`ce-${c.member.userKey}`}
-                  x1={anchor.x}
-                  y1={anchor.y}
-                  x2={q.x}
-                  y2={q.y}
-                  stroke="rgba(255,255,255,0.13)"
-                  strokeOpacity={collabO(ci)}
-                  strokeWidth={0.9}
-                />
-              );
-            })}
+
 
             {[...graph.projs.map((p, pi) => ({ kind: "proj" as const, p, pi, q: pos(p.angle, 185 * projF(pi), 64 * projF(pi)) })),
-              ...graph.collabs.map((c, ci) => ({ kind: "collab" as const, c, ci, q: pos(c.angle, 278 * collabF(ci), 110 * collabF(ci)) })),
               { kind: "core" as const, q: { x: CX, y: CY, depth: 0.5, scale: 1, opacity: 1 } }]
               .sort((a, b) => a.q.depth - b.q.depth)
               .map((n) => {
@@ -592,60 +548,80 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
                           {busFactor ? "⚠ only them" : ""}
                         </text>
                       )}
+                      {/* Satellite moons — the project's people, hugging it.
+                          Evenly spaced on a mini-orbit with local drift;
+                          labels bloom only while this project is selected. */}
+                      {p.moons.map((mo, mi) => {
+                        const n2 = p.moons.length;
+                        const ma =
+                          (mi / n2) * Math.PI * 2 +
+                          (hashStr(p.id) % 100) / 16 +
+                          phase * 2.2;
+                        const mr = isSel ? 10 : 5.5 * q.scale;
+                        const dist = r + (isSel ? 24 : 11) + mr;
+                        const mx = q.x + dist * Math.cos(ma);
+                        const my = q.y + dist * 0.55 * Math.sin(ma);
+                        const av = profiles[mo.member.userKey]?.avatar;
+                        const onIt = mo.member.active?.projectId === p.id;
+                        const mid = `mn-${p.id}-${mo.member.userKey}`.replace(/[^\w-]/g, "_");
+                        return (
+                          <g
+                            key={mo.member.userKey}
+                            className="cursor-pointer"
+                            onPointerDown={(e) => {
+                              e.stopPropagation();
+                              setFocusKey(mo.member.userKey);
+                            }}
+                          >
+                            <title>{`${mo.member.name} · ${mo.sharedCount} shared`}</title>
+                            {av ? (
+                              <>
+                                <clipPath id={mid}>
+                                  <circle cx={mx} cy={my} r={mr} />
+                                </clipPath>
+                                <image href={av} x={mx - mr} y={my - mr} width={mr * 2} height={mr * 2} clipPath={`url(#${mid})`} />
+                              </>
+                            ) : (
+                              <circle cx={mx} cy={my} r={mr} fill="#1c2027" />
+                            )}
+                            <circle
+                              cx={mx}
+                              cy={my}
+                              r={mr}
+                              fill="none"
+                              stroke={onIt ? "#22c55e" : "#aab3c2"}
+                              strokeWidth={onIt ? 1.6 : 1}
+                            />
+                            {isSel && (
+                              <text x={mx} y={my + mr + 10} textAnchor="middle" fill="#cdd3dd" style={{ fontSize: "8.5px" }}>
+                                {mo.member.name.split(" ")[0]} · {mo.sharedCount}
+                              </text>
+                            )}
+                          </g>
+                        );
+                      })}
+                      {isSel && p.moons.length > 0 && (
+                        <ellipse
+                          cx={q.x}
+                          cy={q.y}
+                          rx={r + 34}
+                          ry={(r + 34) * 0.55}
+                          fill="none"
+                          stroke="rgba(255,255,255,0.14)"
+                          strokeWidth={0.8}
+                        />
+                      )}
                     </g>
                   );
                 }
-                const { c, q } = n;
-                const r = (10 + 2.2 * Math.min(c.sharedCount, 4)) * q.scale;
-                const av = profiles[c.member.userKey]?.avatar;
-                return (
-                  <g
-                    key={`c-${c.member.userKey}`}
-                    opacity={q.opacity * 0.95 * collabO(n.ci)}
-                    className="cursor-pointer"
-                    onPointerDown={() => setFocusKey(c.member.userKey)}
-                  >
-                    {av ? (
-                      <>
-                        <clipPath id={`clip-${c.member.userKey}`}>
-                          <circle cx={q.x} cy={q.y} r={r} />
-                        </clipPath>
-                        <image
-                          href={av}
-                          x={q.x - r}
-                          y={q.y - r}
-                          width={r * 2}
-                          height={r * 2}
-                          clipPath={`url(#clip-${c.member.userKey})`}
-                        />
-                        <circle cx={q.x} cy={q.y} r={r} fill="none" stroke="#aab3c2" strokeWidth={1.1} />
-                      </>
-                    ) : (
-                      <>
-                        <circle cx={q.x} cy={q.y} r={r} fill="#1c2027" stroke="#aab3c2" strokeWidth={1.1} />
-                        <text x={q.x} y={q.y + 3} textAnchor="middle" fill="#cdd3dd" style={{ fontSize: `${8 * q.scale}px` }}>
-                          {c.member.name.slice(0, 2).toUpperCase()}
-                        </text>
-                      </>
-                    )}
-                    <text
-                      x={q.x}
-                      y={q.y >= CY ? q.y + r + 11 : q.y - r - 6}
-                      textAnchor="middle"
-                      fill="#8a93a3"
-                      style={{ fontSize: `${8.5 * q.scale}px` }}
-                    >
-                      {c.member.name.split(" ")[0]} · {c.sharedCount}
-                    </text>
-                  </g>
-                );
+                return null;
               })}
 
 
           </svg>
         )}
         <p className="absolute bottom-2.5 left-4 z-10 text-[10px] text-[#6e7684]">
-          node size = hours together · green ring = done · amber = overdue · red dashed = bus factor · click a person to re-center
+          node size = hours together · moons = the project\u2019s people (click one to travel) · green moon ring = on it now · red dashed = bus factor
         </p>
       </div>
 
