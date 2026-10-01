@@ -71,6 +71,9 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
   const ymOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   const curYm = ymOf(new Date());
   const [monthSel, setMonthSel] = useState<string | null>(curYm);
+  // The month the loaded data belongs to — the graph renders ONLY this,
+  // so a slow fetch can never show old hours under a new label.
+  const [dataMonth, setDataMonth] = useState<string | null>(curYm);
   const shiftMonth = (m: string, d: number) => {
     const [y, mo] = m.split("-").map(Number);
     return ymOf(new Date(y, mo - 1 + d, 1));
@@ -81,9 +84,8 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
   const firstRun = useRef(true);
   const introRef = useRef<{ mode: "open" | "travel"; start: number }>({ mode: "open", start: 0 });
   useEffect(() => {
-    introRef.current = { mode: firstRun.current ? "open" : "travel", start: performance.now() };
-    firstRun.current = false;
-  }, [focusKey, monthSel]);
+    if (!firstRun.current) introRef.current = { mode: "travel", start: performance.now() };
+  }, [focusKey]);
 
   const [members, setMembers] = useState<Pulse[]>([]);
   const [projectInfo, setProjectInfo] = useState<Record<string, { name: string; color: string }>>({});
@@ -100,6 +102,9 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
         if (r.ok) {
           setMembers(r.data.members);
           setProjectInfo(r.data.projects);
+          setDataMonth(monthSel);
+          introRef.current = { mode: firstRun.current ? "open" : "travel", start: performance.now() };
+          firstRun.current = false;
         }
       });
     api.get<{ projects: ProjectMeta[] }>("/api/projects").then((r) => r.ok && setProjects(r.data.projects));
@@ -112,7 +117,7 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
   // ---- graph model ---------------------------------------------------------
   const graph = useMemo(() => {
     if (!focus) return null;
-    const src = (m: Pulse) => (monthSel ? (m.rangeByProject ?? []) : (m.totalByProject ?? []));
+    const src = (m: Pulse) => (dataMonth ? (m.rangeByProject ?? []) : (m.totalByProject ?? []));
     const real = src(focus).filter(
       (w) => w.ms > 0 && w.projectId !== STANDBY_ID && w.projectId !== GENERAL_ID
     );
@@ -178,7 +183,7 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
       })(),
       totalAll,
     };
-  }, [focus, members, monthSel]);
+  }, [focus, members, dataMonth]);
 
   // ---- selection -----------------------------------------------------------
   const [selected, setSelected] = useState<{ type: "project"; id: string } | null>(null);
@@ -321,7 +326,9 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
           </button>
           <button
             onClick={() => setMonthSel(monthSel ? null : curYm)}
-            className="min-w-[128px] text-center text-[12.5px] font-medium text-[#e8eaef] hover:text-white"
+            className={`min-w-[128px] text-center text-[12.5px] font-medium text-[#e8eaef] hover:text-white ${
+              monthSel !== dataMonth ? "animate-pulse text-[#8a93a3]" : ""
+            }`}
             title={monthSel ? "Show all time" : "Back to this month"}
           >
             {monthSel ? monthLabel(monthSel) : "All time"}
@@ -664,7 +671,7 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
             <SideLabel>This constellation</SideLabel>
             <p className="text-[11.5px] leading-relaxed text-[#a6adba]">
               {graph?.projs.length ?? 0} projects · {fmtH(graph?.totalAll ?? 0)}{" "}
-              {monthSel ? `in ${monthLabel(monthSel).split(" ")[0]}` : "all-time"}
+              {dataMonth ? `in ${monthLabel(dataMonth).split(" ")[0]}` : "all-time"}
               {graph && graph.collabs.length > 0 && (
                 <>
                   <br />
