@@ -302,7 +302,9 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
   const over = (t: number) => {
     const s2 = 1.7;
     const u = t - 1;
-    return 1 + u * u * ((s2 + 1) * u + s2);
+    // Clamped: at t=0 float error yields -2e-16, which propagated into
+    // negative circle radii — thousands of SVG console errors per intro.
+    return Math.max(0, 1 + u * u * ((s2 + 1) * u + s2));
   };
   const projF = (i: number) => (mode === "travel" ? easeO(stag(i * 0.05, 0.55)) : 1);
   const projO = (i: number) =>
