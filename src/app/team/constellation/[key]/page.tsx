@@ -60,6 +60,55 @@ const fmtH = (ms: number): string => {
 };
 const toDate = (iso: string) => new Date(`${iso}T00:00:00`);
 
+// ---- planet skins: bands + craters + shading, seeded by project id so a
+// project wears the same face in every constellation, forever. -------------
+const hashStr = (str: string) => {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+};
+const seededRng = (seed: number) => () => {
+  seed = (seed + 0x6d2b79f5) | 0;
+  let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
+interface PlanetPat {
+  bands: { y: number; h: number; tilt: number; k: number; o: number }[];
+  craters: { x: number; y: number; r: number }[];
+}
+const patCache = new Map<string, PlanetPat>();
+const patternOf = (id: string): PlanetPat => {
+  const hit = patCache.get(id);
+  if (hit) return hit;
+  const r = seededRng(hashStr(id));
+  const bands: PlanetPat["bands"] = [];
+  const nb = 2 + Math.floor(r() * 2);
+  for (let i = 0; i < nb; i++) {
+    bands.push({ y: -0.65 + 1.3 * r(), h: 0.12 + 0.2 * r(), tilt: -10 + 20 * r(), k: r() < 0.5 ? 0.5 : 1.5, o: 0.45 + 0.35 * r() });
+  }
+  const craters: PlanetPat["craters"] = [];
+  const nc = 2 + Math.floor(r() * 3);
+  for (let i = 0; i < nc; i++) {
+    const ang = r() * 6.283, d = r() * 0.55;
+    craters.push({ x: Math.cos(ang) * d, y: Math.sin(ang) * d, r: 0.12 + 0.13 * r() });
+  }
+  const pat = { bands, craters };
+  patCache.set(id, pat);
+  return pat;
+};
+const shade = (hex: string, k: number) => {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+  if (!m) return hex;
+  const n = parseInt(m[1], 16);
+  const f = (c: number) => (k <= 1 ? Math.round(c * k) : Math.round(c + (255 - c) * Math.min(1, k - 1)));
+  const R = f((n >> 16) & 255), G = f((n >> 8) & 255), B = f(n & 255);
+  return `#${((R << 16) | (G << 8) | B).toString(16).padStart(6, "0")}`;
+};
+
 export default function ConstellationPage({ params }: { params: Promise<{ key: string }> }) {
   const { key } = use(params);
   const [focusKey, setFocusKey] = useState(decodeURIComponent(key));
@@ -119,7 +168,13 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
     if (!focus) return null;
     const src = (m: Pulse) => (dataMonth ? (m.rangeByProject ?? []) : (m.totalByProject ?? []));
     const real = src(focus).filter(
-      (w) => w.ms > 0 && w.projectId !== STANDBY_ID && w.projectId !== GENERAL_ID
+      (w) =>
+        w.ms > 0 &&
+        w.projectId !== STANDBY_ID &&
+        w.projectId !== GENERAL_ID &&
+        // Deleted/orphaned projects keep their hours in totals and pies, but
+        // don't get to be planets (the "?" nodes, field feedback).
+        !!projectInfo[w.projectId]
     );
     const totalAll = real.reduce((a, w) => a + w.ms, 0);
     const projs = [...real].sort((a, b) => b.ms - a.ms).slice(0, 8);
@@ -183,7 +238,7 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
       })(),
       totalAll,
     };
-  }, [focus, members, dataMonth]);
+  }, [focus, members, dataMonth, projectInfo]);
 
   // ---- selection -----------------------------------------------------------
   const [selected, setSelected] = useState<{ type: "project"; id: string } | null>(null);
@@ -458,8 +513,47 @@ export default function ConstellationPage({ params }: { params: Promise<{ key: s
                       // every frame, and a moved element cancels a click.
                       onPointerDown={() => setSelected({ type: "project", id: p.id })}
                     >
-                      {/* Tinted planet fill — a dark disc read as an empty ring. */}
-                      <circle cx={q.x} cy={q.y} r={r} fill={`${color}30`} stroke={color} strokeWidth={2 * q.scale} />
+                      {/* Planet skin: seeded bands + craters + light shading. */}
+                      {(() => {
+                        const pat = patternOf(p.id);
+                        const cid = `pl-${p.id.replace(/[^\w-]/g, "_")}`;
+                        return (
+                          <>
+                            <clipPath id={cid}>
+                              <circle cx={q.x} cy={q.y} r={r} />
+                            </clipPath>
+                            <g clipPath={`url(#${cid})`}>
+                              <circle cx={q.x} cy={q.y} r={r} fill={shade(color, 0.6)} />
+                              {pat.bands.map((b, bi) => (
+                                <rect
+                                  key={bi}
+                                  x={q.x - r * 1.2}
+                                  y={q.y + b.y * r}
+                                  width={r * 2.4}
+                                  height={Math.max(1, b.h * r)}
+                                  fill={shade(color, b.k)}
+                                  opacity={b.o}
+                                  transform={`rotate(${b.tilt} ${q.x} ${q.y})`}
+                                />
+                              ))}
+                              {r > 13 &&
+                                pat.craters.map((c2, ci2) => (
+                                  <circle
+                                    key={ci2}
+                                    cx={q.x + c2.x * r}
+                                    cy={q.y + c2.y * r}
+                                    r={c2.r * r}
+                                    fill={shade(color, 0.38)}
+                                    opacity={0.85}
+                                  />
+                                ))}
+                              <circle cx={q.x - r * 0.35} cy={q.y - r * 0.35} r={r * 1.1} fill={shade(color, 1.6)} opacity={0.18} />
+                              <circle cx={q.x + r * 0.5} cy={q.y + r * 0.5} r={r * 1.15} fill="#000000" opacity={0.3} />
+                            </g>
+                            <circle cx={q.x} cy={q.y} r={r} fill="none" stroke={color} strokeWidth={2 * q.scale} />
+                          </>
+                        );
+                      })()}
                       {r > 15 && (
                         <text
                           x={q.x}
