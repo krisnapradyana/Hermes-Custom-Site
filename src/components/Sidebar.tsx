@@ -175,7 +175,7 @@ export function Sidebar() {
           prefetch={false}
           href="/events"
           className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
-          title="Event — company calendar (beta)"
+          title="Event — company calendar"
         >
           <CalendarDays size={16} />
         </Link>
@@ -358,7 +358,7 @@ export function Sidebar() {
               {navItem("/team", <Users size={15} />, "Team")}
               {navItem("/projects", <FolderKanban size={15} />, "Projects")}
               {navItem("/schedule", <GanttChart size={15} />, "Schedule")}
-              {navItem("/events", <CalendarDays size={15} />, "Event", "beta")}
+              {navItem("/events", <CalendarDays size={15} />, "Event")}
               {navItem("/tools", <Wrench size={15} />, "Tools")}
               {navItem("/survey", <ClipboardList size={15} />, "Survey", "alpha")}
             </>
