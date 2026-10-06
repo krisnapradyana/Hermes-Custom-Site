@@ -23,6 +23,7 @@ import {
   X,
   Users,
   Wrench,
+  ClipboardList,
 } from "lucide-react";
 import { useHermesStore } from "@/lib/store";
 import { timeAgo } from "@/lib/format";
@@ -185,6 +186,14 @@ export function Sidebar() {
           title="Tools — studio utilities"
         >
           <Wrench size={16} />
+        </Link>
+        <Link
+          prefetch={false}
+          href="/survey"
+          className="p-2 rounded-lg hover:bg-parchment-dark text-ink-soft"
+          title="Survey — team assessments (alpha)"
+        >
+          <ClipboardList size={16} />
         </Link>
 
         {/* Divider stands in for the group titles in the rail. */}
@@ -351,6 +360,7 @@ export function Sidebar() {
               {navItem("/schedule", <GanttChart size={15} />, "Schedule")}
               {navItem("/events", <CalendarDays size={15} />, "Event", "beta")}
               {navItem("/tools", <Wrench size={15} />, "Tools")}
+              {navItem("/survey", <ClipboardList size={15} />, "Survey", "alpha")}
             </>
           )}
 
