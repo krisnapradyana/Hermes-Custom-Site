@@ -278,9 +278,10 @@ export default function ProjectsPage() {
     });
   }, []);
 
-  // ---- create form ----
+  // ---- create wizard (3 guided steps — Basics → Folder → Schedule & type) ----
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [step, setStep] = useState(0);
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
   const [workingFolder, setWorkingFolder] = useState("");
@@ -499,6 +500,11 @@ export default function ProjectsPage() {
         el instanceof HTMLInputElement ||
         el instanceof HTMLTextAreaElement ||
         (el instanceof HTMLElement && el.isContentEditable);
+      // The wizard owns the keyboard while open — Esc closes, nothing else fires.
+      if (showForm) {
+        if (e.key === "Escape") setShowForm(false);
+        return;
+      }
       if (e.key === "/" && !typing) {
         e.preventDefault();
         searchRef.current?.focus();
@@ -520,7 +526,7 @@ export default function ProjectsPage() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [visibleIds, selId, router, togglePin]);
+  }, [visibleIds, selId, router, togglePin, showForm]);
 
   // ---- one project row (command list) ----
   const maxMonthMs = useMemo(
@@ -650,7 +656,10 @@ export default function ProjectsPage() {
           </p>
         </div>
         <button
-          onClick={() => setShowForm(true)}
+          onClick={() => {
+            setStep(0);
+            setShowForm(true);
+          }}
           className="flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
         >
           <Plus size={15} />
@@ -699,184 +708,272 @@ export default function ProjectsPage() {
         })}
       </div>
 
-      {showForm && (
-        <div className="mb-8 space-y-3 rounded-xl border border-line bg-card p-5">
-          <input
-            autoFocus
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Project name"
-            className="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:border-ink-faint"
-          />
-          <input
-            value={desc}
-            onChange={(e) => setDesc(e.target.value)}
-            placeholder="What is this project about?"
-            className="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:border-ink-faint"
-          />
-          {/* Mode: brand-new (creates folder + template) vs existing folder */}
-          <div className="flex w-fit overflow-hidden rounded-lg border border-line">
-            {(
-              [
-                ["new", "Brand new project"],
-                ["existing", "Existing project"],
-              ] as const
-            ).map(([m, label]) => (
-              <button
-                key={m}
-                onClick={() => setMode(m)}
-                className={`px-3.5 py-1.5 text-[13px] transition-colors ${
-                  mode === m ? "bg-accent font-medium text-white" : "text-ink-soft hover:bg-parchment-dark"
-                }`}
+      {showForm &&
+        (() => {
+          const STEPS = ["Basics", "Folder", "Schedule & type"];
+          const stepOk = [
+            !!name.trim(),
+            mode === "new" ? !!(folderName.trim() && parentFolder.trim()) : !!workingFolder.trim(),
+            !!(startDate && deadline),
+          ];
+          return (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4"
+              onClick={() => setShowForm(false)}
+            >
+              <div
+                className="glass-frost w-full max-w-xl max-h-[88vh] overflow-y-auto rounded-2xl border border-line p-6"
+                onClick={(e) => e.stopPropagation()}
               >
-                {label}
-              </button>
-            ))}
-          </div>
+                {/* Step header: number · title · progress · n/3 */}
+                <div className="mb-5 flex items-center gap-2.5">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent text-[12px] font-bold text-white">
+                    {step + 1}
+                  </span>
+                  <span className="text-[15px] font-semibold">{STEPS[step]}</span>
+                  <span className="mx-2 h-0.5 flex-1 overflow-hidden rounded bg-parchment-dark">
+                    <span
+                      className="block h-full rounded bg-accent transition-all duration-300"
+                      style={{ width: `${((step + 1) / STEPS.length) * 100}%` }}
+                    />
+                  </span>
+                  <span className="text-[11px] text-ink-faint">
+                    {step + 1} / {STEPS.length}
+                  </span>
+                </div>
 
-          {mode === "new" ? (
-            <>
-              <div>
-                <p className="mb-1.5 text-sm font-medium">Folder name</p>
-                <input
-                  value={folderName}
-                  onChange={(e) => setFolderName(e.target.value)}
-                  placeholder="e.g. 2026011_CLIENT_Project Name"
-                  className="w-full rounded-lg border border-line bg-transparent px-3 py-2 font-mono text-sm outline-none focus:border-ink-faint"
-                />
-              </div>
-              <div>
-                <p className="mb-1.5 text-sm font-medium">Location</p>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 truncate rounded-lg border border-line bg-transparent px-3 py-2 font-mono text-sm text-ink-soft">
-                    {parentFolder || (
-                      <span className="text-ink-faint">
-                        Where to create it — e.g. /gdrive/SUPERPIXEL/2026 PROJECTS
+                {step === 0 && (
+                  <div className="space-y-3">
+                    <input
+                      autoFocus
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Project name"
+                      className="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:border-ink-faint"
+                    />
+                    <input
+                      value={desc}
+                      onChange={(e) => setDesc(e.target.value)}
+                      placeholder="What is this project about?"
+                      className="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:border-ink-faint"
+                    />
+                    <p className="text-[11px] text-ink-faint">
+                      The name is how the whole studio finds it — clock, schedule, boards.
+                    </p>
+                  </div>
+                )}
+
+                {step === 1 && (
+                  <div className="space-y-3">
+                    <div className="flex w-fit overflow-hidden rounded-lg border border-line">
+                      {(
+                        [
+                          ["new", "Brand new project"],
+                          ["existing", "Existing project"],
+                        ] as const
+                      ).map(([m, label]) => (
+                        <button
+                          key={m}
+                          onClick={() => setMode(m)}
+                          className={`px-3.5 py-1.5 text-[13px] transition-colors ${
+                            mode === m
+                              ? "bg-accent font-medium text-white"
+                              : "text-ink-soft hover:bg-parchment-dark"
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    {mode === "new" ? (
+                      <>
+                        <div>
+                          <p className="mb-1.5 text-sm font-medium">Folder name</p>
+                          <input
+                            value={folderName}
+                            onChange={(e) => setFolderName(e.target.value)}
+                            placeholder="e.g. 2026011_CLIENT_Project Name"
+                            className="w-full rounded-lg border border-line bg-transparent px-3 py-2 font-mono text-sm outline-none focus:border-ink-faint"
+                          />
+                        </div>
+                        <div>
+                          <p className="mb-1.5 text-sm font-medium">Location</p>
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 truncate rounded-lg border border-line bg-transparent px-3 py-2 font-mono text-sm text-ink-soft">
+                              {parentFolder || (
+                                <span className="text-ink-faint">
+                                  Where to create it — e.g. /gdrive/SUPERPIXEL/2026 PROJECTS
+                                </span>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => setPicking(true)}
+                              className="flex shrink-0 items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-sm text-ink-soft hover:border-ink-faint hover:text-ink"
+                            >
+                              <HardDrive size={14} /> Browse
+                            </button>
+                          </div>
+                          {parentFolder && folderName.trim() && (
+                            <p className="mt-1.5 truncate font-mono text-[12px] text-accent">
+                              → {parentFolder}/{folderName.trim()}
+                            </p>
+                          )}
+                          <p className="mt-1 text-[11px] text-ink-faint">
+                            Created with the standard template inside: Assets, Audio, Comments,
+                            FINAL OUTPUT, From Client, INPUT, Preview, Project Brief, REF,
+                            Timeline, Working file.
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      <div>
+                        <p className="mb-1.5 text-sm font-medium">Working folder</p>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 truncate rounded-lg border border-line bg-transparent px-3 py-2 font-mono text-sm text-ink-soft">
+                            {workingFolder || (
+                              <span className="text-ink-faint">No folder chosen</span>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => setPicking(true)}
+                            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-sm text-ink-soft hover:border-ink-faint hover:text-ink"
+                          >
+                            <HardDrive size={14} /> Browse
+                          </button>
+                        </div>
+                        <p className="mt-1 text-[11px] text-ink-faint">
+                          Pick a folder that already exists on the shared Drive — no template
+                          folders are created.
+                        </p>
+                      </div>
+                    )}
+                    {/* The permanence warning lives exactly where the decision happens. */}
+                    <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-[12.5px] text-amber-600 dark:text-amber-400">
+                      ⚠ The working folder is permanent. Once the project is created it cannot be
+                      moved or re-pointed — double-check the{" "}
+                      {mode === "new" ? "name and location" : "folder"} before continuing.
+                    </div>
+                  </div>
+                )}
+
+                {step === 2 && (
+                  <div className="space-y-3">
+                    <div className="flex gap-3">
+                      <label className="flex-1">
+                        <span className="mb-1.5 block text-sm font-medium">Start date</span>
+                        <input
+                          type="date"
+                          value={startDate}
+                          onChange={(e) => setStartDate(e.target.value)}
+                          className="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:border-ink-faint"
+                        />
+                      </label>
+                      <label className="flex-1">
+                        <span className="mb-1.5 block text-sm font-medium">Deadline</span>
+                        <input
+                          type="date"
+                          value={deadline}
+                          min={startDate || undefined}
+                          onChange={(e) => setDeadline(e.target.value)}
+                          className="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:border-ink-faint"
+                        />
+                      </label>
+                    </div>
+                    <div>
+                      <span className="mb-1.5 block text-sm font-medium">
+                        Project type{" "}
+                        <span className="font-normal text-ink-faint">— pick any that apply</span>
                       </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {PROJECT_TAGS.map((t) => {
+                          const on = newTags.includes(t.id);
+                          return (
+                            <button
+                              key={t.id}
+                              type="button"
+                              onClick={() =>
+                                setNewTags((cur) =>
+                                  on ? cur.filter((x) => x !== t.id) : [...cur, t.id]
+                                )
+                              }
+                              className={`rounded-full border px-3 py-1 text-[12px] font-medium transition-colors ${
+                                on
+                                  ? "border-accent bg-accent-soft text-accent"
+                                  : "border-line text-ink-soft hover:border-ink-faint"
+                              }`}
+                            >
+                              {t.label}
+                              {on ? " ✓" : ""}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <p className="mt-1 text-[11px] text-ink-faint">
+                        Flagship projects wrap through a post-mortem form when marked done.
+                      </p>
+                    </div>
+                    {/* Recap — the last look before anything is created. */}
+                    <div className="rounded-lg border border-line bg-parchment-dark/40 px-3 py-2 text-[12px] text-ink-soft">
+                      <span className="font-medium text-ink">{name.trim() || "…"}</span>
+                      {" · "}
+                      {mode === "new"
+                        ? `${parentFolder}/${folderName.trim()}`
+                        : workingFolder}{" "}
+                      {startDate && deadline ? `· ${startDate} → ${deadline}` : ""}
+                    </div>
+                    {createError && (
+                      <p className="rounded-lg border border-red-500/40 bg-red-500/5 px-3 py-2 text-[13px] text-red-500">
+                        {createError}
+                      </p>
                     )}
                   </div>
-                  <button
-                    onClick={() => setPicking(true)}
-                    className="flex shrink-0 items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-sm text-ink-soft hover:border-ink-faint hover:text-ink"
-                  >
-                    <HardDrive size={14} /> Browse
-                  </button>
-                </div>
-                {parentFolder && folderName.trim() && (
-                  <p className="mt-1.5 truncate font-mono text-[12px] text-accent">
-                    → {parentFolder}/{folderName.trim()}
-                  </p>
                 )}
-                <p className="mt-1 text-[11px] text-ink-faint">
-                  The folder is created with the standard template inside: Assets, Audio, Comments,
-                  FINAL OUTPUT, From Client, INPUT, Preview, Project Brief, REF, Timeline, Working
-                  file.
-                </p>
-              </div>
-            </>
-          ) : (
-            <div>
-              <p className="mb-1.5 text-sm font-medium">Working folder</p>
-              <div className="flex items-center gap-2">
-                <div className="flex-1 truncate rounded-lg border border-line bg-transparent px-3 py-2 font-mono text-sm text-ink-soft">
-                  {workingFolder || <span className="text-ink-faint">No folder chosen</span>}
-                </div>
-                <button
-                  onClick={() => setPicking(true)}
-                  className="flex shrink-0 items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-sm text-ink-soft hover:border-ink-faint hover:text-ink"
-                >
-                  <HardDrive size={14} /> Browse
-                </button>
-              </div>
-              <p className="mt-1 text-[11px] text-ink-faint">
-                Pick a folder that already exists on the shared Drive — no template folders are
-                created.
-              </p>
-            </div>
-          )}
-          <div className="flex gap-3">
-            <label className="flex-1">
-              <span className="mb-1.5 block text-sm font-medium">Start date</span>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:border-ink-faint"
-              />
-            </label>
-            <label className="flex-1">
-              <span className="mb-1.5 block text-sm font-medium">Deadline</span>
-              <input
-                type="date"
-                value={deadline}
-                min={startDate || undefined}
-                onChange={(e) => setDeadline(e.target.value)}
-                className="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:border-ink-faint"
-              />
-            </label>
-          </div>
-          {/* Classification tags (leadership request) — any subset. */}
-          <div>
-            <span className="mb-1.5 block text-sm font-medium">
-              Project type <span className="font-normal text-ink-faint">— pick any that apply</span>
-            </span>
-            <div className="flex flex-wrap gap-1.5">
-              {PROJECT_TAGS.map((t) => {
-                const on = newTags.includes(t.id);
-                return (
+
+                <div className="mt-6 flex items-center gap-2">
+                  {step > 0 && (
+                    <button
+                      onClick={() => setStep(step - 1)}
+                      className="rounded-lg border border-line px-3.5 py-1.5 text-sm text-ink-soft hover:border-ink-faint hover:text-ink"
+                    >
+                      ← Back
+                    </button>
+                  )}
+                  {step < STEPS.length - 1 ? (
+                    <button
+                      onClick={() => setStep(step + 1)}
+                      disabled={!stepOk[step]}
+                      className="rounded-lg bg-accent px-4 py-1.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-40"
+                    >
+                      Next: {STEPS[step + 1]} →
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleCreate}
+                      disabled={!canCreate || creating}
+                      className="rounded-lg bg-accent px-4 py-1.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-40"
+                    >
+                      {creating
+                        ? mode === "new"
+                          ? "Creating folders…"
+                          : "Creating…"
+                        : "Create project"}
+                    </button>
+                  )}
+                  <span className="flex-1" />
                   <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setNewTags((cur) => (on ? cur.filter((x) => x !== t.id) : [...cur, t.id]))}
-                    className={`rounded-full border px-3 py-1 text-[12px] font-medium transition-colors ${
-                      on
-                        ? "border-accent bg-accent-soft text-accent"
-                        : "border-line text-ink-soft hover:border-ink-faint"
-                    }`}
+                    onClick={() => {
+                      setShowForm(false);
+                      setCreateError("");
+                    }}
+                    className="rounded-lg px-3.5 py-1.5 text-sm text-ink-soft hover:bg-parchment-dark"
                   >
-                    {t.label}
-                    {on ? " ✓" : ""}
+                    Cancel
                   </button>
-                );
-              })}
+                </div>
+              </div>
             </div>
-            <p className="mt-1 text-[11px] text-ink-faint">
-              Flagship projects wrap through a post-mortem form when marked done.
-            </p>
-          </div>
-          {/* Permanence warning — the folder choice is forever. */}
-          <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-[12.5px] text-amber-600 dark:text-amber-400">
-            ⚠ The working folder is permanent. Once the project is created it cannot be moved or
-            re-pointed — double-check the {mode === "new" ? "name and location" : "folder"} before
-            creating.
-          </div>
-
-          {createError && (
-            <p className="rounded-lg border border-red-500/40 bg-red-500/5 px-3 py-2 text-[13px] text-red-500">
-              {createError}
-            </p>
-          )}
-
-          <div className="flex gap-2 pt-1">
-            <button
-              onClick={handleCreate}
-              disabled={!canCreate || creating}
-              className="rounded-lg bg-accent px-3.5 py-1.5 text-sm text-white hover:bg-accent-hover disabled:opacity-40"
-            >
-              {creating ? (mode === "new" ? "Creating folders…" : "Creating…") : "Create"}
-            </button>
-            <button
-              onClick={() => {
-                setShowForm(false);
-                setCreateError("");
-              }}
-              className="rounded-lg px-3.5 py-1.5 text-sm text-ink-soft hover:bg-parchment-dark"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
+          );
+        })()}
 
       {picking && (
         <ServerFolderPicker
