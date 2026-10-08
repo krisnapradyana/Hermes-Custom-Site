@@ -858,7 +858,7 @@ export default function ProjectsPage() {
 
       <div className="flex items-start gap-5">
         {/* LEFT — the command list, grouped by urgency. */}
-        <div className="min-w-0 flex-[1.4] space-y-1">
+        <div className="min-w-0 flex-1 space-y-1">
           {visibleIds.length === 0 && (
             <p className="py-10 text-center text-sm text-ink-faint">
               {q || filter !== "all" ? "No projects match." : "No projects yet — create the first one."}
@@ -899,8 +899,10 @@ export default function ProjectsPage() {
           </p>
         </div>
 
-        {/* RIGHT — the cockpit pane (desktop only; rows navigate directly below lg). */}
-        <div className="sticky top-6 hidden flex-1 lg:block">
+        {/* RIGHT — the cockpit pane (desktop only; rows navigate directly below
+            lg). FIXED width: a content-sized pane resized on every hover and
+            made the whole layout wobble (field video). */}
+        <div className="sticky top-6 hidden w-[400px] shrink-0 lg:block xl:w-[460px]">
           {selected ? (
             <Cockpit
               key={selected.id}
@@ -1131,9 +1133,9 @@ function Cockpit({
         )}
       </p>
       {p.workingFolder && (
-        <p className="mt-1 flex items-center gap-1.5 truncate font-mono text-[10.5px] text-ink-faint">
+        <p className="mt-1 flex items-center gap-1.5 font-mono text-[10.5px] text-ink-faint">
           <HardDrive size={10.5} className="shrink-0" />
-          {p.workingFolder}
+          <span className="min-w-0 truncate">{p.workingFolder}</span>
         </p>
       )}
 
