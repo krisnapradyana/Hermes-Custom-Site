@@ -648,12 +648,17 @@ export default function ProjectsPage() {
   return (
     <div className="mx-auto w-full max-w-[1400px] px-8 py-10">
       <div className="mb-5 flex items-center justify-between">
-        <div>
-          <h1 className="mb-1 font-serif-display text-3xl">Projects</h1>
-          <p className="text-sm text-ink-soft">
-            {projects.filter((p) => !p.archived && !p.doneAt).length} active ·{" "}
-            {projects.filter((p) => !!p.doneAt).length} done
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent-soft">
+            <FolderKanban size={17} className="text-accent" />
+          </div>
+          <div>
+            <h1 className="font-serif-display text-3xl">Projects</h1>
+            <p className="text-sm text-ink-soft">
+              {projects.filter((p) => !p.archived && !p.doneAt).length} active ·{" "}
+              {projects.filter((p) => !!p.doneAt).length} done
+            </p>
+          </div>
         </div>
         <button
           onClick={() => {
@@ -751,11 +756,17 @@ export default function ProjectsPage() {
                       placeholder="Project name"
                       className="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:border-ink-faint"
                     />
-                    <input
+                    <textarea
                       value={desc}
-                      onChange={(e) => setDesc(e.target.value)}
+                      onChange={(e) => {
+                        setDesc(e.target.value);
+                        // Auto-grow: never scroll inside, extend downward instead.
+                        e.currentTarget.style.height = "auto";
+                        e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
+                      }}
                       placeholder="What is this project about?"
-                      className="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:border-ink-faint"
+                      rows={3}
+                      className="w-full resize-none overflow-hidden rounded-lg border border-line bg-transparent px-3 py-2 text-sm leading-relaxed outline-none focus:border-ink-faint"
                     />
                     <p className="text-[11px] text-ink-faint">
                       The name is how the whole studio finds it — clock, schedule, boards.

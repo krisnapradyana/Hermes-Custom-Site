@@ -270,8 +270,8 @@ export default function TeamPage() {
       {/* Title row */}
       <div className="flex items-start gap-3 mb-1">
         <div className="flex-1">
-          <h1 className="text-[26px] font-semibold tracking-tight">Team availability</h1>
-          <p className="text-[13px] text-ink-soft">
+          <h1 className="font-serif-display text-3xl mb-1">Team availability</h1>
+          <p className="text-sm text-ink-soft">
             See who is on duty, on break, or off — across the studio.
           </p>
         </div>
