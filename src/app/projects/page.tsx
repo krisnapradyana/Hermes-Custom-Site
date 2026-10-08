@@ -112,6 +112,31 @@ const avColor = (key: string): string => {
   return AV_COLORS[Math.abs(h) % AV_COLORS.length];
 };
 
+/** Slack profile picture with initials fallback — 26px, border ring. */
+function Avatar({ name, src, className = "" }: { name: string; src?: string; className?: string }) {
+  if (src) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- Slack-hosted avatar; next/image can't optimize external hosts here
+      <img
+        src={src}
+        alt={name}
+        title={name}
+        loading="lazy"
+        className={`h-[26px] w-[26px] shrink-0 rounded-full border-2 border-card object-cover ${className}`}
+      />
+    );
+  }
+  return (
+    <span
+      title={name}
+      className={`flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full border-2 border-card text-[9.5px] font-bold text-white ${className}`}
+      style={{ backgroundColor: avColor(name) }}
+    >
+      {initials(name)}
+    </span>
+  );
+}
+
 const TAG_CHIP: Record<ProjectTag, { cls: string; label: string; title: string }> = {
   flagship: {
     cls: "bg-violet-500/15 text-violet-600 dark:text-violet-400",
@@ -166,6 +191,27 @@ export default function ProjectsPage() {
     }, 45_000);
     return () => clearInterval(t);
   }, [loadSummary]);
+
+  // ---- Slack profile pictures (slackId → avatar URL), one fetch ----
+  const [avatars, setAvatars] = useState<Record<string, string>>({});
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/team/profiles");
+        if (!res.ok) return;
+        const d = (await res.json()) as { profiles?: Record<string, { avatar?: string }> };
+        if (d?.profiles) {
+          setAvatars(
+            Object.fromEntries(
+              Object.entries(d.profiles)
+                .filter(([, v]) => !!v.avatar)
+                .map(([k, v]) => [k, v.avatar!])
+            )
+          );
+        }
+      } catch {}
+    })();
+  }, []);
 
   // ---- team pulse (who's on what now + studio month hours) — one fetch, 60s ----
   const [team, setTeam] = useState<TeamSnap | null>(null);
@@ -493,12 +539,7 @@ export default function ProjectsPage() {
       <div
         key={p.id}
         onMouseEnter={() => hoverSelect(p.id)}
-        onClick={() => {
-          // Below lg there is no cockpit pane — a tap goes straight in.
-          if (window.innerWidth < 1024) router.push(`/projects/${p.id}`);
-          else setSelId(p.id);
-        }}
-        onDoubleClick={() => router.push(`/projects/${p.id}`)}
+        onClick={() => router.push(`/projects/${p.id}`)}
         className={`group flex cursor-pointer items-center gap-2.5 rounded-xl border px-3 py-2.5 transition-colors ${
           isSel
             ? "border-accent/60 bg-accent-soft"
@@ -522,51 +563,44 @@ export default function ProjectsPage() {
             </span>
           )}
         </span>
-        {(p.tags ?? []).map((t) => (
-          <span
-            key={t}
-            title={TAG_CHIP[t].title}
-            className={`hidden shrink-0 rounded-full px-2 py-0.5 text-[10px] sm:inline ${TAG_CHIP[t].cls}`}
-          >
-            {TAG_CHIP[t].label}
-          </span>
-        ))}
-        {onIt.length > 0 && (
-          <span className="hidden shrink-0 md:flex">
-            {onIt.slice(0, 3).map((m, i) => (
-              <span
-                key={m.userKey}
-                title={m.name}
-                className={`flex h-5 w-5 items-center justify-center rounded-full border border-card text-[8.5px] font-bold text-white ${i > 0 ? "-ml-1.5" : ""}`}
-                style={{ backgroundColor: avColor(m.userKey) }}
-              >
-                {initials(m.name)}
-              </span>
-            ))}
-            {onIt.length > 3 && (
-              <span className="-ml-1.5 flex h-5 w-5 items-center justify-center rounded-full border border-card bg-parchment-dark text-[8.5px] font-bold text-ink-soft">
-                +{onIt.length - 3}
-              </span>
-            )}
-          </span>
-        )}
-        {ms > 0 && !p.doneAt && (
-          <span className="hidden w-16 shrink-0 lg:block" title={`${fmtH(ms)} studio time this month`}>
-            <span className="block h-1 overflow-hidden rounded bg-parchment-dark">
+        <span className="hidden w-28 shrink-0 items-center justify-end gap-1 overflow-hidden sm:flex">
+          {(p.tags ?? []).slice(0, 2).map((t) => (
+            <span
+              key={t}
+              title={TAG_CHIP[t].title}
+              className={`shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] ${TAG_CHIP[t].cls}`}
+            >
+              {TAG_CHIP[t].label}
+            </span>
+          ))}
+        </span>
+        <span className="hidden w-[84px] shrink-0 justify-end md:flex">
+          {onIt.slice(0, 3).map((m, i) => (
+            <Avatar key={m.userKey} name={m.name} src={avatars[m.userKey]} className={i > 0 ? "-ml-2" : ""} />
+          ))}
+          {onIt.length > 3 && (
+            <span className="-ml-2 flex h-[26px] w-[26px] items-center justify-center rounded-full border-2 border-card bg-parchment-dark text-[9.5px] font-bold text-ink-soft">
+              +{onIt.length - 3}
+            </span>
+          )}
+        </span>
+        <span className="hidden w-16 shrink-0 lg:block" title={ms > 0 ? `${fmtH(ms)} studio time this month` : "No hours this month"}>
+          <span className="block h-1 overflow-hidden rounded bg-parchment-dark">
+            {ms > 0 && !p.doneAt && (
               <span
                 className="block h-full rounded"
                 style={{ width: `${Math.max(6, Math.round((ms / maxMonthMs) * 100))}%`, backgroundColor: p.color }}
               />
-            </span>
+            )}
           </span>
-        )}
+        </span>
         {p.doneAt ? (
-          <span className="shrink-0 rounded-full bg-green-500/15 px-2 py-0.5 text-[10.5px] font-medium text-green-600 dark:text-green-400">
+          <span className="w-[108px] shrink-0 rounded-full bg-green-500/15 px-2 py-0.5 text-center text-[10.5px] font-medium text-green-600 dark:text-green-400">
             Done
           </span>
         ) : d !== null ? (
           <span
-            className={`shrink-0 rounded-full border px-2 py-0.5 text-[10.5px] font-medium ${
+            className={`w-[108px] shrink-0 whitespace-nowrap rounded-full border px-2 py-0.5 text-center text-[10.5px] font-medium ${
               d < 0
                 ? "border-red-500/50 bg-red-500/10 text-red-500"
                 : d <= SOON_DAYS
@@ -577,7 +611,7 @@ export default function ProjectsPage() {
             {d < 0 ? `overdue ${-d}d` : `${dueLabel(p.deadline!)} · ${d}d`}
           </span>
         ) : (
-          <span className="shrink-0 rounded-full border border-line px-2 py-0.5 text-[10.5px] text-ink-faint">
+          <span className="w-[108px] shrink-0 rounded-full border border-line px-2 py-0.5 text-center text-[10.5px] text-ink-faint">
             no date
           </span>
         )}
@@ -895,7 +929,7 @@ export default function ProjectsPage() {
             </button>
           )}
           <p className="hidden px-1 pt-2 text-[10.5px] text-ink-faint lg:block">
-            ↑↓ navigate · Enter open · double-click open · P pin · / search
+            hover previews → · click or Enter opens · ↑↓ navigate · P pin · / search
           </p>
         </div>
 
@@ -916,6 +950,7 @@ export default function ProjectsPage() {
               monthMs={monthMsOf(selected.id)}
               studioMonthMs={team?.studioMonthMs ?? 0}
               members={team?.members ?? []}
+              avatars={avatars}
               pinned={pinnedIds.includes(selected.id)}
               onPin={() => togglePin(selected.id)}
               onDelete={() => setDeleteTarget(selected)}
@@ -954,6 +989,7 @@ function Cockpit({
   monthMs,
   studioMonthMs,
   members,
+  avatars,
   pinned,
   onPin,
   onDelete,
@@ -965,6 +1001,7 @@ function Cockpit({
   monthMs: number;
   studioMonthMs: number;
   members: TeamMember[];
+  avatars: Record<string, string>;
   pinned: boolean;
   onPin: () => void;
   onDelete: () => void;
@@ -1091,12 +1128,7 @@ function Cockpit({
           )}
           {onIt.map((m) => (
             <p key={m.userKey} className="mb-0.5 flex items-center gap-1.5 text-[12px] text-ink-soft">
-              <span
-                className="flex h-5 w-5 items-center justify-center rounded-full text-[8.5px] font-bold text-white"
-                style={{ backgroundColor: avColor(m.userKey) }}
-              >
-                {initials(m.name)}
-              </span>
+              <Avatar name={m.name} src={avatars[m.userKey]} />
               <span className="truncate">
                 {m.name} · {m.active?.breakAt ? "on break" : `${fmtH(todayOf(m))} today`}
               </span>
