@@ -312,7 +312,7 @@ export default function SchedulePage() {
       : "—";
 
   return (
-    <div className="mx-auto max-w-6xl px-8 py-10">
+    <div className="mx-auto w-full max-w-[1400px] px-8 py-10">
       <div className="flex items-center gap-3 mb-1">
         <div className="w-9 h-9 rounded-xl bg-accent-soft flex items-center justify-center">
           <GanttChart size={17} className="text-accent" />
