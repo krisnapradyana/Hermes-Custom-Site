@@ -18,7 +18,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // PublicRouteSwitch can't detect this case — the HOST is the truth, and
   // only the server sees it before first paint.
   const host = (await headers()).get("host") ?? "";
-  const bareHost = host.startsWith("directory.");
+  const bareHost = host.startsWith("directory.") || host.startsWith("marketing.");
   return (
     <html lang="en" suppressHydrationWarning>
       <head>

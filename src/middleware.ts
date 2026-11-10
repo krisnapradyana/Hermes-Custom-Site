@@ -7,7 +7,8 @@ import { auth } from "@/auth";
  * 1. Server-side auth gate for the API surface. The client-side AuthGate only
  *    hides the UI — this is what actually stops unauthenticated requests.
  *
- * 2. Subdomain routing for the Member Directory: the SAME container is also
+ * 2. Subdomain routing for the Member Directory (and, identically, the
+ *    Marketing platform on marketing.*): the SAME container is also
  *    reached as directory.spx-assistant.duckdns.org (Caddy proxies both hosts
  *    here), and on that host every page path rewrites to /directory — the
  *    clock's hosting pattern without a second app. API paths are left alone
@@ -42,6 +43,16 @@ export default auth((req) => {
       return NextResponse.rewrite(url);
     }
     return; // already the directory page
+  }
+
+  // --- Marketing subdomain: same trick, pages collapse onto /marketing. ---
+  if (host.startsWith("marketing.") && !pathname.startsWith("/api")) {
+    if (!pathname.startsWith("/marketing")) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/marketing";
+      return NextResponse.rewrite(url);
+    }
+    return;
   }
 
   // --- API auth wall (pages handle auth client-side via AuthGate). ---

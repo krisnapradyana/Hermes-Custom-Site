@@ -23,6 +23,8 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
  *   /directory  — the Member Directory sub-app. It brings its OWN sign-in
  *                 gate and canvas, and is also served on its own subdomain
  *                 (middleware rewrites every path on directory.* to it).
+ *   /marketing  — the Marketing platform sub-app, same arrangement on
+ *                 marketing.*.
  */
 export function PublicRouteSwitch({
   app,
@@ -32,7 +34,9 @@ export function PublicRouteSwitch({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  if (pathname?.startsWith("/share/") || pathname?.startsWith("/directory")) {
+  if (pathname?.startsWith("/share/") ||
+    pathname?.startsWith("/directory") ||
+    pathname?.startsWith("/marketing")) {
     return <>{children}</>;
   }
   return <>{app}</>;
