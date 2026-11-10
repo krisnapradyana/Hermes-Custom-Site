@@ -3,15 +3,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
 import { renderMarkdown } from "@/lib/markdown";
+import { Radar } from "./Radar";
 
 /**
  * Marketing platform (alpha) — standalone sub-app like the Member Directory:
  * served bare (no sidebar) and exposed on marketing.* through Caddy +
  * middleware. Access comes from the Directory role (lib/marketing-access).
  *
- * First module: Checker Studio — run the team's own review prompts
- * (landing page copy / SEO article / EDM) over a draft. Reviews are not
- * stored; they live in this tab until the next run.
+ * Modules: Checker Studio — run the team's own review prompts (landing page
+ * copy / SEO article / EDM) over a draft; reviews are not stored. Publish
+ * Radar (./Radar) — delivered projects and whether they are safe to post.
  */
 
 const AUTH_ENABLED = process.env.NEXT_PUBLIC_AUTH_ENABLED === "true";
@@ -37,7 +38,7 @@ interface Review {
 
 const TABS = [
   { id: "checker", label: "Checker Studio", ready: true },
-  { id: "radar", label: "Publish Radar", ready: false },
+  { id: "radar", label: "Publish Radar", ready: true },
   { id: "pipeline", label: "Content Pipeline", ready: false },
   { id: "library", label: "Library & Rules", ready: false },
 ] as const;
@@ -197,6 +198,8 @@ function Marketing() {
       <main className="mt-5 flex-1 pb-8">
         {tab === "checker" ? (
           <CheckerStudio checkers={checkers} />
+        ) : tab === "radar" ? (
+          <Radar />
         ) : (
           <ComingSoon label={TABS.find((t) => t.id === tab)?.label ?? ""} />
         )}
@@ -210,7 +213,7 @@ function ComingSoon({ label }: { label: string }) {
     <div className="glass-panel anim-pop mx-auto mt-16 max-w-md rounded-2xl border border-line/50 p-8 text-center">
       <h2 className="font-serif-display text-2xl">{label}</h2>
       <p className="mt-2 text-sm text-ink-soft">
-        Not built yet. Checker Studio is the first module — this one follows.
+        Not built yet — this module follows.
       </p>
     </div>
   );
