@@ -5,6 +5,7 @@ import { useSession, signIn, signOut } from "next-auth/react";
 import { renderMarkdown } from "@/lib/markdown";
 import { Radar } from "./Radar";
 import { Pipeline } from "./Pipeline";
+import { Library } from "./Library";
 
 /**
  * Marketing platform (alpha) — standalone sub-app like the Member Directory:
@@ -15,6 +16,7 @@ import { Pipeline } from "./Pipeline";
  * copy / SEO article / EDM) over a draft; reviews are not stored. Publish
  * Radar (./Radar) — delivered projects and whether they are safe to post.
  * Content Pipeline (./Pipeline) — one card per angle, idea to published.
+ * Library & Rules (./Library) — reference docs, prompts, house rules.
  */
 
 const AUTH_ENABLED = process.env.NEXT_PUBLIC_AUTH_ENABLED === "true";
@@ -42,7 +44,7 @@ const TABS = [
   { id: "checker", label: "Checker Studio", ready: true },
   { id: "radar", label: "Publish Radar", ready: true },
   { id: "pipeline", label: "Content Pipeline", ready: true },
-  { id: "library", label: "Library & Rules", ready: false },
+  { id: "library", label: "Library & Rules", ready: true },
 ] as const;
 
 export default function MarketingPage() {
@@ -205,20 +207,9 @@ function Marketing() {
         ) : tab === "pipeline" ? (
           <Pipeline />
         ) : (
-          <ComingSoon label={TABS.find((t) => t.id === tab)?.label ?? ""} />
+          <Library />
         )}
       </main>
-    </div>
-  );
-}
-
-function ComingSoon({ label }: { label: string }) {
-  return (
-    <div className="glass-panel anim-pop mx-auto mt-16 max-w-md rounded-2xl border border-line/50 p-8 text-center">
-      <h2 className="font-serif-display text-2xl">{label}</h2>
-      <p className="mt-2 text-sm text-ink-soft">
-        Not built yet — this module follows.
-      </p>
     </div>
   );
 }
