@@ -11,6 +11,7 @@ import {
   readRadar,
   removeManual,
 } from "@/lib/marketing/radar-store";
+import { readCards } from "@/lib/marketing/pipeline-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,7 +26,7 @@ export async function GET() {
   const gate = await requireMarketingAccess();
   if (gate.denied) return gate.denied;
 
-  const [projects, radar] = await Promise.all([readProjects(), readRadar()]);
+  const [projects, radar, cards] = await Promise.all([readProjects(), readRadar(), readCards()]);
 
   const tracker = projects
     .filter((p) => !!p.doneAt)
@@ -47,7 +48,15 @@ export async function GET() {
   }));
 
   const items = [...tracker, ...manual]
-    .map((it) => ({ ...it, ...EMPTY_ENTRY, ...(radar.entries[it.id] ?? {}) }))
+    .map((it) => ({
+      ...it,
+      ...EMPTY_ENTRY,
+      ...(radar.entries[it.id] ?? {}),
+      // Pipeline cards about this project (one per angle).
+      cards: cards
+        .filter((c) => c.projectId === it.id)
+        .map((c) => ({ id: c.id, title: c.title, format: c.format, stage: c.stage })),
+    }))
     .sort((a, b) => (b.deliveredAt ?? "").localeCompare(a.deliveredAt ?? ""));
 
   return NextResponse.json({ items, channels: RADAR_CHANNELS, formats: RADAR_FORMATS });

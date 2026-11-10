@@ -27,6 +27,8 @@ interface Item {
   excluded?: boolean;
   updatedBy?: string;
   updatedAt?: string;
+  /** Pipeline cards about this project. */
+  cards: { id: string; title: string; format: string; stage: string }[];
 }
 
 type Status = "ready" | "planned" | "waiting" | "ask" | "restricted";
@@ -35,7 +37,7 @@ function statusOf(it: Item, channels: string[]): Status {
   if (it.nda === "no") return "restricted";
   if (it.nda === "ask") return "ask";
   if (!channels.some((c) => it.pub[c])) return "waiting";
-  return it.formats.length ? "planned" : "ready";
+  return it.formats.length || it.cards.length ? "planned" : "ready";
 }
 
 const STATUS: Record<Status, { label: string; cls: string }> = {
@@ -248,7 +250,7 @@ export function Radar() {
 
         {/* ---- detail ---- */}
         {selected ? (
-          <Detail key={selected.id} it={selected} channels={channels} formats={formats} patch={patch} onRemoved={load} />
+          <Detail key={selected.id} it={selected} channels={channels} formats={formats} patch={patch} reload={load} />
         ) : (
           <section className="glass-panel hidden rounded-2xl border border-line/50 p-8 text-center text-sm text-ink-faint lg:block">
             Select a project.
@@ -283,13 +285,13 @@ function Detail({
   channels,
   formats,
   patch,
-  onRemoved,
+  reload,
 }: {
   it: Item;
   channels: string[];
   formats: string[];
   patch: (id: string, change: Partial<Item>) => void;
-  onRemoved: () => void;
+  reload: () => void;
 }) {
   // Text fields save on blur — local copies while typing.
   const [ndaNote, setNdaNote] = useState(it.ndaNote);
@@ -300,7 +302,37 @@ function Detail({
   const remove = async () => {
     if (!confirm(`Remove "${it.name}" from the radar? This cannot be undone.`)) return;
     await fetch(`/api/marketing/radar?id=${encodeURIComponent(it.id)}`, { method: "DELETE" });
-    onRemoved();
+    reload();
+  };
+
+  // One pipeline card per planned format that doesn't have one yet.
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const missing = it.formats.filter((f) => !it.cards.some((c) => c.format === f));
+  const addToPipeline = async () => {
+    if (sending || !missing.length) return;
+    setSending(true);
+    setSendError(null);
+    try {
+      for (const format of missing) {
+        const res = await fetch("/api/marketing/pipeline", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            title: `${it.name} — ${format}`,
+            format,
+            projectId: it.id,
+            notes: it.angle ? `Angle: ${it.angle}` : "",
+          }),
+        });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Could not add");
+      }
+    } catch (e) {
+      setSendError(e instanceof Error ? e.message : "Could not add");
+    } finally {
+      setSending(false);
+      reload();
+    }
   };
 
   return (
@@ -410,6 +442,36 @@ function Detail({
           );
         })}
       </div>
+
+      <Head>In the pipeline</Head>
+      {it.cards.length > 0 && (
+        <ul className="mb-2 flex flex-col gap-1">
+          {it.cards.map((c) => (
+            <li key={c.id} className="flex items-center gap-2 text-[13px]">
+              <span className="min-w-0 flex-1 truncate">{c.title}</span>
+              <span className={`${chip} border-line/60 text-ink-soft`}>{c.stage}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {it.nda !== "ok" ? (
+        <p className="text-xs text-ink-faint">Clear the NDA status first — then planned content can become pipeline cards.</p>
+      ) : missing.length ? (
+        <button
+          onClick={addToPipeline}
+          disabled={sending}
+          className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
+        >
+          {sending ? "Adding…" : `+ Add to pipeline (${missing.join(", ")})`}
+        </button>
+      ) : (
+        <p className="text-xs text-ink-faint">
+          {it.cards.length
+            ? "Every planned format has a card. Pick another format above to add more."
+            : "Pick a planned content format above to create its card."}
+        </p>
+      )}
+      {sendError && <p className="mt-1.5 text-xs text-red-600 dark:text-red-300">{sendError}</p>}
 
       <div className="mt-5 flex items-center gap-3 border-t border-line/50 pt-3">
         <button

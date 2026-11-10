@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
 import { renderMarkdown } from "@/lib/markdown";
 import { Radar } from "./Radar";
+import { Pipeline } from "./Pipeline";
 
 /**
  * Marketing platform (alpha) — standalone sub-app like the Member Directory:
@@ -13,6 +14,7 @@ import { Radar } from "./Radar";
  * Modules: Checker Studio — run the team's own review prompts (landing page
  * copy / SEO article / EDM) over a draft; reviews are not stored. Publish
  * Radar (./Radar) — delivered projects and whether they are safe to post.
+ * Content Pipeline (./Pipeline) — one card per angle, idea to published.
  */
 
 const AUTH_ENABLED = process.env.NEXT_PUBLIC_AUTH_ENABLED === "true";
@@ -39,7 +41,7 @@ interface Review {
 const TABS = [
   { id: "checker", label: "Checker Studio", ready: true },
   { id: "radar", label: "Publish Radar", ready: true },
-  { id: "pipeline", label: "Content Pipeline", ready: false },
+  { id: "pipeline", label: "Content Pipeline", ready: true },
   { id: "library", label: "Library & Rules", ready: false },
 ] as const;
 
@@ -200,6 +202,8 @@ function Marketing() {
           <CheckerStudio checkers={checkers} />
         ) : tab === "radar" ? (
           <Radar />
+        ) : tab === "pipeline" ? (
+          <Pipeline />
         ) : (
           <ComingSoon label={TABS.find((t) => t.id === tab)?.label ?? ""} />
         )}
