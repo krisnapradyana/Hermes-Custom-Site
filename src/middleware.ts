@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
 import { auth } from "@/auth";
 
 /**
@@ -31,32 +31,14 @@ const PUBLIC_API = [
   /^\/api\/share\//, // client share links — the long random token IS the auth
 ];
 
-export default auth((req) => {
+/** Hosts that serve one bare sub-app: every page path collapses onto it. */
+const SUB_APPS: Record<string, string> = {
+  "directory.": "/directory",
+  "marketing.": "/marketing",
+};
+
+const apiGate = auth((req) => {
   const { pathname } = req.nextUrl;
-
-  // --- Directory subdomain: pages collapse onto the directory screen. ---
-  const host = req.headers.get("host") ?? "";
-  if (host.startsWith("directory.") && !pathname.startsWith("/api")) {
-    if (!pathname.startsWith("/directory")) {
-      const url = req.nextUrl.clone();
-      url.pathname = "/directory";
-      return NextResponse.rewrite(url);
-    }
-    return; // already the directory page
-  }
-
-  // --- Marketing subdomain: same trick, pages collapse onto /marketing. ---
-  if (host.startsWith("marketing.") && !pathname.startsWith("/api")) {
-    if (!pathname.startsWith("/marketing")) {
-      const url = req.nextUrl.clone();
-      url.pathname = "/marketing";
-      return NextResponse.rewrite(url);
-    }
-    return;
-  }
-
-  // --- API auth wall (pages handle auth client-side via AuthGate). ---
-  if (!pathname.startsWith("/api")) return;
 
   // Single-user dev mode: no auth configured, nothing to enforce.
   if (process.env.NEXT_PUBLIC_AUTH_ENABLED !== "true") return;
@@ -67,6 +49,34 @@ export default auth((req) => {
     return Response.json({ error: "Not signed in" }, { status: 401 });
   }
 });
+
+export default function middleware(req: NextRequest, ev: NextFetchEvent) {
+  const { pathname } = req.nextUrl;
+
+  // --- Sub-app subdomains. This MUST run on the raw request, outside the
+  // auth() wrapper: next-auth rewrites req.nextUrl's origin to AUTH_URL, so a
+  // rewrite built from it pointed at the MAIN host — Next then proxied the
+  // request out through Caddy and back in, the layout saw the main Host and
+  // drew the full app shell around the sub-app. ---
+  if (!pathname.startsWith("/api")) {
+    const host = req.headers.get("host") ?? "";
+    const prefix = Object.keys(SUB_APPS).find((p) => host.startsWith(p));
+    if (!prefix) return; // pages handle auth client-side via AuthGate
+    const target = SUB_APPS[prefix];
+    // Tell the root layout which sub-app this is (never trust the client's copy).
+    const headers = new Headers(req.headers);
+    headers.set("x-spx-subapp", target.slice(1));
+    if (pathname.startsWith(target)) {
+      return NextResponse.next({ request: { headers } });
+    }
+    const url = req.nextUrl.clone();
+    url.pathname = target;
+    return NextResponse.rewrite(url, { request: { headers } });
+  }
+
+  // --- API auth wall. ---
+  return (apiGate as unknown as (r: NextRequest, e: NextFetchEvent) => Response | Promise<Response> | undefined)(req, ev);
+}
 
 export const config = {
   // API always; pages only for host detection (skip Next internals + assets).

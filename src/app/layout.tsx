@@ -17,8 +17,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // router still sees "/" there (middleware rewrites are invisible to it), so
   // PublicRouteSwitch can't detect this case — the HOST is the truth, and
   // only the server sees it before first paint.
-  const host = (await headers()).get("host") ?? "";
-  const bareHost = host.startsWith("directory.") || host.startsWith("marketing.");
+  // Middleware also stamps x-spx-subapp, which survives even if the request
+  // reaches us through a proxy hop that replaced the Host header.
+  const h = await headers();
+  const host = h.get("host") ?? "";
+  const bareHost =
+    !!h.get("x-spx-subapp") || host.startsWith("directory.") || host.startsWith("marketing.");
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
