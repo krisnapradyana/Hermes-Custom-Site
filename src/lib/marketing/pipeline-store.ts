@@ -43,6 +43,16 @@ export interface CardComment {
   sys?: boolean;
 }
 
+/** What happened after publishing — entered by hand. */
+export interface CardResult {
+  period: string; // reporting period, e.g. "14–28 Nov 2026"
+  source: string; // where the numbers come from
+  numbers: string; // the measures relevant to this piece's objective
+  lesson: string; // what to repeat or change next time
+}
+
+export const EMPTY_RESULT: CardResult = { period: "", source: "", numbers: "", lesson: "" };
+
 export interface PipelineCard {
   id: string;
   title: string;
@@ -60,6 +70,7 @@ export interface PipelineCard {
   notes: string;
   assets: CardAsset[];
   comments: CardComment[];
+  result: CardResult;
   createdBy: string;
   createdAt: string;
   updatedBy: string;
@@ -83,6 +94,7 @@ function normalize(c: Partial<PipelineCard>): PipelineCard {
     notes: c.notes ?? "",
     assets: Array.isArray(c.assets) ? c.assets : [],
     comments: Array.isArray(c.comments) ? c.comments : [],
+    result: { ...EMPTY_RESULT, ...(c.result ?? {}) },
   };
 }
 
@@ -124,6 +136,7 @@ export interface CardInput {
   publishedUrl?: unknown;
   notes?: unknown;
   assets?: unknown;
+  result?: unknown;
 }
 
 const str = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : undefined);
@@ -181,6 +194,15 @@ function apply(card: PipelineCard, input: CardInput, by: string, log: boolean): 
   if (publishedUrl !== undefined) card.publishedUrl = publishedUrl;
   const notes = str(input.notes, 2000);
   if (notes !== undefined) card.notes = notes;
+  if (input.result && typeof input.result === "object") {
+    const r = input.result as Record<string, unknown>;
+    card.result = {
+      period: str(r.period, 80) ?? card.result.period,
+      source: str(r.source, 160) ?? card.result.source,
+      numbers: str(r.numbers, 1500) ?? card.result.numbers,
+      lesson: str(r.lesson, 1500) ?? card.result.lesson,
+    };
+  }
   if (Array.isArray(input.assets)) {
     card.assets = (input.assets as unknown[])
       .map((a) => {
@@ -216,6 +238,7 @@ export function createCard(input: CardInput, by: string): Promise<PipelineCard |
       notes: "",
       assets: [],
       comments: [],
+      result: { ...EMPTY_RESULT },
       createdBy: by,
       createdAt: now,
       updatedBy: by,

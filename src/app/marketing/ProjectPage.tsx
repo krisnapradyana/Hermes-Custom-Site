@@ -88,6 +88,9 @@ export function ProjectPage({
   const [linkUrl, setLinkUrl] = useState("");
   const [note, setNote] = useState<string | null>(null);
   const [creating, setCreating] = useState<string | null>(null);
+  const [ideas, setIdeas] = useState<{ format: string; title: string; why: string; added?: boolean }[] | null>(null);
+  const [thin, setThin] = useState(false);
+  const [thinking, setThinking] = useState(false);
 
   const st = statusOf(it, channels);
   const saveText = (k: keyof typeof text) => {
@@ -147,6 +150,46 @@ export function ProjectPage({
       setCreating(null);
     }
   };
+  const suggest = async () => {
+    if (thinking) return;
+    setThinking(true);
+    setNote(null);
+    try {
+      const res = await fetch("/api/marketing/suggest", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ projectId: it.id }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error ?? "Could not get suggestions");
+      setIdeas(d.suggestions);
+      setThin(!!d.thin);
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Could not get suggestions");
+    } finally {
+      setThinking(false);
+    }
+  };
+  /** Keep an idea: it goes to the content bank, linked to this project. */
+  const bankIdea = async (i: number) => {
+    const idea = ideas?.[i];
+    if (!idea || idea.added) return;
+    const res = await fetch("/api/marketing/pipeline", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        title: idea.title,
+        format: idea.format,
+        projectId: it.id,
+        stage: "Bank",
+        brief: idea.why ? `Suggested by Hermes: ${idea.why}` : "",
+      }),
+    });
+    if (!res.ok) return setNote((await res.json().catch(() => ({}))).error ?? "Could not add the idea");
+    setIdeas((list) => list?.map((x, n) => (n === i ? { ...x, added: true } : x)) ?? list);
+    reload();
+  };
+
   const toggleSkip = (format: string) =>
     patch(it.id, { skip: it.skip.includes(format) ? it.skip.filter((f) => f !== format) : [...it.skip, format] });
 
@@ -356,6 +399,57 @@ export function ProjectPage({
               : ""}
             Click a started row to open its card in the Content Pipeline.
           </p>
+
+          <Head>Content suggestions</Head>
+          {it.nda === "no" ? (
+            <p className="text-[13px] text-ink-faint">Not available for a Restricted project.</p>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  onClick={suggest}
+                  disabled={thinking}
+                  className="rounded-lg border border-line/60 px-3 py-1.5 text-xs text-ink-soft transition-colors hover:border-accent hover:text-accent disabled:opacity-50"
+                >
+                  {thinking ? "Hermes is thinking…" : ideas ? "Suggest again" : "Ask Hermes for ideas"}
+                </button>
+                <span className="text-[12px] text-ink-faint">
+                  Built from the master record on the left — the fuller it is, the better the ideas.
+                </span>
+              </div>
+              {ideas && thin && (
+                <p className="mt-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+                  The summary, challenge and contribution are empty, so these ideas are generic. Fill
+                  them in and ask again.
+                </p>
+              )}
+              {ideas && (
+                <ul className="mt-2 flex flex-col gap-1.5">
+                  {ideas.map((s, i) => (
+                    <li key={`${s.format}-${s.title}`} className="flex items-start gap-3 rounded-xl border border-line/60 bg-card/70 px-3 py-2">
+                      <span className="min-w-0 flex-1">
+                        <span className={`${chip} ${FORMAT_CLS[s.format] ?? "border-line/60 text-ink-soft"}`}>{label(s.format)}</span>
+                        <span className="mt-1 block text-[13px] font-semibold">{s.title}</span>
+                        {s.why && <span className="block text-[12px] text-ink-faint">{s.why}</span>}
+                      </span>
+                      <button
+                        onClick={() => bankIdea(i)}
+                        disabled={s.added}
+                        className="shrink-0 whitespace-nowrap rounded-lg border border-line/60 px-2.5 py-1 text-xs text-ink-soft transition-colors hover:border-accent hover:text-accent disabled:opacity-50"
+                      >
+                        {s.added ? "In content bank" : "+ Add to bank"}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {ideas && (
+                <p className="mt-2 text-[11px] text-ink-faint">
+                  Ideas only — check each one against what really happened before writing it.
+                </p>
+              )}
+            </>
+          )}
 
           {it.angle && (
             <>

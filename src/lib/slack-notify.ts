@@ -52,6 +52,13 @@ export async function slackDm(slackUserId: string, text: string): Promise<void> 
   await slackCall("chat.postMessage", { channel, text, unfurl_links: false });
 }
 
+/** DM one user and report whether it was actually delivered. */
+export async function slackDmResult(slackUserId: string, text: string): Promise<boolean> {
+  const channel = await openDmChannel(slackUserId);
+  if (!channel) return false;
+  return (await slackCall("chat.postMessage", { channel, text, unfurl_links: false })) !== null;
+}
+
 /** The public URL of the assistant, for deep links in messages. */
 function appOrigin(): string {
   try {

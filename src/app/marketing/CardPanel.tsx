@@ -52,6 +52,7 @@ export function CardPanel({
   const [draft, setDraft] = useState(card.draft);
   const [draftUrl, setDraftUrl] = useState(card.draftUrl);
   const [publishedUrl, setPublishedUrl] = useState(card.publishedUrl);
+  const [result, setResult] = useState(card.result);
   const [comment, setComment] = useState("");
   const [assetLabel, setAssetLabel] = useState("");
   const [assetUrl, setAssetUrl] = useState("");
@@ -93,6 +94,12 @@ export function CardPanel({
     setNote(null);
     set({ [key]: v });
   };
+
+  const saveResult = (k: keyof Card["result"]) => {
+    if (result[k].trim() !== card.result[k]) set({ result: { ...card.result, [k]: result[k].trim() } });
+  };
+  const hasResult = Object.values(card.result).some(Boolean);
+  const remind = () => send(card.id, { action: "remind" });
 
   const moveTo = (stage: string) => {
     if (stage === card.stage) return;
@@ -341,6 +348,43 @@ export function CardPanel({
             </Section>
           )}
 
+          {(card.stage === "Published" || hasResult) && (
+            <Section title="Results and lesson" hint="how it did, entered by hand">
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  value={result.period}
+                  onChange={(e) => setResult((r) => ({ ...r, period: e.target.value }))}
+                  onBlur={() => saveResult("period")}
+                  placeholder="Reporting period — e.g. 14–28 Nov"
+                  className={`${inputCls} text-[13px]`}
+                />
+                <input
+                  value={result.source}
+                  onChange={(e) => setResult((r) => ({ ...r, source: e.target.value }))}
+                  onBlur={() => saveResult("source")}
+                  placeholder="Data source — e.g. Mailchimp report"
+                  className={`${inputCls} text-[13px]`}
+                />
+              </div>
+              <textarea
+                value={result.numbers}
+                onChange={(e) => setResult((r) => ({ ...r, numbers: e.target.value }))}
+                onBlur={() => saveResult("numbers")}
+                rows={3}
+                placeholder="The numbers that matter for this piece's goal — e.g. opens, clicks, replies, enquiries. Only what the source shows."
+                className={`${inputCls} mt-2 resize-y leading-relaxed`}
+              />
+              <textarea
+                value={result.lesson}
+                onChange={(e) => setResult((r) => ({ ...r, lesson: e.target.value }))}
+                onBlur={() => saveResult("lesson")}
+                rows={2}
+                placeholder="Lesson — one thing to repeat or change next time."
+                className={`${inputCls} mt-2 resize-y leading-relaxed`}
+              />
+            </Section>
+          )}
+
           <Section title="Assets" hint="links to Drive files">
             {card.assets.map((a) => (
               <div key={a.id} className="group mb-1.5 flex items-center gap-2 rounded-xl border border-line/60 bg-card/70 px-3 py-1.5 text-[13px]">
@@ -435,7 +479,12 @@ export function CardPanel({
                 </button>
               </>
             ) : (
-              <span className="text-[13px] text-ink-soft">Waiting for {card.reviewer} to review</span>
+              <>
+                <span className="text-[13px] text-ink-soft">Waiting for {card.reviewer} to review</span>
+                <button onClick={remind} className="rounded-xl border border-line/60 px-4 py-2 text-sm text-ink-soft hover:bg-parchment-dark/60">
+                  Remind on Slack
+                </button>
+              </>
             )
           ) : next && !inBank ? (
             <button onClick={() => moveTo(next)} className="rounded-xl bg-accent px-5 py-2 text-sm font-medium text-white hover:bg-accent-hover">

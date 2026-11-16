@@ -90,7 +90,7 @@ export function ReviewQueue({
   };
   const mayDecide = (c: Card) => board.isLead || !c.reviewer || c.reviewer === board.me;
 
-  const Row = ({ c, actions }: { c: Card; actions: boolean }) => {
+  const Row = ({ c, actions, remind }: { c: Card; actions: boolean; remind?: boolean }) => {
     const w = waiting(c);
     const project = board.projects.find((p) => p.id === c.projectId);
     return (
@@ -130,6 +130,13 @@ export function ReviewQueue({
               Approve
             </button>
           </>
+        ) : remind && c.reviewer ? (
+          <button
+            onClick={() => send(c.id, { action: "remind" })}
+            className="rounded-lg border border-line/60 px-3 py-1.5 text-xs text-ink-soft hover:bg-parchment-dark/60"
+          >
+            Remind on Slack
+          </button>
         ) : (
           <button onClick={() => onOpen(c.id)} className="rounded-lg border border-line/60 px-3 py-1.5 text-xs text-ink-soft hover:bg-parchment-dark/60">
             Open
@@ -139,13 +146,25 @@ export function ReviewQueue({
     );
   };
 
-  const Group = ({ title, cards, actions, empty }: { title: string; cards: Card[]; actions: boolean; empty: string }) => (
+  const Group = ({
+    title,
+    cards,
+    actions,
+    remind,
+    empty,
+  }: {
+    title: string;
+    cards: Card[];
+    actions: boolean;
+    remind?: boolean;
+    empty: string;
+  }) => (
     <div className="mb-5">
       <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
         {title} <span className="font-normal text-ink-faint">· {cards.length}</span>
       </h2>
       {cards.length ? (
-        cards.map((c) => <Row key={c.id} c={c} actions={actions} />)
+        cards.map((c) => <Row key={c.id} c={c} actions={actions} remind={remind} />)
       ) : (
         <p className="rounded-xl border border-dashed border-line/60 px-3.5 py-3 text-[13px] text-ink-faint">{empty}</p>
       )}
@@ -160,6 +179,7 @@ export function ReviewQueue({
           title="Your cards waiting on someone else"
           cards={sent}
           actions={false}
+          remind
           empty="None of your cards are in review."
         />
         {/* Leadership can decide on any card, so they get the buttons here too. */}

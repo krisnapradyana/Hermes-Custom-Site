@@ -13,6 +13,7 @@ import {
   fmtDue,
   inputCls,
   isOverdue,
+  needsResults,
   Avatar,
 } from "./pipeline-shared";
 
@@ -278,6 +279,9 @@ export function Pipeline({
                                 "general content"
                               )}
                             </span>
+                            {needsResults(c) && (
+                              <span className="mt-1.5 block text-[11px] text-ink-faint">+ add results and lesson</span>
+                            )}
                             {needsMe(c) && (
                               <span className="mt-1.5 block text-[11px] font-semibold text-amber-700 dark:text-amber-300">
                                 Waiting for your review

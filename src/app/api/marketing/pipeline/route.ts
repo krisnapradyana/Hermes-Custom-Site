@@ -15,6 +15,14 @@ import {
   updateCard,
 } from "@/lib/marketing/pipeline-store";
 
+import {
+  dmByName,
+  lastReminderAt,
+  marketingUrl,
+  notifyDecision,
+  notifyReviewRequested,
+} from "@/lib/marketing/notify";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -98,6 +106,9 @@ export async function POST(req: NextRequest) {
  *   "comment"          + text
  *   "approve"          — Review → Scheduled (reviewer or leadership only)
  *   "request_changes"  + optional text — Review → Drafting (same people)
+ *   "remind"           — Slack DM to the reviewer of a card in Review
+ * Sending for review, approving and requesting changes also DM the person
+ * who has to act next (reviewer / owner), when they are linked to Slack.
  */
 export async function PATCH(req: NextRequest) {
   const gate = await requireMarketingAccess();
@@ -120,6 +131,35 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ card });
   }
 
+  if (body.action === "remind") {
+    if (current.stage !== "Review" || !current.reviewer) {
+      return NextResponse.json({ error: "Only a card in Review with a reviewer can be reminded" }, { status: 409 });
+    }
+    if (current.reviewer === by) {
+      return NextResponse.json({ error: "You are the reviewer of this card" }, { status: 409 });
+    }
+    // One nudge per card per 12 hours — a reminder, not a siren.
+    if (Date.now() - lastReminderAt(current) < 12 * 3_600_000) {
+      return NextResponse.json(
+        { error: `${current.reviewer} was already reminded about this card today` },
+        { status: 409 }
+      );
+    }
+    const url = marketingUrl();
+    const sent = await dmByName(
+      current.reviewer,
+      `⏰ *${by}* is waiting for your review:\n• ${current.title} (${current.format})${url ? `\n${url} → Content Pipeline → Review` : ""}`
+    );
+    if (!sent) {
+      return NextResponse.json(
+        { error: `Could not reach ${current.reviewer} on Slack — check their Slack link in the Directory` },
+        { status: 409 }
+      );
+    }
+    const card = await updateCard(current.id, {}, by, { trail: `reminded ${current.reviewer} on Slack` });
+    return NextResponse.json({ card });
+  }
+
   if (body.action === "approve" || body.action === "request_changes") {
     if (current.stage !== "Review") {
       return NextResponse.json({ error: "This card is not in Review" }, { status: 409 });
@@ -139,12 +179,14 @@ export async function PATCH(req: NextRequest) {
         trail: "approved this — moved to Scheduled",
         comment: text,
       });
+      if (card) notifyDecision(card, by, true, text);
       return NextResponse.json({ card });
     }
     const card = await updateCard(current.id, { stage: "Drafting" }, by, {
       trail: "requested changes — moved back to Drafting",
       comment: text,
     });
+    if (card) notifyDecision(card, by, false, text);
     return NextResponse.json({ card });
   }
 
@@ -161,6 +203,11 @@ export async function PATCH(req: NextRequest) {
 
   const card = await updateCard(current.id, body, by);
   if (!card) return NextResponse.json({ error: "Card not found" }, { status: 404 });
+  // Tell the reviewer when a piece lands on them: it entered Review, or the
+  // reviewer changed while it was already there.
+  if (card.stage === "Review" && (current.stage !== "Review" || current.reviewer !== card.reviewer)) {
+    notifyReviewRequested(card, by);
+  }
   return NextResponse.json({ card });
 }
 

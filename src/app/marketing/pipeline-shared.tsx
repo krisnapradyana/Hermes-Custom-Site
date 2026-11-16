@@ -15,6 +15,12 @@ export interface CardComment {
   at: string;
   sys?: boolean;
 }
+export interface CardResult {
+  period: string;
+  source: string;
+  numbers: string;
+  lesson: string;
+}
 export interface Card {
   id: string;
   title: string;
@@ -32,6 +38,7 @@ export interface Card {
   notes: string;
   assets: CardAsset[];
   comments: CardComment[];
+  result: CardResult;
   createdBy: string;
   createdAt: string;
   updatedBy: string;
@@ -76,6 +83,10 @@ export const CHECKER_FOR: Record<string, string> = {
 export const chip = "rounded-full border px-2 py-0.5 text-[10.5px] font-medium whitespace-nowrap";
 export const inputCls =
   "w-full rounded-xl border border-line/60 bg-card/70 px-3 py-2 text-sm outline-none placeholder:text-ink-faint focus:border-accent";
+
+/** A published piece with nothing recorded about how it did. */
+export const needsResults = (c: Card) =>
+  c.stage === "Published" && !c.result.numbers && !c.result.lesson;
 
 const todayIso = () => new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD, local
 export const isOverdue = (c: Card) =>
