@@ -195,40 +195,58 @@ export function Radar({ onOpenCard }: { onOpenCard: (id: string) => void }) {
               const st = statusOf(it, channels);
               const active = selected?.id === it.id;
               return (
-                <button
+                // Two click targets: the name opens the project page straight
+                // away; the rest of the row only selects it for the side pane.
+                <div
                   key={it.id}
-                  onClick={() => setSel(it.id)}
-                  className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors ${
+                  className={`flex w-full items-stretch rounded-xl border transition-colors ${
                     active ? "border-accent/60 bg-accent-soft/60" : "border-transparent hover:bg-parchment-dark/50"
                   } ${st === "restricted" || it.excluded ? "opacity-60" : ""}`}
                 >
-                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: it.color }} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[14px] font-semibold">{it.name}</span>
-                    <span className="block truncate text-[12px] text-ink-faint">
-                      delivered {fmtDate(it.deliveredAt)}
-                      {it.sub ? ` · ${it.sub}` : ""}
-                    </span>
-                  </span>
-                  <span className="hidden shrink-0 gap-0.5 sm:flex" title="Where the client has published">
-                    {channels.map((c) => (
-                      <span
-                        key={c}
-                        title={`${c}: ${it.pub[c] ? "published" : "not yet"}`}
-                        className={`flex h-[18px] w-[18px] items-center justify-center rounded text-[9px] font-bold ${
-                          it.pub[c]
-                            ? "border border-emerald-500/50 bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
-                            : "border border-line/60 text-ink-faint"
-                        }`}
-                      >
-                        {c[0]}
+                  <button
+                    onClick={() => {
+                      setSel(it.id);
+                      setPageId(it.id);
+                    }}
+                    title="Open project page"
+                    className="group flex min-w-0 flex-1 items-center gap-3 py-2.5 pl-3 pr-2 text-left"
+                  >
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: it.color }} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[14px] font-semibold group-hover:text-accent group-hover:underline">
+                        {it.name}
                       </span>
-                    ))}
-                  </span>
-                  <span className="flex w-[112px] shrink-0 justify-end">
-                    <span className={`${chip} ${STATUS[st].cls}`}>{STATUS[st].label}</span>
-                  </span>
-                </button>
+                      <span className="block truncate text-[12px] text-ink-faint">
+                        delivered {fmtDate(it.deliveredAt)}
+                        {it.sub ? ` · ${it.sub}` : ""}
+                      </span>
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => setSel(it.id)}
+                    title="Show quick details"
+                    className="flex shrink-0 items-center gap-3 py-2.5 pl-2 pr-3"
+                  >
+                    <span className="hidden shrink-0 gap-0.5 sm:flex">
+                      {channels.map((c) => (
+                        <span
+                          key={c}
+                          title={`${c}: ${it.pub[c] ? "published" : "not yet"}`}
+                          className={`flex h-[18px] w-[18px] items-center justify-center rounded text-[9px] font-bold ${
+                            it.pub[c]
+                              ? "border border-emerald-500/50 bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
+                              : "border border-line/60 text-ink-faint"
+                          }`}
+                        >
+                          {c[0]}
+                        </span>
+                      ))}
+                    </span>
+                    <span className="flex w-[112px] shrink-0 justify-end">
+                      <span className={`${chip} ${STATUS[st].cls}`}>{STATUS[st].label}</span>
+                    </span>
+                  </button>
+                </div>
               );
             })
           )}
