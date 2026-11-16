@@ -195,33 +195,37 @@ export function Radar({ onOpenCard }: { onOpenCard: (id: string) => void }) {
               const st = statusOf(it, channels);
               const active = selected?.id === it.id;
               return (
-                // Two click targets: the name opens the project page straight
-                // away; the rest of the row only selects it for the side pane.
+                // Only the project NAME opens the project page; a click anywhere
+                // else on the row selects it for the quick-detail pane.
                 <div
                   key={it.id}
-                  className={`flex w-full items-stretch rounded-xl border transition-colors ${
+                  onClick={() => setSel(it.id)}
+                  className={`flex w-full cursor-pointer items-stretch rounded-xl border transition-colors ${
                     active ? "border-accent/60 bg-accent-soft/60" : "border-transparent hover:bg-parchment-dark/50"
                   } ${st === "restricted" || it.excluded ? "opacity-60" : ""}`}
                 >
-                  <button
-                    onClick={() => {
-                      setSel(it.id);
-                      setPageId(it.id);
-                    }}
-                    title="Open project page"
-                    className="group flex min-w-0 flex-1 items-center gap-3 py-2.5 pl-3 pr-2 text-left"
-                  >
+                  <div className="flex min-w-0 flex-1 items-center gap-3 py-2.5 pl-3 pr-2">
                     <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: it.color }} />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[14px] font-semibold group-hover:text-accent group-hover:underline">
-                        {it.name}
+                      <span className="flex min-w-0">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSel(it.id);
+                            setPageId(it.id);
+                          }}
+                          title="Open project page"
+                          className="truncate text-left text-[14px] font-semibold hover:text-accent hover:underline"
+                        >
+                          {it.name}
+                        </button>
                       </span>
                       <span className="block truncate text-[12px] text-ink-faint">
                         delivered {fmtDate(it.deliveredAt)}
                         {it.sub ? ` · ${it.sub}` : ""}
                       </span>
                     </span>
-                  </button>
+                  </div>
                   <button
                     onClick={() => setSel(it.id)}
                     title="Show quick details"
