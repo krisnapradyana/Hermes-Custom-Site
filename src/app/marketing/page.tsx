@@ -125,6 +125,8 @@ function Marketing() {
   const [checkers, setCheckers] = useState<CheckerMeta[]>([]);
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("checker");
   const [dark, setDark] = useState(false);
+  // A draft handed over from a pipeline card ("Run checker →").
+  const [seed, setSeed] = useState<{ type: string; draft: string; n: number } | null>(null);
 
   useEffect(() => {
     setDark(document.documentElement.classList.contains("dark"));
@@ -201,11 +203,16 @@ function Marketing() {
 
       <main className="mt-5 flex-1 pb-8">
         {tab === "checker" ? (
-          <CheckerStudio checkers={checkers} />
+          <CheckerStudio checkers={checkers} seed={seed} />
         ) : tab === "radar" ? (
           <Radar />
         ) : tab === "pipeline" ? (
-          <Pipeline />
+          <Pipeline
+            onRunChecker={(type, draft) => {
+              setSeed({ type, draft, n: Date.now() });
+              setTab("checker");
+            }}
+          />
         ) : (
           <Library />
         )}
@@ -216,11 +223,19 @@ function Marketing() {
 
 /* ---------------- Checker Studio ---------------- */
 
-function CheckerStudio({ checkers }: { checkers: CheckerMeta[] }) {
-  const [type, setType] = useState(checkers[0]?.id ?? "");
+function CheckerStudio({
+  checkers,
+  seed,
+}: {
+  checkers: CheckerMeta[];
+  seed: { type: string; draft: string; n: number } | null;
+}) {
+  const [type, setType] = useState(seed?.type ?? checkers[0]?.id ?? "");
   // Context + draft are kept per checker so switching type loses nothing.
   const [context, setContext] = useState<Record<string, Record<string, string>>>({});
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [drafts, setDrafts] = useState<Record<string, string>>(
+    seed ? { [seed.type]: seed.draft } : {}
+  );
   const [busy, setBusy] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);

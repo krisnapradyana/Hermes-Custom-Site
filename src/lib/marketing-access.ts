@@ -19,6 +19,8 @@ export interface MarketingViewer {
   name: string;
   member?: Member;
   allowed: boolean;
+  /** Leadership type or admin — may approve any review, not just their own. */
+  isLead: boolean;
 }
 
 function adminIds(): string[] {
@@ -34,18 +36,16 @@ export function isMarketingType(type: string | undefined): boolean {
 
 export async function getMarketingViewer(): Promise<MarketingViewer | null> {
   if (process.env.NEXT_PUBLIC_AUTH_ENABLED !== "true") {
-    return { slackId: "local", name: "Local User", allowed: true };
+    return { slackId: "local", name: "Local User", allowed: true, isLead: true };
   }
   try {
     const session = await auth();
     const slackId = session?.user?.slackId;
     if (!slackId) return null;
     const member = await findBySlackId(slackId);
-    const allowed =
-      adminIds().includes(slackId) ||
-      isMarketingType(member?.type) ||
-      canEditDirectory(member?.type);
-    return { slackId, name: member?.name ?? session?.user?.name ?? "Member", member, allowed };
+    const isLead = adminIds().includes(slackId) || canEditDirectory(member?.type);
+    const allowed = isLead || isMarketingType(member?.type);
+    return { slackId, name: member?.name ?? session?.user?.name ?? "Member", member, allowed, isLead };
   } catch {
     return null;
   }
