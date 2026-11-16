@@ -50,10 +50,16 @@ const TABS = [
 export default function MarketingPage() {
   return (
     <>
-      <div className="app-canvas fixed inset-0 -z-10" aria-hidden />
-      <SignInGate>
-        <Marketing />
-      </SignInGate>
+      {/* Canvas at z-0 with the content lifted above it — NOT a negative
+          z-index: body has its own opaque, one-viewport-tall background that
+          paints over a -z layer, which hid the canvas on the first screen and
+          left a visible seam where the body box ends on long pages. */}
+      <div className="app-canvas fixed inset-0" aria-hidden />
+      <div className="relative">
+        <SignInGate>
+          <Marketing />
+        </SignInGate>
+      </div>
     </>
   );
 }
