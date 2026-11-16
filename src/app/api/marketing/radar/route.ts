@@ -6,6 +6,7 @@ import {
   type RadarPatch,
   RADAR_CHANNELS,
   RADAR_FORMATS,
+  STANDARD_DELIVERABLES,
   addManual,
   patchEntry,
   readRadar,
@@ -55,11 +56,25 @@ export async function GET() {
       // Pipeline cards about this project (one per angle).
       cards: cards
         .filter((c) => c.projectId === it.id)
-        .map((c) => ({ id: c.id, title: c.title, format: c.format, stage: c.stage })),
+        .map((c) => ({
+          id: c.id,
+          title: c.title,
+          format: c.format,
+          stage: c.stage,
+          owner: c.owner,
+          reviewer: c.reviewer,
+          due: c.due ?? null,
+          channel: c.channel,
+        })),
     }))
     .sort((a, b) => (b.deliveredAt ?? "").localeCompare(a.deliveredAt ?? ""));
 
-  return NextResponse.json({ items, channels: RADAR_CHANNELS, formats: RADAR_FORMATS });
+  return NextResponse.json({
+    items,
+    channels: RADAR_CHANNELS,
+    formats: RADAR_FORMATS,
+    standard: STANDARD_DELIVERABLES,
+  });
 }
 
 /** Update one project's radar record. Body: { id, ...fields } */

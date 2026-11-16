@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CardPanel } from "./CardPanel";
+import { ReviewQueue } from "./ReviewQueue";
 import {
   BANK,
   PUBLIC_STAGES,
@@ -25,15 +26,22 @@ import {
  * cleared" / "client hasn't published" ask for confirmation.
  */
 
-type View = "board" | "table" | "calendar";
+type View = "board" | "table" | "calendar" | "review";
 
-export function Pipeline({ onRunChecker }: { onRunChecker: (format: string, draft: string) => void }) {
+export function Pipeline({
+  onRunChecker,
+  initialOpenId,
+}: {
+  onRunChecker: (format: string, draft: string) => void;
+  /** Card to open straight away (arriving from a project page). */
+  initialOpenId?: string | null;
+}) {
   const [board, setBoard] = useState<Board | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<View>("board");
   const [format, setFormat] = useState<string | null>(null);
   const [person, setPerson] = useState("");
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(initialOpenId ?? null);
   const [creating, setCreating] = useState<null | "board" | "bank">(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overStage, setOverStage] = useState<string | null>(null);
@@ -127,6 +135,7 @@ export function Pipeline({ onRunChecker }: { onRunChecker: (format: string, draf
     [board]
   );
   const openCard = board?.cards.find((c) => c.id === openId) ?? null;
+  const waitingOnMe = (board?.cards ?? []).filter((c) => c.stage === "Review" && c.reviewer === board?.me).length;
 
   /** Cards waiting on the viewer: in Review with them as reviewer. */
   const needsMe = (c: Card) => c.stage === "Review" && !!board && c.reviewer === board.me;
@@ -155,7 +164,7 @@ export function Pipeline({ onRunChecker }: { onRunChecker: (format: string, draf
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <div className="flex rounded-xl border border-line/60 p-0.5">
-          {(["board", "table", "calendar"] as View[]).map((v) => (
+          {(["board", "table", "calendar", "review"] as View[]).map((v) => (
             <button
               key={v}
               onClick={() => setView(v)}
@@ -164,9 +173,16 @@ export function Pipeline({ onRunChecker }: { onRunChecker: (format: string, draf
               }`}
             >
               {v}
+              {v === "review" && waitingOnMe > 0 && (
+                <span className="ml-1.5 rounded-full bg-amber-500 px-1.5 py-px text-[10px] font-bold text-white">
+                  {waitingOnMe}
+                </span>
+              )}
             </button>
           ))}
         </div>
+        {view !== "review" && (
+        <>
         <select
           value={person}
           onChange={(e) => setPerson(e.target.value)}
@@ -188,6 +204,8 @@ export function Pipeline({ onRunChecker }: { onRunChecker: (format: string, draf
             </Pill>
           ))}
         </div>
+        </>
+        )}
       </div>
 
       {error && (
@@ -338,7 +356,13 @@ export function Pipeline({ onRunChecker }: { onRunChecker: (format: string, draf
           {/* ---------- calendar ---------- */}
           {view === "calendar" && <Calendar cards={onBoard} onOpen={setOpenId} />}
 
+          {/* ---------- review queue (ignores the filters: it is about people) ---------- */}
+          {view === "review" && (
+            <ReviewQueue board={board} send={send} okToGoPublic={okToGoPublic} onOpen={setOpenId} />
+          )}
+
           {/* ---------- content bank ---------- */}
+          {view !== "review" && (
           <section className="mt-7">
             <div className="mb-2 flex items-end gap-3">
               <div className="min-w-0 flex-1">
@@ -394,6 +418,7 @@ export function Pipeline({ onRunChecker }: { onRunChecker: (format: string, draf
               </table>
             </div>
           </section>
+          )}
         </>
       )}
 

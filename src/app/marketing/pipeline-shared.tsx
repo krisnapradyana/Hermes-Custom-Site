@@ -62,6 +62,8 @@ export const FORMAT_CLS: Record<string, string> = {
   "Social carousel": "border-pink-500/50 bg-pink-500/15 text-pink-700 dark:text-pink-300",
   "Case study": "border-emerald-500/50 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
   Portfolio: "border-teal-500/50 bg-teal-500/15 text-teal-700 dark:text-teal-300",
+  "Website entry": "border-cyan-500/50 bg-cyan-500/15 text-cyan-700 dark:text-cyan-300",
+  "Sales material": "border-orange-500/50 bg-orange-500/15 text-orange-700 dark:text-orange-300",
 };
 
 /** Which Checker Studio checker fits a card format (others have none yet). */

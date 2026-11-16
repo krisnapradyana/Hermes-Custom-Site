@@ -133,6 +133,8 @@ function Marketing() {
   const [dark, setDark] = useState(false);
   // A draft handed over from a pipeline card ("Run checker →").
   const [seed, setSeed] = useState<{ type: string; draft: string; n: number } | null>(null);
+  // A card to open in the pipeline (clicked on a project page).
+  const [openCard, setOpenCard] = useState<string | null>(null);
 
   useEffect(() => {
     setDark(document.documentElement.classList.contains("dark"));
@@ -180,7 +182,10 @@ function Marketing() {
           {TABS.map((t) => (
             <button
               key={t.id}
-              onClick={() => setTab(t.id)}
+              onClick={() => {
+                setOpenCard(null);
+                setTab(t.id);
+              }}
               className={`rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors ${
                 tab === t.id
                   ? "bg-accent-soft text-accent"
@@ -211,9 +216,15 @@ function Marketing() {
         {tab === "checker" ? (
           <CheckerStudio checkers={checkers} seed={seed} />
         ) : tab === "radar" ? (
-          <Radar />
+          <Radar
+            onOpenCard={(id) => {
+              setOpenCard(id);
+              setTab("pipeline");
+            }}
+          />
         ) : tab === "pipeline" ? (
           <Pipeline
+            initialOpenId={openCard}
             onRunChecker={(type, draft) => {
               setSeed({ type, draft, n: Date.now() });
               setTab("checker");

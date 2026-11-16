@@ -1,0 +1,196 @@
+"use client";
+
+import { useMemo } from "react";
+import { type Board, type Card, Avatar, FORMAT_CLS, chip } from "./pipeline-shared";
+
+/**
+ * Review queue — the pipeline seen as "who is waiting on whom":
+ *   1. cards waiting for YOUR review (approve / request changes right here)
+ *   2. your cards waiting on someone else
+ *   3. everything else in review
+ * plus the decision trail across all cards, read from each card's thread
+ * (the automatic "approved" / "requested changes" entries).
+ */
+
+type Send = (id: string, body: Record<string, unknown>, optimistic?: Partial<Card>) => Promise<boolean>;
+
+const DAY = 86_400_000;
+/** When the card entered Review — the last automatic "… to Review" entry. */
+function inReviewSince(c: Card): number {
+  for (let i = c.comments.length - 1; i >= 0; i--) {
+    const m = c.comments[i];
+    if (m.sys && m.text.endsWith("to Review")) return new Date(m.at).getTime();
+  }
+  return new Date(c.updatedAt).getTime();
+}
+function waiting(c: Card): { text: string; late: boolean } {
+  const days = Math.floor((Date.now() - inReviewSince(c)) / DAY);
+  return {
+    text: days <= 0 ? "since today" : `waiting ${days} ${days === 1 ? "day" : "days"}`,
+    late: days >= 3,
+  };
+}
+
+interface Decision {
+  id: string;
+  cardId: string;
+  title: string;
+  approved: boolean;
+  by: string;
+  at: string;
+  note: string;
+}
+
+export function ReviewQueue({
+  board,
+  send,
+  okToGoPublic,
+  onOpen,
+}: {
+  board: Board;
+  send: Send;
+  okToGoPublic: (c: { projectId?: string }, stage: string) => boolean;
+  onOpen: (id: string) => void;
+}) {
+  const inReview = useMemo(
+    () => board.cards.filter((c) => c.stage === "Review").sort((a, b) => inReviewSince(a) - inReviewSince(b)),
+    [board.cards]
+  );
+  const mine = inReview.filter((c) => c.reviewer === board.me);
+  const sent = inReview.filter((c) => c.owner === board.me && c.reviewer !== board.me);
+  const others = inReview.filter((c) => !mine.includes(c) && !sent.includes(c));
+
+  const decisions = useMemo(() => {
+    const out: Decision[] = [];
+    for (const c of board.cards) {
+      c.comments.forEach((m, i) => {
+        if (!m.sys) return;
+        const approved = m.text.startsWith("approved this");
+        if (!approved && !m.text.startsWith("requested changes")) return;
+        // The reviewer's note, if any, is the comment written in the same action.
+        const n = c.comments[i + 1];
+        const note =
+          n && !n.sys && n.by === m.by && Math.abs(new Date(n.at).getTime() - new Date(m.at).getTime()) < 5000
+            ? n.text
+            : "";
+        out.push({ id: m.id, cardId: c.id, title: c.title, approved, by: m.by, at: m.at, note });
+      });
+    }
+    return out.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 20);
+  }, [board.cards]);
+
+  const approve = (c: Card) => {
+    if (!okToGoPublic(c, "Scheduled")) return;
+    send(c.id, { action: "approve" });
+  };
+  const requestChanges = (c: Card) => {
+    const text = prompt("What needs to change? (optional — it is added to the card's comments)");
+    if (text === null) return;
+    send(c.id, { action: "request_changes", text });
+  };
+  const mayDecide = (c: Card) => board.isLead || !c.reviewer || c.reviewer === board.me;
+
+  const Row = ({ c, actions }: { c: Card; actions: boolean }) => {
+    const w = waiting(c);
+    const project = board.projects.find((p) => p.id === c.projectId);
+    return (
+      <div
+        className={`mb-2 flex flex-wrap items-center gap-3 rounded-xl border bg-card/80 px-3.5 py-2.5 ${
+          c.reviewer === board.me ? "border-amber-500/60 shadow-[inset_3px_0_0_rgb(245_158_11)]" : "border-line/60"
+        }`}
+      >
+        <button onClick={() => onOpen(c.id)} className="min-w-0 flex-1 text-left">
+          <span className="block truncate text-[14px] font-semibold hover:text-accent">{c.title}</span>
+          <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[12px] text-ink-faint">
+            <span className={`${chip} ${FORMAT_CLS[c.format] ?? "border-line/60 text-ink-soft"}`}>{c.format}</span>
+            {project?.name ?? "general content"} ·
+            <span className="flex items-center gap-1">
+              <Avatar name={c.owner} size={16} />
+              {c.owner ? c.owner.split(" ")[0] : "no owner"}
+            </span>
+            →
+            <span className="flex items-center gap-1">
+              <Avatar name={c.reviewer} size={16} />
+              {c.reviewer ? c.reviewer.split(" ")[0] : "no reviewer"}
+            </span>
+          </span>
+        </button>
+        <span className={`whitespace-nowrap text-[12.5px] ${w.late ? "font-semibold text-red-600 dark:text-red-300" : "text-ink-faint"}`}>
+          {w.text}
+        </span>
+        {actions && mayDecide(c) ? (
+          <>
+            <button
+              onClick={() => requestChanges(c)}
+              className="rounded-lg border border-line/60 px-3 py-1.5 text-xs text-ink-soft hover:bg-parchment-dark/60"
+            >
+              Request changes
+            </button>
+            <button onClick={() => approve(c)} className="rounded-lg bg-accent px-3.5 py-1.5 text-xs font-medium text-white hover:bg-accent-hover">
+              Approve
+            </button>
+          </>
+        ) : (
+          <button onClick={() => onOpen(c.id)} className="rounded-lg border border-line/60 px-3 py-1.5 text-xs text-ink-soft hover:bg-parchment-dark/60">
+            Open
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  const Group = ({ title, cards, actions, empty }: { title: string; cards: Card[]; actions: boolean; empty: string }) => (
+    <div className="mb-5">
+      <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
+        {title} <span className="font-normal text-ink-faint">· {cards.length}</span>
+      </h2>
+      {cards.length ? (
+        cards.map((c) => <Row key={c.id} c={c} actions={actions} />)
+      ) : (
+        <p className="rounded-xl border border-dashed border-line/60 px-3.5 py-3 text-[13px] text-ink-faint">{empty}</p>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
+      <div>
+        <Group title="Waiting for your review" cards={mine} actions empty="Nothing is waiting on you." />
+        <Group
+          title="Your cards waiting on someone else"
+          cards={sent}
+          actions={false}
+          empty="None of your cards are in review."
+        />
+        {/* Leadership can decide on any card, so they get the buttons here too. */}
+        <Group title="Everything else in review" cards={others} actions={board.isLead} empty="Nothing else is in review." />
+      </div>
+
+      <section className="glass-panel rounded-2xl border border-line/50 p-5">
+        <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-ink-soft">Recent decisions</h2>
+        {decisions.length === 0 && <p className="text-[13px] text-ink-faint">No approvals or change requests yet.</p>}
+        {decisions.map((d) => (
+          <button
+            key={d.id}
+            onClick={() => onOpen(d.cardId)}
+            className="flex w-full gap-3 border-b border-line/30 py-2 text-left text-[12.5px] last:border-0 hover:bg-accent-soft/30"
+          >
+            <time className="w-[88px] shrink-0 whitespace-nowrap text-ink-faint">
+              {new Date(d.at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+            </time>
+            <span className="min-w-0 text-ink-soft">
+              <b className={d.approved ? "text-emerald-700 dark:text-emerald-300" : "text-amber-700 dark:text-amber-300"}>
+                {d.approved ? "Approved" : "Changes requested"}
+              </b>{" "}
+              · {d.title} — by {d.by}
+              {d.note && <span className="block italic text-ink-faint">“{d.note}”</span>}
+            </span>
+          </button>
+        ))}
+        <p className="mt-3 text-[11px] text-ink-faint">
+          Each decision is also recorded in the comments of its card, with who and when.
+        </p>
+      </section>
+    </div>
+  );
+}

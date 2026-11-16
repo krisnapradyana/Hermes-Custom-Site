@@ -25,7 +25,27 @@ export const RADAR_FORMATS = [
   "Social carousel",
   "Case study",
   "Portfolio",
+  "Website entry",
+  "Sales material",
 ] as const;
+
+/**
+ * The standard set of pieces every delivered project is expected to feed —
+ * the project page lists these whether or not a card exists yet.
+ */
+export const STANDARD_DELIVERABLES = [
+  "Social carousel",
+  "EDM",
+  "Case study",
+  "Website entry",
+  "Sales material",
+] as const;
+
+export interface SourceLink {
+  id: string;
+  label: string;
+  url: string;
+}
 
 /** ask = not checked yet · ok = cleared to post · no = restricted / NDA */
 export type NdaState = "ask" | "ok" | "no";
@@ -36,6 +56,14 @@ export interface RadarEntry {
   ndaNote: string;
   angle: string;
   formats: string[];
+  /** Master record — written once per project, reused for every piece. */
+  summary: string;
+  challenge: string;
+  contribution: string;
+  services: string[];
+  links: SourceLink[];
+  /** Standard deliverables marked "not needed" for this project. */
+  skip: string[];
   /** "Not for marketing" — kept, but out of the default list. */
   excluded?: boolean;
   updatedBy?: string;
@@ -55,7 +83,19 @@ export interface RadarDoc {
   manual: ManualProject[];
 }
 
-export const EMPTY_ENTRY: RadarEntry = { pub: {}, nda: "ask", ndaNote: "", angle: "", formats: [] };
+export const EMPTY_ENTRY: RadarEntry = {
+  pub: {},
+  nda: "ask",
+  ndaNote: "",
+  angle: "",
+  formats: [],
+  summary: "",
+  challenge: "",
+  contribution: "",
+  services: [],
+  links: [],
+  skip: [],
+};
 
 const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), "data");
 const DIR = path.join(DATA_DIR, "marketing");
@@ -92,6 +132,12 @@ export interface RadarPatch {
   angle?: unknown;
   formats?: unknown;
   excluded?: unknown;
+  summary?: unknown;
+  challenge?: unknown;
+  contribution?: unknown;
+  services?: unknown;
+  links?: unknown;
+  skip?: unknown;
 }
 
 /** Merge a partial update into one project's entry (validated field by field). */
@@ -113,6 +159,37 @@ export function patchEntry(id: string, patch: RadarPatch, by: string): Promise<R
       cur.formats = allowed.filter((f) => (patch.formats as unknown[]).includes(f));
     }
     if (typeof patch.excluded === "boolean") cur.excluded = patch.excluded;
+    for (const k of ["summary", "challenge", "contribution"] as const) {
+      const v = patch[k];
+      if (typeof v === "string") cur[k] = v.trim().slice(0, 1500);
+    }
+    if (Array.isArray(patch.services)) {
+      cur.services = Array.from(
+        new Set(
+          (patch.services as unknown[])
+            .filter((x): x is string => typeof x === "string")
+            .map((x) => x.trim().slice(0, 40))
+            .filter(Boolean)
+        )
+      ).slice(0, 20);
+    }
+    if (Array.isArray(patch.links)) {
+      // Rendered as clickable links — plain http(s) only.
+      cur.links = (patch.links as unknown[])
+        .map((l) => {
+          const o = (l ?? {}) as Record<string, unknown>;
+          const url = typeof o.url === "string" ? o.url.trim().slice(0, 500) : "";
+          if (!/^https?:\/\/\S+$/i.test(url)) return null;
+          const label = typeof o.label === "string" ? o.label.trim().slice(0, 140) : "";
+          return { id: typeof o.id === "string" && o.id ? o.id.slice(0, 60) : uid("ln"), label: label || url, url };
+        })
+        .filter((l): l is SourceLink => l !== null)
+        .slice(0, 30);
+    }
+    if (Array.isArray(patch.skip)) {
+      const std = STANDARD_DELIVERABLES as readonly string[];
+      cur.skip = std.filter((f) => (patch.skip as unknown[]).includes(f));
+    }
     cur.updatedBy = by;
     cur.updatedAt = new Date().toISOString();
     doc.entries[id] = cur;
