@@ -469,24 +469,43 @@ function Label({ children }: { children: React.ReactNode }) {
 
 /* ---------------- bits ---------------- */
 
+/** Product mark: a pixel "M" on the marketing coral — same drawing as ./icon.svg. */
+function Mark({ size = 26 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 32 32" width={size} height={size} className="shrink-0" aria-hidden>
+      <rect width="32" height="32" rx="8" fill="#D85A30" />
+      <g fill="#fff">
+        <rect x="6" y="6" width="4" height="20" />
+        <rect x="22" y="6" width="4" height="20" />
+        <rect x="10" y="10" width="4" height="4" />
+        <rect x="18" y="10" width="4" height="4" />
+        <rect x="14" y="14" width="4" height="4" />
+      </g>
+    </svg>
+  );
+}
+
 function Wordmark() {
   return (
-    <span className="select-none whitespace-nowrap text-[17px] font-extrabold tracking-tight text-[#2b2b2b] dark:text-ink">
-      SuperPi
-      <svg
-        viewBox="0 0 3 3"
-        className="mx-px inline h-[0.545em] w-[0.545em] align-baseline"
-        fill="currentColor"
-        aria-hidden
-      >
-        <rect x="0" y="0" width="1" height="1" />
-        <rect x="2" y="0" width="1" height="1" />
-        <rect x="1" y="1" width="1" height="1" />
-        <rect x="0" y="2" width="1" height="1" />
-        <rect x="2" y="2" width="1" height="1" />
-      </svg>
-      el
-      <span className="ml-1.5 text-[13px] font-medium text-ink-faint">Marketing</span>
+    <span className="flex select-none items-center gap-2 whitespace-nowrap">
+      <Mark />
+      <span className="text-[17px] font-extrabold tracking-tight text-[#2b2b2b] dark:text-ink">
+        SuperPi
+        <svg
+          viewBox="0 0 3 3"
+          className="mx-px inline h-[0.545em] w-[0.545em] align-baseline"
+          fill="currentColor"
+          aria-hidden
+        >
+          <rect x="0" y="0" width="1" height="1" />
+          <rect x="2" y="0" width="1" height="1" />
+          <rect x="1" y="1" width="1" height="1" />
+          <rect x="0" y="2" width="1" height="1" />
+          <rect x="2" y="2" width="1" height="1" />
+        </svg>
+        el
+        <span className="ml-1.5 text-[14px] font-bold text-[#D85A30] dark:text-[#F0997B]">Marketing</span>
+      </span>
     </span>
   );
 }
