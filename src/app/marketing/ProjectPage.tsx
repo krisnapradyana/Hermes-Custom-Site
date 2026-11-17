@@ -31,8 +31,8 @@ const STAGE_CLS: Record<string, string> = {
   Published: "border-emerald-500/50 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
   Scheduled: "border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
   Review: "border-amber-500/50 bg-amber-500/15 text-amber-700 dark:text-amber-300",
-  Drafting: "border-accent/50 bg-accent-soft text-accent",
-  Angle: "border-accent/50 bg-accent-soft text-accent",
+  Drafting: "border-blue-500/50 bg-blue-500/15 text-blue-700 dark:text-blue-300",
+  Angle: "border-blue-500/50 bg-blue-500/15 text-blue-700 dark:text-blue-300",
 };
 
 const first = (n: string) => n.split(" ")[0];
@@ -322,7 +322,7 @@ export function ProjectPage({
           </div>
           <div className="mb-3 mt-2 flex h-2 overflow-hidden rounded-full bg-card/80">
             <span className="bg-emerald-500" style={{ width: pct(published) }} />
-            <span className="bg-accent" style={{ width: pct(started - published) }} />
+            <span className="bg-blue-500" style={{ width: pct(started - published) }} />
           </div>
 
           <div className="overflow-x-auto">

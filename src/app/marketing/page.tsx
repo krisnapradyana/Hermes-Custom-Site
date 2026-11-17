@@ -55,7 +55,7 @@ export default function MarketingPage() {
           paints over a -z layer, which hid the canvas on the first screen and
           left a visible seam where the body box ends on long pages. */}
       <div className="app-canvas fixed inset-0" aria-hidden />
-      <div className="relative">
+      <div className="marketing-theme relative">
         <SignInGate>
           <Marketing />
         </SignInGate>

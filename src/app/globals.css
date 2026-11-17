@@ -361,3 +361,20 @@ html.dark .glass-frost {
   border-color: rgba(255, 255, 255, 0.12);
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.65);
 }
+
+/* SuperPixel Marketing — the sub-app wears the coral of its mark as its
+   accent (tabs, buttons, links, focus). Scoped to the marketing wrapper, so
+   the Assistant, Clock and Directory keep the shared blue. The logo itself
+   is #D85A30; the light accent is a shade deeper so white text on buttons
+   keeps 4.5:1 contrast. Status chips never use the accent there (coral sits
+   between the red and amber that already mean "restricted" and "waiting"). */
+.marketing-theme {
+  --color-accent: #c44e27;
+  --color-accent-hover: #a9411f;
+  --color-accent-soft: #fbe9e2;
+}
+html.dark .marketing-theme {
+  --color-accent: #e8693f;
+  --color-accent-hover: #f08560;
+  --color-accent-soft: #3a2117;
+}
