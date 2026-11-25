@@ -59,6 +59,64 @@ export async function slackDmResult(slackUserId: string, text: string): Promise<
   return (await slackCall("chat.postMessage", { channel, text, unfurl_links: false })) !== null;
 }
 
+export interface SlackChannel {
+  id: string;
+  name: string;
+  isPrivate: boolean;
+}
+
+/**
+ * Channels the bot is a member of — the only places it can post. Needs the
+ * `channels:read` (+ `groups:read` for private channels) scopes; returns []
+ * when Slack is not configured or the scopes are missing.
+ */
+export async function listBotChannels(): Promise<SlackChannel[]> {
+  const token = process.env.SLACK_BOT_TOKEN;
+  if (!token) return [];
+  const out: SlackChannel[] = [];
+  let cursor = "";
+  try {
+    for (let page = 0; page < 10; page++) {
+      // Read methods take form-encoded arguments (a JSON body is ignored).
+      const form = new URLSearchParams({
+        types: "public_channel,private_channel",
+        exclude_archived: "true",
+        limit: "200",
+      });
+      if (cursor) form.set("cursor", cursor);
+      const res = await fetch(`${SLACK_API}/users.conversations`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+        signal: AbortSignal.timeout(10_000),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        channels?: { id?: string; name?: string; is_private?: boolean }[];
+        response_metadata?: { next_cursor?: string };
+      };
+      if (!data.ok) {
+        console.warn(`[slack-notify] users.conversations failed: ${data.error}`);
+        break;
+      }
+      for (const c of data.channels ?? []) {
+        if (c.id && c.name) out.push({ id: c.id, name: c.name, isPrivate: !!c.is_private });
+      }
+      cursor = data.response_metadata?.next_cursor ?? "";
+      if (!cursor) break;
+    }
+  } catch (err) {
+    console.warn(`[slack-notify] users.conversations error: ${err instanceof Error ? err.message : err}`);
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** Post to a channel the bot is in. False when Slack refused. */
+export async function slackPost(channelId: string, text: string): Promise<boolean> {
+  return (await slackCall("chat.postMessage", { channel: channelId, text, unfurl_links: false })) !== null;
+}
+
 /** The public URL of the assistant, for deep links in messages. */
 function appOrigin(): string {
   try {

@@ -7,6 +7,8 @@ export interface CardAsset {
   id: string;
   label: string;
   url: string;
+  /** Present on uploads (image/* or application/pdf). */
+  type?: string;
 }
 export interface CardComment {
   id: string;
@@ -28,8 +30,10 @@ export interface Card {
   stage: string;
   projectId?: string;
   owner: string;
-  reviewer: string;
-  channel: string;
+  /** Approvers — all must approve. */
+  reviewers: string[];
+  approvals: { by: string; at: string }[];
+  channels: string[];
   due?: string;
   brief: string;
   draft: string;
@@ -50,6 +54,7 @@ export interface ProjectRef {
   color: string;
   nda: "ask" | "ok" | "no";
   clientPublished: boolean;
+  slackChannel: string;
 }
 export interface Board {
   cards: Card[];
@@ -83,6 +88,13 @@ export const CHECKER_FOR: Record<string, string> = {
 export const chip = "rounded-full border px-2 py-0.5 text-[10.5px] font-medium whitespace-nowrap";
 export const inputCls =
   "w-full rounded-xl border border-line/60 bg-card/70 px-3 py-2 text-sm outline-none placeholder:text-ink-faint focus:border-accent";
+
+export const hasApproved = (c: Card, name: string) => c.approvals.some((a) => a.by === name);
+/** Approvers who have not approved in this round. */
+export const pendingOf = (c: Card) => c.reviewers.filter((r) => !hasApproved(c, r));
+/** The card is in Review and waiting on this person's approval. */
+export const waitsOn = (c: Card, name: string) =>
+  c.stage === "Review" && c.reviewers.includes(name) && !hasApproved(c, name);
 
 /** A published piece with nothing recorded about how it did. */
 export const needsResults = (c: Card) =>

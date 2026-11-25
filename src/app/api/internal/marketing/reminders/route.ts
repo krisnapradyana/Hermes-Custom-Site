@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readCards } from "@/lib/marketing/pipeline-store";
+import { pendingReviewers, readCards } from "@/lib/marketing/pipeline-store";
 import { dmByName, marketingUrl } from "@/lib/marketing/notify";
 
 export const runtime = "nodejs";
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
  * each working morning by a cron job on the server (x-internal-token).
  * One digest DM per person, only if they have something:
  *   - their cards that are overdue or due today (not Published / banked)
- *   - cards waiting on their review for 2+ days
+ *   - cards waiting on their approval for 2+ days
  * Add ?dry=1 to see who would get what without sending anything.
  */
 
@@ -36,7 +36,8 @@ export async function POST(req: NextRequest) {
     if (c.owner && c.due && c.due <= today && c.stage !== "Review") {
       add(c.owner, `• ${c.due < today ? `*Overdue* (due ${c.due})` : "*Due today*"} — ${c.title} · ${c.stage}`);
     }
-    if (c.stage === "Review" && c.reviewer) {
+    const pending = c.stage === "Review" ? pendingReviewers(c) : [];
+    if (pending.length) {
       let since = new Date(c.updatedAt).getTime();
       for (let i = c.comments.length - 1; i >= 0; i--) {
         const m = c.comments[i];
@@ -46,7 +47,7 @@ export async function POST(req: NextRequest) {
         }
       }
       const days = Math.floor((Date.now() - since) / DAY);
-      if (days >= 2) add(c.reviewer, `• *Waiting for your review* (${days} days) — ${c.title}`);
+      if (days >= 2) for (const name of pending) add(name, `• *Waiting for your approval* (${days} days) — ${c.title}`);
     }
   }
 

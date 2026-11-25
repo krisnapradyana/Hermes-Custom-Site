@@ -39,12 +39,11 @@ const where = () => {
 };
 
 /** Fire-and-forget event notices. Never notify people about their own action. */
-export function notifyReviewRequested(card: PipelineCard, by: string): void {
-  if (!card.reviewer || card.reviewer === by) return;
-  void dmByName(
-    card.reviewer,
-    `👀 *${by}* sent you a piece to review:\n• ${card.title} (${card.format})${where()}`
-  );
+export function notifyReviewRequested(card: PipelineCard, by: string, only?: string[]): void {
+  for (const name of only ?? card.reviewers) {
+    if (name === by) continue;
+    void dmByName(name, `👀 *${by}* sent you a piece to approve:\n• ${card.title} (${card.format})${where()}`);
+  }
 }
 
 export function notifyDecision(card: PipelineCard, by: string, approved: boolean, note: string): void {

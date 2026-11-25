@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { type Board, type Card, Avatar, FORMAT_CLS, chip } from "./pipeline-shared";
+import { type Board, type Card, Avatar, FORMAT_CLS, chip, hasApproved, pendingOf, waitsOn } from "./pipeline-shared";
 
 /**
  * Review queue — the pipeline seen as "who is waiting on whom":
@@ -56,8 +56,8 @@ export function ReviewQueue({
     () => board.cards.filter((c) => c.stage === "Review").sort((a, b) => inReviewSince(a) - inReviewSince(b)),
     [board.cards]
   );
-  const mine = inReview.filter((c) => c.reviewer === board.me);
-  const sent = inReview.filter((c) => c.owner === board.me && c.reviewer !== board.me);
+  const mine = inReview.filter((c) => waitsOn(c, board.me));
+  const sent = inReview.filter((c) => c.owner === board.me && !mine.includes(c));
   const others = inReview.filter((c) => !mine.includes(c) && !sent.includes(c));
 
   const decisions = useMemo(() => {
@@ -65,6 +65,8 @@ export function ReviewQueue({
     for (const c of board.cards) {
       c.comments.forEach((m, i) => {
         if (!m.sys) return;
+        // A partial approval ("approved this (1 of 3) …") is progress, not the decision.
+        if (m.text.startsWith("approved this (")) return;
         const approved = m.text.startsWith("approved this");
         if (!approved && !m.text.startsWith("requested changes")) return;
         // The reviewer's note, if any, is the comment written in the same action.
@@ -88,7 +90,11 @@ export function ReviewQueue({
     if (text === null) return;
     send(c.id, { action: "request_changes", text });
   };
-  const mayDecide = (c: Card) => board.isLead || !c.reviewer || c.reviewer === board.me;
+  // A listed approver who already approved has nothing left to decide.
+  const mayDecide = (c: Card) =>
+    c.reviewers.includes(board.me)
+      ? !hasApproved(c, board.me)
+      : board.isLead || c.reviewers.length === 0;
 
   const Row = ({ c, actions, remind }: { c: Card; actions: boolean; remind?: boolean }) => {
     const w = waiting(c);
@@ -96,7 +102,7 @@ export function ReviewQueue({
     return (
       <div
         className={`mb-2 flex flex-wrap items-center gap-3 rounded-xl border bg-card/80 px-3.5 py-2.5 ${
-          c.reviewer === board.me ? "border-amber-500/60 shadow-[inset_3px_0_0_rgb(245_158_11)]" : "border-line/60"
+          waitsOn(c, board.me) ? "border-amber-500/60 shadow-[inset_3px_0_0_rgb(245_158_11)]" : "border-line/60"
         }`}
       >
         <button onClick={() => onOpen(c.id)} className="min-w-0 flex-1 text-left">
@@ -109,10 +115,27 @@ export function ReviewQueue({
               {c.owner ? c.owner.split(" ")[0] : "no owner"}
             </span>
             →
-            <span className="flex items-center gap-1">
-              <Avatar name={c.reviewer} size={16} />
-              {c.reviewer ? c.reviewer.split(" ")[0] : "no reviewer"}
-            </span>
+            {c.reviewers.length ? (
+              <span className="flex items-center gap-1">
+                {c.reviewers.map((r) => (
+                  <span
+                    key={r}
+                    title={`${r}: ${hasApproved(c, r) ? "approved" : "waiting"}`}
+                    className={`flex items-center ${hasApproved(c, r) ? "" : "opacity-50"}`}
+                  >
+                    <Avatar name={r} size={16} />
+                    {hasApproved(c, r) && <span className="text-emerald-600 dark:text-emerald-300">✓</span>}
+                  </span>
+                ))}
+                {c.reviewers.length > 1 && (
+                  <span>
+                    {c.approvals.length}/{c.reviewers.length}
+                  </span>
+                )}
+              </span>
+            ) : (
+              "no approver"
+            )}
           </span>
         </button>
         <span className={`whitespace-nowrap text-[12.5px] ${w.late ? "font-semibold text-red-600 dark:text-red-300" : "text-ink-faint"}`}>
@@ -130,7 +153,7 @@ export function ReviewQueue({
               Approve
             </button>
           </>
-        ) : remind && c.reviewer ? (
+        ) : remind && pendingOf(c).some((r) => r !== board.me) ? (
           <button
             onClick={() => send(c.id, { action: "remind" })}
             className="rounded-lg border border-line/60 px-3 py-1.5 text-xs text-ink-soft hover:bg-parchment-dark/60"
@@ -174,7 +197,7 @@ export function ReviewQueue({
   return (
     <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
       <div>
-        <Group title="Waiting for your review" cards={mine} actions empty="Nothing is waiting on you." />
+        <Group title="Waiting for your approval" cards={mine} actions empty="Nothing is waiting on you." />
         <Group
           title="Your cards waiting on someone else"
           cards={sent}

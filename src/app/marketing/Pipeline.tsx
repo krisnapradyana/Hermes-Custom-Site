@@ -14,8 +14,10 @@ import {
   inputCls,
   isOverdue,
   needsResults,
+  waitsOn,
   Avatar,
 } from "./pipeline-shared";
+import { BankGrid } from "./BankGrid";
 
 /**
  * Content Pipeline — content pieces (one card per angle) moving
@@ -43,7 +45,7 @@ export function Pipeline({
   const [format, setFormat] = useState<string | null>(null);
   const [person, setPerson] = useState("");
   const [openId, setOpenId] = useState<string | null>(initialOpenId ?? null);
-  const [creating, setCreating] = useState<null | "board" | "bank">(null);
+  const [creating, setCreating] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overStage, setOverStage] = useState<string | null>(null);
 
@@ -119,7 +121,7 @@ export function Pipeline({
   const visible = useMemo(
     () =>
       (board?.cards ?? []).filter(
-        (c) => (!format || c.format === format) && (!person || c.owner === person || c.reviewer === person)
+        (c) => (!format || c.format === format) && (!person || c.owner === person || c.reviewers.includes(person))
       ),
     [board, format, person]
   );
@@ -136,10 +138,10 @@ export function Pipeline({
     [board]
   );
   const openCard = board?.cards.find((c) => c.id === openId) ?? null;
-  const waitingOnMe = (board?.cards ?? []).filter((c) => c.stage === "Review" && c.reviewer === board?.me).length;
+  const waitingOnMe = board ? board.cards.filter((c) => waitsOn(c, board.me)).length : 0;
 
-  /** Cards waiting on the viewer: in Review with them as reviewer. */
-  const needsMe = (c: Card) => c.stage === "Review" && !!board && c.reviewer === board.me;
+  /** Cards waiting on the viewer's approval. */
+  const needsMe = (c: Card) => !!board && waitsOn(c, board.me);
 
   return (
     <div className="anim-pop">
@@ -156,7 +158,7 @@ export function Pipeline({
           <p className="mt-1 text-sm text-ink-soft">One card per piece of content, from idea to published.</p>
         </div>
         <button
-          onClick={() => setCreating("board")}
+          onClick={() => setCreating(true)}
           className="rounded-xl bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
         >
           + New card
@@ -284,7 +286,12 @@ export function Pipeline({
                             )}
                             {needsMe(c) && (
                               <span className="mt-1.5 block text-[11px] font-semibold text-amber-700 dark:text-amber-300">
-                                Waiting for your review
+                                Waiting for your approval
+                              </span>
+                            )}
+                            {c.stage === "Review" && c.reviewers.length > 1 && (
+                              <span className="mt-1.5 block text-[11px] text-ink-faint">
+                                {c.approvals.length} of {c.reviewers.length} approved
                               </span>
                             )}
                             <span className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -318,7 +325,7 @@ export function Pipeline({
               <table className="w-full min-w-[900px] text-left text-[13px]">
                 <thead>
                   <tr className="border-b border-line/50 text-[11px] uppercase tracking-wider text-ink-faint">
-                    {["#", "Title", "Format", "Stage", "Owner", "Reviewer", "Channel", "Due", "Project"].map((h) => (
+                    {["#", "Title", "Format", "Stage", "Owner", "Approvers", "Channels", "Due", "Project"].map((h) => (
                       <th key={h} className="px-3 py-2.5 font-semibold">{h}</th>
                     ))}
                   </tr>
@@ -341,8 +348,18 @@ export function Pipeline({
                           <span className={`${chip} border-line/60 text-ink-soft`}>{c.stage}</span>
                         </td>
                         <td className="px-3 py-2.5"><Who name={c.owner} /></td>
-                        <td className="px-3 py-2.5"><Who name={c.reviewer} /></td>
-                        <td className="px-3 py-2.5 text-ink-soft">{c.channel || "—"}</td>
+                        <td className="px-3 py-2.5">
+                          {c.reviewers.length ? (
+                            <span className="flex gap-0.5">
+                              {c.reviewers.map((r) => (
+                                <Avatar key={r} name={r} />
+                              ))}
+                            </span>
+                          ) : (
+                            <span className="text-ink-faint">—</span>
+                          )}
+                        </td>
+                        <td className="max-w-[160px] truncate px-3 py-2.5 text-ink-soft">{c.channels.join(", ") || "—"}</td>
                         <td className="whitespace-nowrap px-3 py-2.5">{c.due ? <DueText c={c} /> : <span className="text-ink-faint">—</span>}</td>
                         <td className="max-w-[200px] truncate px-3 py-2.5 text-ink-faint">{projectOf(c)?.name ?? "—"}</td>
                       </tr>
@@ -367,61 +384,15 @@ export function Pipeline({
 
           {/* ---------- content bank ---------- */}
           {view !== "review" && (
-          <section className="mt-7">
-            <div className="mb-2 flex items-end gap-3">
-              <div className="min-w-0 flex-1">
-                <h2 className="text-[15px] font-semibold">
-                  Content bank <span className="font-normal text-ink-faint">· {bank.length} {bank.length === 1 ? "idea" : "ideas"}</span>
-                </h2>
-                <p className="text-[12.5px] text-ink-soft">
-                  Ideas that are not scheduled yet. Pick one up to put it on the board.
-                </p>
-              </div>
-              <button
-                onClick={() => setCreating("bank")}
-                className="rounded-lg border border-line/60 px-3 py-1.5 text-xs text-ink-soft transition-colors hover:bg-parchment-dark/60"
-              >
-                + Add idea
-              </button>
-            </div>
-            <div className="glass-panel overflow-x-auto rounded-2xl border border-line/50">
-              <table className="w-full min-w-[640px] text-left text-[13px]">
-                <tbody>
-                  {bank.map((c, i) => (
-                    <tr
-                      key={c.id}
-                      onClick={() => setOpenId(c.id)}
-                      className="cursor-pointer border-b border-line/30 last:border-0 hover:bg-accent-soft/40"
-                    >
-                      <td className="w-10 px-3 py-2.5 text-right text-ink-faint">{i + 1}</td>
-                      <td className="px-3 py-2.5 font-semibold">{c.title}</td>
-                      <td className="px-3 py-2.5">
-                        <span className={`${chip} ${FORMAT_CLS[c.format] ?? "border-line/60 text-ink-soft"}`}>{c.format}</span>
-                      </td>
-                      <td className="max-w-[220px] truncate px-3 py-2.5 text-ink-faint">{projectOf(c)?.name ?? "—"}</td>
-                      <td className="px-3 py-2.5 text-ink-soft">{c.createdBy}</td>
-                      <td className="px-3 py-2.5 text-right">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            send(c.id, { stage: "Angle", owner: c.owner || board.me }, { stage: "Angle" });
-                          }}
-                          className="whitespace-nowrap rounded-lg border border-line/60 px-2.5 py-1 text-xs text-ink-soft transition-colors hover:border-accent hover:text-accent"
-                        >
-                          Pick up →
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                  {bank.length === 0 && (
-                    <tr>
-                      <td className="px-3 py-6 text-center text-ink-faint">No banked ideas{format || person ? " match this filter" : " yet"}.</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
+            <BankGrid
+              board={board}
+              cards={bank}
+              filtered={!!format || !!person}
+              send={send}
+              reload={load}
+              onOpen={setOpenId}
+              onError={setError}
+            />
           )}
         </>
       )}
@@ -440,6 +411,8 @@ export function Pipeline({
           send={send}
           okToGoPublic={okToGoPublic}
           onRunChecker={onRunChecker}
+          reload={load}
+          error={error}
           onClose={() => setOpenId(null)}
           onDeleted={() => {
             setOpenId(null);
@@ -451,10 +424,12 @@ export function Pipeline({
         <NewCardDialog
           board={board}
           people={people}
-          toBank={creating === "bank"}
-          onClose={() => setCreating(null)}
+          onClose={() => {
+            setCreating(false);
+            load(); // a failed multi-create may have made some cards
+          }}
           onCreated={(id) => {
-            setCreating(null);
+            setCreating(false);
             load().then(() => setOpenId(id));
           }}
         />
@@ -591,43 +566,58 @@ function Calendar({ cards, onOpen }: { cards: Card[]; onOpen: (id: string) => vo
   );
 }
 
-/* ---------------- new card / new idea ---------------- */
+/* ---------------- new card ---------------- */
 
 function NewCardDialog({
   board,
   people,
-  toBank,
   onClose,
   onCreated,
 }: {
   board: Board;
   people: string[];
-  toBank: boolean;
   onClose: () => void;
   onCreated: (id: string) => void;
 }) {
   const [title, setTitle] = useState("");
-  const [format, setFormat] = useState(board.formats[0]);
+  // Several formats can be ticked: one card is made per format.
+  const [formats, setFormats] = useState<string[]>([board.formats[0]]);
   const [projectId, setProjectId] = useState("");
-  const [owner, setOwner] = useState(toBank ? "" : board.me);
+  const [owner, setOwner] = useState(board.me);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const ready = title.trim().length >= 2 && formats.length > 0;
 
   const submit = async () => {
-    if (busy || title.trim().length < 2) return;
+    if (busy || !ready) return;
     setBusy(true);
     setError(null);
+    let firstId = "";
     try {
-      const res = await fetch("/api/marketing/pipeline", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ title, format, projectId, owner, stage: toBank ? BANK : "Angle" }),
-      });
-      const d = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(d.error ?? "Could not create the card");
-      onCreated(d.card.id);
+      // In the order the formats are listed, not the order they were ticked.
+      for (const format of board.formats.filter((f) => formats.includes(f))) {
+        const res = await fetch("/api/marketing/pipeline", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            title: formats.length > 1 ? `${title.trim()} — ${format}` : title,
+            format,
+            projectId,
+            owner,
+            stage: "Angle",
+          }),
+        });
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(d.error ?? "Could not create the card");
+        firstId ||= d.card.id;
+      }
+      onCreated(firstId);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not create the card");
+      // Some cards may already exist — say so, and let the list show them.
+      setError(
+        (e instanceof Error ? e.message : "Could not create the card") +
+          (firstId ? " Some cards were created; close this window to see them." : "")
+      );
       setBusy(false);
     }
   };
@@ -638,11 +628,9 @@ function NewCardDialog({
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div className="glass-ice anim-pop-center w-full max-w-md rounded-2xl p-6">
-        <h2 className="font-serif-display text-2xl">{toBank ? "Add an idea" : "New card"}</h2>
+        <h2 className="font-serif-display text-2xl">New card</h2>
         <p className="mt-1 text-sm text-ink-soft">
-          {toBank
-            ? "Goes into the content bank. Someone picks it up when there is room."
-            : "Starts in Angle. The brief, draft and assets are added on the card itself."}
+          Starts in Angle. The brief, draft and assets are added on the card itself.
         </p>
         <div className="mt-4 flex flex-col gap-2.5">
           <input
@@ -653,19 +641,28 @@ function NewCardDialog({
             placeholder="Title — the angle, in one line"
             className={inputCls}
           />
-          <div className="grid grid-cols-2 gap-2.5">
-            <select value={format} onChange={(e) => setFormat(e.target.value)} className={inputCls} aria-label="Format">
-              {board.formats.map((x) => (
-                <option key={x}>{x}</option>
+          <div>
+            <p className="mb-1.5 text-xs text-ink-soft">
+              Format{formats.length > 1 ? " — one card is made per format" : " — tick more than one to make several cards"}
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {board.formats.map((f) => (
+                <Pill
+                  key={f}
+                  on={formats.includes(f)}
+                  onClick={() => setFormats((cur) => (cur.includes(f) ? cur.filter((x) => x !== f) : [...cur, f]))}
+                >
+                  {f}
+                </Pill>
               ))}
-            </select>
-            <select value={owner} onChange={(e) => setOwner(e.target.value)} className={inputCls} aria-label="Owner">
-              <option value="">Unassigned</option>
-              {people.map((x) => (
-                <option key={x}>{x}</option>
-              ))}
-            </select>
+            </div>
           </div>
+          <select value={owner} onChange={(e) => setOwner(e.target.value)} className={inputCls} aria-label="Owner">
+            <option value="">Unassigned</option>
+            {people.map((x) => (
+              <option key={x}>{x}</option>
+            ))}
+          </select>
           <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className={inputCls} aria-label="Project">
             <option value="">No project — general content</option>
             {board.projects.map((p) => (
@@ -679,14 +676,14 @@ function NewCardDialog({
         {error && <p className="mt-3 text-sm text-red-600 dark:text-red-300">{error}</p>}
         <div className="mt-5 flex justify-end gap-2">
           <button onClick={onClose} className="rounded-xl px-4 py-2 text-sm text-ink-soft hover:bg-parchment-dark/60">
-            Cancel
+            {error ? "Close" : "Cancel"}
           </button>
           <button
             onClick={submit}
-            disabled={busy || title.trim().length < 2}
+            disabled={busy || !ready}
             className="rounded-xl bg-accent px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
           >
-            {busy ? "Creating…" : toBank ? "Add idea" : "Create card"}
+            {busy ? "Creating…" : formats.length > 1 ? `Create ${formats.length} cards` : "Create card"}
           </button>
         </div>
       </div>

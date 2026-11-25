@@ -8,9 +8,11 @@ export interface RadarCard {
   format: string;
   stage: string;
   owner: string;
-  reviewer: string;
+  reviewers: string[];
+  /** Approvers who have approved in the current round. */
+  approved: string[];
   due: string | null;
-  channel: string;
+  channels: string[];
 }
 
 export interface SourceLink {

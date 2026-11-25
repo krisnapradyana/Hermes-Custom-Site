@@ -62,9 +62,10 @@ export async function GET() {
           format: c.format,
           stage: c.stage,
           owner: c.owner,
-          reviewer: c.reviewer,
+          reviewers: c.reviewers,
+          approved: c.approvals.map((a) => a.by),
           due: c.due ?? null,
-          channel: c.channel,
+          channels: c.channels,
         })),
     }))
     .sort((a, b) => (b.deliveredAt ?? "").localeCompare(a.deliveredAt ?? ""));

@@ -46,7 +46,11 @@ function nextStep(c: RadarCard): string {
     case "Drafting":
       return c.owner ? `${first(c.owner)} to finish the draft` : "Needs an owner";
     case "Review":
-      return c.reviewer ? `${first(c.reviewer)} to review` : "Needs a reviewer";
+      {
+        const pending = c.reviewers.filter((r) => !c.approved.includes(r));
+        if (!c.reviewers.length) return "Needs an approver";
+        return `${pending.map(first).join(", ")} to approve`;
+      }
     case "Scheduled":
       return c.owner ? `${first(c.owner)} to publish` : "Ready to publish";
     default:
@@ -329,7 +333,7 @@ export function ProjectPage({
             <table className="w-full min-w-[720px] text-left text-[13px]">
               <thead>
                 <tr className="border-b border-line/50 text-[11px] uppercase tracking-wider text-ink-faint">
-                  {["Deliverable", "Status", "Owner", "Reviewer", "Deadline", "Channel", "Next"].map((h) => (
+                  {["Deliverable", "Status", "Owner", "Approvers", "Deadline", "Channels", "Next"].map((h) => (
                     <th key={h} className="px-2.5 py-2 font-semibold">{h}</th>
                   ))}
                 </tr>
@@ -356,11 +360,23 @@ export function ProjectPage({
                               </span>
                             </td>
                             <td className="px-2.5 py-2.5"><Person name={c.owner} /></td>
-                            <td className="px-2.5 py-2.5"><Person name={c.reviewer} /></td>
+                            <td className="px-2.5 py-2.5">
+                              {c.reviewers.length ? (
+                                <span className="flex gap-0.5">
+                                  {c.reviewers.map((r) => (
+                                    <span key={r} className={c.stage === "Review" && !c.approved.includes(r) ? "" : "opacity-60"}>
+                                      <Avatar name={r} />
+                                    </span>
+                                  ))}
+                                </span>
+                              ) : (
+                                <span className="text-ink-faint">—</span>
+                              )}
+                            </td>
                             <td className={`whitespace-nowrap px-2.5 py-2.5 ${over ? "font-semibold text-red-600 dark:text-red-300" : c.due ? "" : "text-ink-faint"}`}>
                               {c.due ? `${over ? "overdue " : ""}${fmtDue(c.due)}` : "—"}
                             </td>
-                            <td className="px-2.5 py-2.5 text-ink-soft">{c.channel || "—"}</td>
+                            <td className="max-w-[150px] truncate px-2.5 py-2.5 text-ink-soft">{c.channels.join(", ") || "—"}</td>
                             <td className={`px-2.5 py-2.5 ${c.stage === "Published" ? "text-ink-faint" : ""}`}>{nextStep(c)}</td>
                           </tr>
                         );

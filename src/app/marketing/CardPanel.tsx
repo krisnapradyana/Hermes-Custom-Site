@@ -10,8 +10,10 @@ import {
   Avatar,
   FORMAT_CLS,
   chip,
+  hasApproved,
   inputCls,
   isOverdue,
+  pendingOf,
 } from "./pipeline-shared";
 
 /**
@@ -34,6 +36,8 @@ export function CardPanel({
   send,
   okToGoPublic,
   onRunChecker,
+  reload,
+  error,
   onClose,
   onDeleted,
 }: {
@@ -43,6 +47,9 @@ export function CardPanel({
   send: Send;
   okToGoPublic: (c: { projectId?: string }, stage: string) => boolean;
   onRunChecker: (format: string, draft: string) => void;
+  reload: () => Promise<void> | void;
+  /** The pipeline's last save / action error — shown here too, since this panel covers the page. */
+  error: string | null;
   onClose: () => void;
   onDeleted: () => void;
 }) {
@@ -69,13 +76,53 @@ export function CardPanel({
   const inBank = card.stage === BANK;
   const stageIdx = board.stages.indexOf(card.stage);
   const next = stageIdx >= 0 && stageIdx < board.stages.length - 1 ? board.stages[stageIdx + 1] : null;
-  const mayDecide = board.isLead || !card.reviewer || card.reviewer === board.me;
+  // Approvals: every listed approver must approve. Someone on the list who
+  // has already approved has nothing left to decide; leadership can step in.
+  const listed = card.reviewers.includes(board.me);
+  const iApproved = hasApproved(card, board.me);
+  const mayDecide = listed ? !iApproved : board.isLead || card.reviewers.length === 0;
+  const pending = pendingOf(card);
+  const othersPending = pending.filter((n) => n !== board.me);
+  const [sharing, setSharing] = useState(false);
+  const [uploading, setUploading] = useState(0);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
   const checker = CHECKER_FOR[card.format];
-  // Keep a current owner/reviewer selectable even if they left the team list.
+  // Keep a current owner selectable even if they left the team list.
   const names = useMemo(
-    () => Array.from(new Set([...people, card.owner, card.reviewer].filter(Boolean))),
-    [people, card.owner, card.reviewer]
+    () => Array.from(new Set([...people, card.owner].filter(Boolean))),
+    [people, card.owner]
   );
+  const toggleChannel = (ch: string) => {
+    const channels = card.channels.includes(ch) ? card.channels.filter((x) => x !== ch) : [...card.channels, ch];
+    set({ channels });
+  };
+
+  /** Upload dropped / chosen files one by one; the server attaches each to the card. */
+  const upload = async (files: File[]) => {
+    if (!files.length) return;
+    setNote(null);
+    setUploading((n) => n + files.length);
+    const problems: string[] = [];
+    for (const file of files) {
+      try {
+        const form = new FormData();
+        form.set("card", card.id);
+        form.set("file", file);
+        const res = await fetch("/api/marketing/files", { method: "POST", body: form });
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({}));
+          problems.push(`${file.name}: ${d.error ?? "upload failed"}`);
+        }
+      } catch {
+        problems.push(`${file.name}: upload failed`);
+      } finally {
+        setUploading((n) => n - 1);
+      }
+    }
+    await reload();
+    if (problems.length) setNote(problems.join(" · "));
+  };
 
   const set = (change: Partial<Card>) => send(card.id, change, change);
   const saveText = (key: "title" | "brief" | "draft", value: string) => {
@@ -135,7 +182,9 @@ export function CardPanel({
   };
 
   const approve = () => {
-    if (!okToGoPublic(card, "Scheduled")) return;
+    // Only the approval that completes the round moves the piece to Scheduled.
+    const completes = !listed || othersPending.length === 0;
+    if (completes && !okToGoPublic(card, "Scheduled")) return;
     send(card.id, { action: "approve" });
   };
   const requestChanges = () => {
@@ -205,6 +254,11 @@ export function CardPanel({
 
         {/* ---- body ---- */}
         <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5 pt-4">
+          {error && (
+            <p className="mb-3 rounded-xl border border-red-400/40 bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-300">
+              {error}
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-x-4 gap-y-3">
             <Field label="Owner">
               <div className="flex items-center gap-2">
@@ -217,28 +271,9 @@ export function CardPanel({
                 </select>
               </div>
             </Field>
-            <Field label="Reviewer">
-              <div className="flex items-center gap-2">
-                <Avatar name={card.reviewer} />
-                <select value={card.reviewer} onChange={(e) => set({ reviewer: e.target.value })} className={sel}>
-                  <option value="">No reviewer</option>
-                  {names.map((x) => (
-                    <option key={x}>{x}</option>
-                  ))}
-                </select>
-              </div>
-            </Field>
             <Field label="Format">
               <select value={card.format} onChange={(e) => set({ format: e.target.value })} className={sel}>
                 {board.formats.map((x) => (
-                  <option key={x}>{x}</option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Channel">
-              <select value={card.channel} onChange={(e) => set({ channel: e.target.value })} className={sel}>
-                <option value="">Not set</option>
-                {board.channels.map((x) => (
                   <option key={x}>{x}</option>
                 ))}
               </select>
@@ -278,6 +313,75 @@ export function CardPanel({
                   : "The client has not published this project anywhere yet — do not post before they do."}
             </p>
           )}
+
+          <Section title="Channels" hint="where this piece goes out">
+            <div className="flex flex-wrap gap-1.5">
+              {board.channels.map((ch) => {
+                const on = card.channels.includes(ch);
+                return (
+                  <label
+                    key={ch}
+                    className={`flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[13px] transition-colors ${
+                      on ? "border-accent bg-accent-soft text-accent" : "border-line/60 text-ink-soft hover:bg-parchment-dark/50"
+                    }`}
+                  >
+                    <input type="checkbox" checked={on} onChange={() => toggleChannel(ch)} className="accent-[var(--color-accent)]" />
+                    {ch}
+                  </label>
+                );
+              })}
+            </div>
+          </Section>
+
+          <Section
+            title="Approvers"
+            hint={card.reviewers.length > 1 ? "all must approve" : undefined}
+          >
+            {card.reviewers.length === 0 && (
+              <p className="mb-2 text-xs text-ink-faint">Nobody yet — without an approver, anyone with access can approve.</p>
+            )}
+            {card.reviewers.map((r) => {
+              const ok = card.approvals.find((a) => a.by === r);
+              return (
+                <div key={r} className="group mb-1.5 flex items-center gap-2 text-[13px]">
+                  <Avatar name={r} />
+                  <span className="min-w-0 flex-1 truncate">{r}</span>
+                  {card.stage === "Review" || ok ? (
+                    ok ? (
+                      <span className="text-xs text-emerald-700 dark:text-emerald-300">
+                        ✓ Approved {new Date(ok.at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-amber-700 dark:text-amber-300">Waiting</span>
+                    )
+                  ) : null}
+                  <button
+                    onClick={() => set({ reviewers: card.reviewers.filter((x) => x !== r) })}
+                    aria-label={`Remove ${r}`}
+                    title="Remove approver"
+                    className="text-ink-faint opacity-0 hover:text-red-600 focus:opacity-100 group-hover:opacity-100"
+                  >
+                    ×
+                  </button>
+                </div>
+              );
+            })}
+            {people.some((x) => !card.reviewers.includes(x)) && (
+              <select
+                value=""
+                onChange={(e) => e.target.value && set({ reviewers: [...card.reviewers, e.target.value] })}
+                className={`${sel} !w-auto text-ink-soft`}
+                aria-label="Add approver"
+              >
+                <option value="">+ Add approver</option>
+                {people
+                  .filter((x) => !card.reviewers.includes(x))
+                  .map((x) => (
+                    <option key={x}>{x}</option>
+                  ))}
+              </select>
+            )}
+          </Section>
 
           <Section title="Brief">
             <textarea
@@ -385,38 +489,119 @@ export function CardPanel({
             </Section>
           )}
 
-          <Section title="Assets" hint="links to Drive files">
-            {card.assets.map((a) => (
-              <div key={a.id} className="group mb-1.5 flex items-center gap-2 rounded-xl border border-line/60 bg-card/70 px-3 py-1.5 text-[13px]">
-                <a href={a.url} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate text-accent hover:underline">
-                  {a.label} ↗
-                </a>
+          <Section title="Previews and files" hint="drop images or PDFs, or link from Drive">
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOver(false);
+                upload(Array.from(e.dataTransfer.files));
+              }}
+              className={`rounded-xl border border-dashed p-2 transition-colors ${
+                dragOver ? "border-accent bg-accent-soft/50" : "border-line/70"
+              }`}
+            >
+              {card.assets.some((a) => a.type) && (
+                <div className="mb-2 grid grid-cols-4 gap-2">
+                  {card.assets
+                    .filter((a) => a.type)
+                    .map((a) => (
+                      <div key={a.id} className="group relative">
+                        <a
+                          href={a.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={a.label}
+                          className="flex aspect-square items-center justify-center overflow-hidden rounded-lg border border-line/60 bg-card/70"
+                        >
+                          {a.type?.startsWith("image/") ? (
+                            // Access-gated same-origin file; next/image would need a public loader.
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={a.url} alt={a.label} loading="lazy" className="h-full w-full object-cover" />
+                          ) : (
+                            <span className="px-1 text-center text-[11px] text-ink-soft">
+                              PDF
+                              <span className="mt-0.5 block truncate text-ink-faint">{a.label}</span>
+                            </span>
+                          )}
+                        </a>
+                        <button
+                          onClick={() => removeAsset(a.id)}
+                          aria-label={`Delete ${a.label}`}
+                          title="Delete file"
+                          className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-xs text-white opacity-0 focus:opacity-100 group-hover:opacity-100"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                </div>
+              )}
+              <div className="flex items-center justify-center gap-2 py-2 text-[12.5px] text-ink-faint">
+                {uploading > 0 ? (
+                  `Uploading ${uploading} ${uploading === 1 ? "file" : "files"}…`
+                ) : (
+                  <>
+                    Drop images or PDFs here, or
+                    <button onClick={() => fileInput.current?.click()} className="text-accent underline">
+                      choose files
+                    </button>
+                    <span>· 10 MB each</span>
+                  </>
+                )}
+                <input
+                  ref={fileInput}
+                  type="file"
+                  multiple
+                  accept="image/png,image/jpeg,image/webp,image/gif,application/pdf"
+                  className="hidden"
+                  onChange={(e) => {
+                    upload(Array.from(e.target.files ?? []));
+                    e.target.value = "";
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="mt-2">
+              {card.assets
+                .filter((a) => !a.type)
+                .map((a) => (
+                  <div key={a.id} className="group mb-1.5 flex items-center gap-2 rounded-xl border border-line/60 bg-card/70 px-3 py-1.5 text-[13px]">
+                    <a href={a.url} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate text-accent hover:underline">
+                      {a.label} ↗
+                    </a>
+                    <button
+                      onClick={() => removeAsset(a.id)}
+                      aria-label={`Remove ${a.label}`}
+                      title="Remove link"
+                      className="text-ink-faint opacity-0 hover:text-red-600 focus:opacity-100 group-hover:opacity-100"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              <div className="flex gap-2">
+                <input value={assetLabel} onChange={(e) => setAssetLabel(e.target.value)} placeholder="Name" className={`${inputCls} !w-[38%] text-[13px]`} />
+                <input
+                  value={assetUrl}
+                  onChange={(e) => setAssetUrl(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && addAsset()}
+                  placeholder="Drive link, e.g. for video — https://drive.google.com/…"
+                  className={`${inputCls} text-[13px]`}
+                />
                 <button
-                  onClick={() => removeAsset(a.id)}
-                  aria-label={`Remove ${a.label}`}
-                  title="Remove link"
-                  className="text-ink-faint opacity-0 hover:text-red-600 focus:opacity-100 group-hover:opacity-100"
+                  onClick={addAsset}
+                  disabled={!assetUrl.trim()}
+                  className="shrink-0 rounded-xl border border-line/60 px-3 text-xs text-ink-soft hover:bg-parchment-dark/60 disabled:opacity-40"
                 >
-                  ×
+                  Add
                 </button>
               </div>
-            ))}
-            <div className="flex gap-2">
-              <input value={assetLabel} onChange={(e) => setAssetLabel(e.target.value)} placeholder="Name" className={`${inputCls} !w-[38%] text-[13px]`} />
-              <input
-                value={assetUrl}
-                onChange={(e) => setAssetUrl(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && addAsset()}
-                placeholder="https://drive.google.com/…"
-                className={`${inputCls} text-[13px]`}
-              />
-              <button
-                onClick={addAsset}
-                disabled={!assetUrl.trim()}
-                className="shrink-0 rounded-xl border border-line/60 px-3 text-xs text-ink-soft hover:bg-parchment-dark/60 disabled:opacity-40"
-              >
-                Add
-              </button>
             </div>
           </Section>
 
@@ -467,6 +652,12 @@ export function CardPanel({
             Delete card
           </button>
           <span className={`${chip} ${FORMAT_CLS[card.format] ?? "border-line/60 text-ink-soft"} ml-1`}>{card.format}</span>
+          <button
+            onClick={() => setSharing(true)}
+            className="ml-1 rounded-lg border border-line/60 px-2.5 py-1.5 text-xs text-ink-soft transition-colors hover:border-accent hover:text-accent"
+          >
+            Share to Slack
+          </button>
           <span className="ml-auto" />
           {card.stage === "Review" ? (
             mayDecide ? (
@@ -475,15 +666,22 @@ export function CardPanel({
                   Request changes
                 </button>
                 <button onClick={approve} className="rounded-xl bg-accent px-5 py-2 text-sm font-medium text-white hover:bg-accent-hover">
-                  Approve
+                  {listed && card.reviewers.length > 1
+                    ? `Approve (${card.approvals.length + 1} of ${card.reviewers.length})`
+                    : "Approve"}
                 </button>
               </>
             ) : (
               <>
-                <span className="text-[13px] text-ink-soft">Waiting for {card.reviewer} to review</span>
-                <button onClick={remind} className="rounded-xl border border-line/60 px-4 py-2 text-sm text-ink-soft hover:bg-parchment-dark/60">
-                  Remind on Slack
-                </button>
+                <span className="min-w-0 truncate text-[13px] text-ink-soft">
+                  {iApproved ? "You approved · " : ""}
+                  {pending.length ? `waiting for ${pending.map((n) => n.split(" ")[0]).join(", ")}` : "waiting for approval"}
+                </span>
+                {othersPending.length > 0 && (
+                  <button onClick={remind} className="shrink-0 rounded-xl border border-line/60 px-4 py-2 text-sm text-ink-soft hover:bg-parchment-dark/60">
+                    Remind on Slack
+                  </button>
+                )}
               </>
             )
           ) : next && !inBank ? (
@@ -495,6 +693,117 @@ export function CardPanel({
           ) : null}
         </div>
       </aside>
+      {sharing && (
+        <ShareDialog
+          card={card}
+          defaultChannel={project?.slackChannel ?? ""}
+          send={send}
+          onClose={() => setSharing(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ---------------- share to Slack ---------------- */
+
+interface SlackChannel {
+  id: string;
+  name: string;
+  isPrivate: boolean;
+}
+
+function ShareDialog({
+  card,
+  defaultChannel,
+  send,
+  onClose,
+}: {
+  card: Card;
+  defaultChannel: string;
+  send: Send;
+  onClose: () => void;
+}) {
+  const [channels, setChannels] = useState<SlackChannel[] | null>(null);
+  const [channel, setChannel] = useState("");
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/marketing/slack-channels")
+      .then((r) => (r.ok ? r.json() : { channels: [] }))
+      .then((d: { channels: SlackChannel[] }) => {
+        setChannels(d.channels);
+        // Start on the project's own channel when the bot is in it.
+        const want = defaultChannel.replace(/^#/, "").toLowerCase();
+        const hit = want ? d.channels.find((c) => c.id.toLowerCase() === want || c.name.toLowerCase() === want) : undefined;
+        if (hit) setChannel(hit.id);
+      })
+      .catch(() => setChannels([]));
+  }, [defaultChannel]);
+
+  const people = Array.from(new Set([card.owner, ...card.reviewers].filter(Boolean)));
+  const post = async () => {
+    if (busy || !channel) return;
+    setBusy(true);
+    const ok = await send(card.id, { action: "share", channel, text });
+    if (ok) onClose();
+    else setBusy(false); // the panel's error banner says why
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4"
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="glass-ice anim-pop-center w-full max-w-md rounded-2xl p-6">
+        <h2 className="font-serif-display text-2xl">Share to Slack</h2>
+        <p className="mt-1 text-sm text-ink-soft">
+          Posts one message about this card as the Hermes bot
+          {people.length ? `, mentioning ${people.map((n) => n.split(" ")[0]).join(", ")}` : ""}.
+        </p>
+        <div className="mt-4 flex flex-col gap-2.5">
+          {channels === null ? (
+            <p className="text-sm text-ink-faint">Loading channels…</p>
+          ) : channels.length === 0 ? (
+            <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+              No channels found. Invite the Hermes bot to the channel in Slack first, then reopen this window.
+            </p>
+          ) : (
+            <select value={channel} onChange={(e) => setChannel(e.target.value)} className={inputCls} aria-label="Slack channel">
+              <option value="">Choose a channel…</option>
+              {channels.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.isPrivate ? "🔒 " : "# "}
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          )}
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={3}
+            placeholder="What changed? (optional) — e.g. Draft v2 is in, please check the opening."
+            className={`${inputCls} resize-y`}
+          />
+          <p className="text-[11px] text-ink-faint">
+            Only channels the Hermes bot has been invited to are listed.
+          </p>
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <button onClick={onClose} className="rounded-xl px-4 py-2 text-sm text-ink-soft hover:bg-parchment-dark/60">
+            Cancel
+          </button>
+          <button
+            onClick={post}
+            disabled={busy || !channel}
+            className="rounded-xl bg-accent px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
+          >
+            {busy ? "Posting…" : "Post to Slack"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
